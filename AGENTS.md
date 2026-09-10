@@ -74,7 +74,7 @@ Full list: `docs/SRS.md` Appendix B. Minimum bar for any PR:
 ```bash
 # Backend
 cd backend
-npm run start:dev        # run API locally
+npm run dev              # run API locally (ts-node-dev, hot reload)
 npm run test             # unit tests
 npm run test:e2e         # integration tests
 npm run prisma:migrate   # apply schema changes

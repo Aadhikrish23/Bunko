@@ -4,6 +4,9 @@ This document covers cross-cutting API conventions. For exact endpoint
 contracts (request/response schemas), see `docs/openapi.yaml` — that
 file is binding; this document explains the rules behind it.
 
+The same spec is also served interactively at `GET /api/docs` (Swagger
+UI) once the backend is running — see `docs/ARCHITECTURE.md` §7.
+
 ## 1. Base URL & Versioning
 
 All endpoints are prefixed `/api/v1`. Breaking changes require a new

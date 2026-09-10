@@ -15,13 +15,37 @@ acceptance criteria.
 ### T-001 — Repo scaffolding and tooling
 Depends on: none · SRS: —
 
-Initialise `backend/` (NestJS) and `frontend/` (Vite + React) apps with
-TypeScript strict mode, ESLint, Prettier configured per
-`CODING_STANDARDS.md`.
+Initialise `backend/` (Express + TypeScript) and `frontend/` (Vite +
+React) apps with strict TypeScript, ESLint, Prettier configured per
+`CODING_STANDARDS.md`. Install Zod for validation.
 
 - [ ] `npm run lint`, `typecheck`, `test` scripts exist in both apps
 - [ ] Strict TS config in both apps
+- [ ] `backend/src/app.ts` assembles Express with a placeholder health
+      check route (`GET /health`) — proves the base server runs
 - [ ] `.gitignore` covers `node_modules`, `.env`, build output
+
+### T-001a — Playwright test harness
+Depends on: T-001 · SRS: —
+
+Set up `backend/tests/playwright.config.ts` and
+`frontend/e2e/playwright.config.ts` per `docs/TESTING_STRATEGY.md` §2.
+
+- [ ] `npm run test` (backend) runs Playwright API tests against
+      `GET /health` successfully as a smoke test
+- [ ] `npm run test:e2e` (frontend) runs a trivial Playwright browser
+      test successfully as a smoke test
+- [ ] Both configs support headless CI execution
+
+### T-001b — Swagger UI setup
+Depends on: T-001 · SRS: §28
+
+Wire `swagger-ui-express` to serve `docs/openapi.yaml` at
+`GET /api/docs`, per `ARCHITECTURE.md` §7.
+
+- [ ] `/api/docs` renders the interactive Swagger UI from the YAML
+      file directly (no build/codegen step)
+- [ ] `/api/openapi.yaml` serves the raw file for tooling
 
 ### T-002 — Local dev environment (Docker Compose)
 Depends on: T-001 · SRS: §34
@@ -54,11 +78,15 @@ until T-003 lands).
 ### T-005 — Response envelope and global error handling
 Depends on: T-003 · SRS: §30
 
-Implement the success/error envelope from `API_SPEC.md` §3 as a global
-NestJS interceptor + exception filter.
+Implement the success/error envelope from `API_SPEC.md` §3: a small
+response-shaping helper used by every controller for success, and a
+single global `errorHandler` middleware (registered last in `app.ts`,
+per `CODING_STANDARDS.md` §5) for errors.
 
 - [ ] Every response (success or error) matches the envelope shape
 - [ ] Error codes match `API_SPEC.md` §4; no stack traces leak to client
+- [ ] `AppError` class exists (`code`, `message`, `statusCode`) for
+      controllers/services to throw
 
 ### T-006 — User registration
 Depends on: T-005 · SRS: §23, FR-001
@@ -86,14 +114,15 @@ Depends on: T-007 · SRS: §23
 - [ ] Reusing an already-rotated refresh token is rejected and logged
 - [ ] New access token issued on success
 
-### T-009 — Auth guard and current-user decorator
+### T-009 — Auth middleware
 Depends on: T-007 · SRS: §25
 
-Global `AuthGuard` + `@CurrentUser()` decorator used by every
-subsequent authenticated endpoint.
+`authMiddleware` (`middleware/auth.ts`) that verifies the JWT and sets
+`req.user`, applied explicitly on every route that needs it (see
+`CODING_STANDARDS.md` §6 — there is no global framework guard).
 
 - [ ] Missing/invalid/expired token returns 401 `UNAUTHENTICATED`
-- [ ] `@CurrentUser()` never trusts a client-supplied user ID
+- [ ] `req.user.id` never derived from a client-supplied field
 
 ### T-010 — User profile endpoint
 Depends on: T-009 · SRS: §23
@@ -351,14 +380,16 @@ flow diagram in SRS §12.10 exactly (skip must be one tap).
 
 | Phase | Tickets |
 |---|---|
-| 1 — Foundation | T-001 – T-011 (11) |
+| 1 — Foundation | T-001, T-001a, T-001b, T-002 – T-011 (13) |
 | 2 — Book Management | T-012 – T-017 (6) |
 | 3 — Reading Tracking | T-018 – T-023 (6) |
 | 4 — Digital Reading | T-024 – T-031 (8) |
 | 5 — Unified Reading | T-032 – T-037 (6) |
 | Cross-cutting Frontend | T-038 – T-041 (4) |
-| **Total (MVP)** | **41** |
+| **Total (MVP)** | **43** |
 
 Phase 6+ tickets (Annotations, Reviews, Soundtrack, Offline/Sync, AI)
 are intentionally not written yet — see `AGENTS.md` §3. Do not
-pre-create them.
+pre-create them. When Phase 10 (AI Layer) begins, its tickets will
+scaffold a separate `ai-service/` (Python/FastAPI) per
+`ARCHITECTURE.md` §8 — not a module inside `backend/`.

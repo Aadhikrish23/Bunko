@@ -242,7 +242,15 @@ ReadingJourney 1 --- 0..1 ReadingPosition (canonical position)
 Adding these tables before their phase begins is scope creep — see
 `AGENTS.md` §3.
 
-## 5. Storage Quotas (SRS §38.6)
+## 5. Future: Vector Search (Phase 10 — not implemented in MVP)
+
+The local and production Postgres images are `pgvector/pgvector:pg16`
+rather than plain `postgres:16`, so the extension is available without
+a later migration project (`ARCHITECTURE.md` §8). **Do not** run
+`CREATE EXTENSION vector` or add embedding columns during MVP — this
+is purely so the option exists when Phase 10 begins per `SRS.md` §20.
+
+## 6. Storage Quotas (SRS §38.6)
 
 Enforced at the application layer, not the DB:
 

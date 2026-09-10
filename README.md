@@ -28,10 +28,13 @@ are an agent picking up work here.
 
 ## Tech Stack (MVP)
 
-- **Backend:** Node.js 20, TypeScript, NestJS, PostgreSQL 16, Prisma ORM, Redis (cache + jobs), S3-compatible object storage
+- **Backend:** Node.js 20, TypeScript, Express, PostgreSQL 16, Prisma ORM, Redis (cache + jobs), S3-compatible object storage
+- **API Docs:** OpenAPI 3.0 (`docs/openapi.yaml`), served interactively via Swagger UI at `/api/docs`
 - **Frontend:** React 18, TypeScript, Vite, TanStack Query, Tailwind CSS, epub.js, pdf.js
+- **Testing:** Playwright (both API/integration tests and browser E2E — one framework end to end)
 - **Auth:** JWT access/refresh tokens, Argon2 password hashing
 - **Infra:** Docker Compose (local dev), GitHub Actions (CI)
+- **AI Services (Phase 10, future):** Python 3.12, FastAPI — a separate service, not part of MVP. See `docs/ARCHITECTURE.md` §8.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for rationale and details.
 
@@ -42,7 +45,7 @@ git clone <this-repo-url>
 cd bunko
 cp .env.example .env          # fill in local secrets
 docker compose up -d          # postgres, redis, minio
-cd backend && npm install && npm run prisma:migrate && npm run start:dev
+cd backend && npm install && npm run prisma:migrate && npm run dev
 cd ../frontend && npm install && npm run dev
 ```
 
