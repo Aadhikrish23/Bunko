@@ -1,0 +1,530 @@
+openapi: 3.0.3
+info:
+  title: Bunko API
+  version: "1.0.0-mvp"
+  description: >
+    REST API for Bunko MVP (SRS.md Phases 1-5). Binding contract —
+    see API_SPEC.md for cross-cutting conventions.
+servers:
+  - url: /api/v1
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      summary: Create a new user account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 10 }
+                displayName: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "409":
+          description: Email already registered
+
+  /auth/login:
+    post:
+      summary: Authenticate and receive tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "401":
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      summary: Exchange a refresh token (httpOnly cookie) for a new access token
+      security: []
+      responses:
+        "200":
+          description: New access token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      accessToken: { type: string }
+
+  /works:
+    get:
+      summary: List the current user's library
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: "#/components/schemas/ReadingStatus" }
+        - in: query
+          name: shelfId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Search by title/author
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: Paginated list of works in the user's library
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkListResponse" }
+    post:
+      summary: Add a book (Work) to the user's library
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWorkRequest" }
+      responses:
+        "201":
+          description: Work added to library
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkResponse" }
+
+  /works/{workId}:
+    get:
+      summary: Get a single work with its editions/copies
+      parameters:
+        - $ref: "#/components/parameters/WorkId"
+      responses:
+        "200":
+          description: Work detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkResponse" }
+        "404": { description: Not found or not owned by caller }
+    patch:
+      summary: Update reading status or metadata for a work in the library
+      parameters:
+        - $ref: "#/components/parameters/WorkId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { $ref: "#/components/schemas/ReadingStatus" }
+      responses:
+        "200": { description: Updated }
+    delete:
+      summary: Remove a work from the user's library
+      parameters:
+        - $ref: "#/components/parameters/WorkId"
+      responses:
+        "204": { description: Removed }
+
+  /editions:
+    post:
+      summary: Add an edition (physical or digital) to a work
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateEditionRequest" }
+      responses:
+        "201":
+          description: Edition created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EditionResponse" }
+
+  /copies:
+    post:
+      summary: Register a copy (the user's instance of an edition)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [editionId]
+              properties:
+                editionId: { type: string, format: uuid }
+                digitalFileId: { type: string, format: uuid, nullable: true }
+      responses:
+        "201":
+          description: Copy created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CopyResponse" }
+
+  /files/upload-url:
+    post:
+      summary: Request a signed URL to upload a digital book file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileName, mimeType, sizeBytes]
+              properties:
+                fileName: { type: string }
+                mimeType: { type: string, enum: [application/epub+zip, application/pdf] }
+                sizeBytes: { type: integer }
+      responses:
+        "200":
+          description: Signed upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      fileId: { type: string, format: uuid }
+                      uploadUrl: { type: string }
+        "413": { description: Exceeds size limit or remaining quota }
+
+  /files/{fileId}/confirm:
+    post:
+      summary: Confirm and validate an uploaded file
+      parameters:
+        - in: path
+          name: fileId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: File validated and ready to attach to a Copy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DigitalFileResponse" }
+        "422": { description: File failed content/type validation }
+
+  /editions/{editionId}/reader-manifest:
+    get:
+      summary: Get everything the client Reader needs to open a digital edition
+      description: >
+        Resolves the signed file URL, the last saved position for this
+        user (via continuity mapping, SRS §11), and auto-starts a
+        reading session (SRS §12.8).
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Reader manifest
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReaderManifestResponse" }
+
+  /reading-journeys/{journeyId}/resolve-position:
+    post:
+      summary: Resolve the canonical position into a target edition's location
+      description: Implements the mapping algorithm in SRS §11.7-11.9.
+      parameters:
+        - in: path
+          name: journeyId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetEditionId]
+              properties:
+                targetEditionId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Resolved location with confidence score
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResolvedPositionResponse" }
+
+  /reading-sessions:
+    post:
+      summary: Start a reading session (SRS §12.7-12.9)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [copyId]
+              properties:
+                copyId: { type: string, format: uuid }
+                startPosition: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Session started (state ACTIVE)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadingSessionResponse" }
+        "409":
+          description: Another session is already ACTIVE for this user
+
+  /reading-sessions/{sessionId}/progress:
+    patch:
+      summary: Report a position update for an active digital session
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [position]
+              properties:
+                position: { type: string }
+      responses:
+        "200": { description: Progress recorded }
+
+  /reading-sessions/{sessionId}/pause:
+    post:
+      summary: Pause an active session (idle timeout or manual)
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Session paused
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadingSessionResponse" }
+
+  /reading-sessions/{sessionId}/end:
+    post:
+      summary: End a session (idempotent, SRS §12.9 step 4-5)
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endPosition: { type: string }
+                reflection: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Session ended, summary returned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadingSessionResponse" }
+
+  /journal:
+    get:
+      summary: Chronological journal of reading sessions (SRS §12.5)
+      parameters:
+        - in: query
+          name: workId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: Paginated journal entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ReadingSessionResponse" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    WorkId:
+      in: path
+      name: workId
+      required: true
+      schema: { type: string, format: uuid }
+    SessionId:
+      in: path
+      name: sessionId
+      required: true
+      schema: { type: string, format: uuid }
+
+  schemas:
+    ReadingStatus:
+      type: string
+      enum: [WANT_TO_READ, READING, FINISHED, DID_NOT_FINISH]
+
+    EditionFormat:
+      type: string
+      enum: [PHYSICAL, EPUB, PDF]
+
+    SessionStatus:
+      type: string
+      enum: [ACTIVE, PAUSED, ENDED]
+
+    AuthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            accessToken: { type: string }
+            user:
+              type: object
+              properties:
+                id: { type: string, format: uuid }
+                email: { type: string }
+                displayName: { type: string }
+
+    CreateWorkRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        authors:
+          type: array
+          items: { type: string }
+        seriesName: { type: string, nullable: true }
+        genres:
+          type: array
+          items: { type: string }
+
+    WorkResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            title: { type: string }
+            authors:
+              type: array
+              items: { type: string }
+            status: { $ref: "#/components/schemas/ReadingStatus" }
+            editions:
+              type: array
+              items: { $ref: "#/components/schemas/EditionResponse" }
+
+    WorkListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/WorkResponse" }
+        meta:
+          type: object
+          properties:
+            page: { type: integer }
+            pageSize: { type: integer }
+            total: { type: integer }
+
+    CreateEditionRequest:
+      type: object
+      required: [workId, format]
+      properties:
+        workId: { type: string, format: uuid }
+        format: { $ref: "#/components/schemas/EditionFormat" }
+        publisher: { type: string, nullable: true }
+        language: { type: string, nullable: true }
+        isbn: { type: string, nullable: true }
+
+    EditionResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        format: { $ref: "#/components/schemas/EditionFormat" }
+        publisher: { type: string, nullable: true }
+
+    CopyResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            editionId: { type: string, format: uuid }
+            digitalFileId: { type: string, format: uuid, nullable: true }
+
+    DigitalFileResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            mimeType: { type: string }
+            sizeBytes: { type: integer }
+            checksum: { type: string }
+
+    ReaderManifestResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            fileUrl: { type: string }
+            startPosition: { type: string, nullable: true }
+            confidence: { type: number, nullable: true }
+            sessionId: { type: string, format: uuid }
+
+    ResolvedPositionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            structuralId: { type: string, nullable: true }
+            chapterLabel: { type: string, nullable: true }
+            confidence: { type: number }
+            requiresConfirmation: { type: boolean }
+
+    ReadingSessionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            status: { $ref: "#/components/schemas/SessionStatus" }
+            startTime: { type: string, format: date-time }
+            endTime: { type: string, format: date-time, nullable: true }
+            durationSeconds: { type: integer, nullable: true }
+            startPosition: { type: string, nullable: true }
+            endPosition: { type: string, nullable: true }
+            reflection: { type: string, nullable: true }
