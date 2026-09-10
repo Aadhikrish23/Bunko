@@ -37,3 +37,6 @@ Thumbs.db
 
 # Misc
 *.local
+
+# TypeScript incremental build info
+*.tsbuildinfo
