@@ -156,6 +156,24 @@ Depends on: T-012, T-009 · SRS: §15, §16, FR-003
 
 - [ ] All endpoints scoped to caller's `UserWork` rows
 - [ ] 404 (not 403) when accessing another user's work
+- [ ] `POST` with a matching `externalSource`+`externalId` reuses the
+      existing `Work` row instead of creating a duplicate
+      (`DATA_MODEL.md` §4)
+
+### T-013a — External book metadata search (Open Library)
+Depends on: T-012 · SRS: §16, `ARCHITECTURE.md` §11
+
+`GET /metadata/search` proxying Open Library per `openapi.yaml`, so
+adding a book can start from a search-and-pick flow instead of fully
+manual entry.
+
+- [ ] Response shape matches `MetadataCandidate` regardless of
+      provider (provider-agnostic, per `ARCHITECTURE.md` §11)
+- [ ] Open Library queried only on explicit user search, never
+      re-queried automatically after a `Work` is created
+- [ ] Handles Open Library rate-limit/error responses gracefully
+      (returns an empty list with a retryable error code, not a 500)
+- [ ] No API key/secret required or referenced anywhere in this ticket
 
 ### T-014 — Edition endpoints
 Depends on: T-013 · SRS: §16
@@ -381,12 +399,12 @@ flow diagram in SRS §12.10 exactly (skip must be one tap).
 | Phase | Tickets |
 |---|---|
 | 1 — Foundation | T-001, T-001a, T-001b, T-002 – T-011 (13) |
-| 2 — Book Management | T-012 – T-017 (6) |
+| 2 — Book Management | T-012 – T-017 + T-013a (7) |
 | 3 — Reading Tracking | T-018 – T-023 (6) |
 | 4 — Digital Reading | T-024 – T-031 (8) |
 | 5 — Unified Reading | T-032 – T-037 (6) |
 | Cross-cutting Frontend | T-038 – T-041 (4) |
-| **Total (MVP)** | **43** |
+| **Total (MVP)** | **44** |
 
 Phase 6+ tickets (Annotations, Reviews, Soundtrack, Offline/Sync, AI)
 are intentionally not written yet — see `AGENTS.md` §3. Do not

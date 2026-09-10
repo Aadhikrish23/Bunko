@@ -45,17 +45,22 @@ model Series {
 
 // "Work" = abstract literary work (SRS §4 "Work")
 model Work {
-  id          String   @id @default(uuid())
-  title       String
-  seriesId    String?
-  series      Series?  @relation(fields: [seriesId], references: [id])
-  description String?
-  genres      String[] // simple string array for MVP; normalise later if needed
-  createdAt   DateTime @default(now())
+  id             String   @id @default(uuid())
+  title          String
+  seriesId       String?
+  series         Series?  @relation(fields: [seriesId], references: [id])
+  description    String?
+  genres         String[] // simple string array for MVP; normalise later if needed
+  coverImageUrl  String?
+  externalSource String?  // e.g. "open-library"; null if manually entered
+  externalId     String?  // e.g. Open Library work key ("OL45804W")
+  createdAt      DateTime @default(now())
 
   authors  WorkAuthor[]
   editions Edition[]
   users    UserWork[]
+
+  @@unique([externalSource, externalId])
 }
 
 model WorkAuthor {
@@ -231,7 +236,26 @@ Copy 1 --- 0..1 DigitalFile
 ReadingJourney 1 --- 0..1 ReadingPosition (canonical position)
 ```
 
-## 4. Deferred to Phase 6+ (do not create yet)
+## 4. External Metadata Source (SRS §16)
+
+`Work.externalSource`/`externalId` records where a book's metadata
+came from (see `ARCHITECTURE.md` §11 for the provider decision). This
+is deliberately nullable and non-unique-alone:
+
+- A book added via metadata search stores the provider's stable ID
+  (e.g. Open Library's `OL45804W`) so re-adding the same book resolves
+  to the existing `Work` row instead of creating a duplicate
+  (`@@unique([externalSource, externalId])` — Postgres treats rows
+  where both are `NULL` as distinct, so manual entries never collide).
+- A manually-entered book (no metadata search used) leaves both
+  fields `null`.
+- Only `Work`-level metadata is deduplicated this way for MVP;
+  `Edition`-level external IDs (e.g. per-ISBN edition records) are not
+  tracked separately in MVP — one `Work` may accumulate multiple
+  `Edition` rows from user input without cross-referencing the
+  provider's own edition data.
+
+## 5. Deferred to Phase 6+ (do not create yet)
 
 - `Highlight`, `Quote`, standalone `Note` with location anchoring
 - `Review`, `Rating`
@@ -242,7 +266,7 @@ ReadingJourney 1 --- 0..1 ReadingPosition (canonical position)
 Adding these tables before their phase begins is scope creep — see
 `AGENTS.md` §3.
 
-## 5. Future: Vector Search (Phase 10 — not implemented in MVP)
+## 6. Future: Vector Search (Phase 10 — not implemented in MVP)
 
 The local and production Postgres images are `pgvector/pgvector:pg16`
 rather than plain `postgres:16`, so the extension is available without
@@ -250,7 +274,7 @@ a later migration project (`ARCHITECTURE.md` §8). **Do not** run
 `CREATE EXTENSION vector` or add embedding columns during MVP — this
 is purely so the option exists when Phase 10 begins per `SRS.md` §20.
 
-## 6. Storage Quotas (SRS §38.6)
+## 7. Storage Quotas (SRS §38.6)
 
 Enforced at the application layer, not the DB:
 

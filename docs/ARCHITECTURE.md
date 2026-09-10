@@ -201,3 +201,43 @@ bunko/
 Deployment target (containers on a managed platform, e.g. AWS
 ECS/Fargate or Fly.io) is left open per SRS §34 flexibility; CI builds
 a container image regardless of final hosting choice.
+
+## 11. Book Metadata Provider (SRS §16)
+
+Adding a book (T-013) needs a source for title/author/cover/ISBN
+metadata rather than requiring the user to type everything by hand.
+
+**Decision: Open Library (openlibrary.org) as the sole MVP provider.**
+
+| Criterion | Open Library | Google Books (not used in MVP) |
+|---|---|---|
+| Cost | Free, no tier | Free daily quota (~1,000/day), no paid tier available |
+| Auth | None required | Requires a Google Cloud API key |
+| Rate limit | ~100 req/5min per IP (unofficial, "polite" limit) | Hard daily cap, increases not guaranteed |
+| Fit | Explicitly positioned for real-time, low-volume, human-facing lookup — matches a personal library app exactly | Better cover art / newer-release coverage, but adds a credential to manage for a benefit MVP doesn't need |
+
+**Integration pattern:**
+
+- New `GET /api/v1/metadata/search?q=` endpoint (`openapi.yaml`) proxies
+  to `https://openlibrary.org/search.json?q=`, returning a short list
+  of candidates (title, author, cover URL, `externalId`) for the
+  user to pick from in the "add a book" flow.
+- On selection, the backend creates (or reuses, via
+  `DATA_MODEL.md` §4's dedup) a `Work` row populated from the chosen
+  result — Open Library is queried **once per add**, never repeatedly.
+  Do not re-fetch from Open Library on every page load; the stored
+  `Work` row is the source of truth after creation.
+- The user can still skip search and enter a book manually
+  (`externalSource`/`externalId` left `null`).
+- Cover images: fetched once and re-hosted through `files`/object
+  storage rather than hot-linking Open Library's cover CDN on every
+  page load, to stay a well-behaved API consumer per their stated
+  "not a bulk backend" policy.
+- No API key, so no new `.env.example` entry is required for this
+  provider.
+
+**Revisit later if:** cover-art quality or missing recent titles
+becomes a recurring user complaint — Google Books can be added as a
+secondary, optional lookup at that point without changing the
+`metadata/search` contract (the response shape already returns a
+provider-agnostic candidate list).

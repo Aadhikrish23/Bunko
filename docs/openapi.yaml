@@ -76,6 +76,30 @@ paths:
                     properties:
                       accessToken: { type: string }
 
+  /metadata/search:
+    get:
+      summary: Search external book metadata to populate an "add book" flow (SRS §16)
+      description: >
+        Proxies Open Library (see ARCHITECTURE.md §11), returning a
+        provider-agnostic candidate list. Called once per user search,
+        not on every page load — see caching note in ARCHITECTURE.md §11.
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Candidate matches for the user to pick from
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/MetadataCandidate" }
+
   /works:
     get:
       summary: List the current user's library
@@ -104,6 +128,10 @@ paths:
               schema: { $ref: "#/components/schemas/WorkListResponse" }
     post:
       summary: Add a book (Work) to the user's library
+      description: >
+        Accepts either a manually-entered book, or externalSource +
+        externalId from a prior /metadata/search result (preferred —
+        dedupes against an existing Work per DATA_MODEL.md §4).
       requestBody:
         required: true
         content:
@@ -424,6 +452,27 @@ components:
         genres:
           type: array
           items: { type: string }
+        coverImageUrl: { type: string, nullable: true }
+        externalSource:
+          type: string
+          nullable: true
+          description: e.g. "open-library"; omit for a manually-entered book
+        externalId:
+          type: string
+          nullable: true
+          description: Provider's stable ID, from a /metadata/search result
+
+    MetadataCandidate:
+      type: object
+      properties:
+        externalSource: { type: string, example: "open-library" }
+        externalId: { type: string, example: "OL45804W" }
+        title: { type: string }
+        authors:
+          type: array
+          items: { type: string }
+        coverImageUrl: { type: string, nullable: true }
+        firstPublishYear: { type: integer, nullable: true }
 
     WorkResponse:
       type: object
