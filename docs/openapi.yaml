@@ -659,6 +659,14 @@ components:
             editions:
               type: array
               items: { $ref: "#/components/schemas/EditionResponse" }
+            journeyId:
+              type: string
+              format: uuid
+              nullable: true
+              description: >
+                Null until the first reading session for this work exists
+                (SRS §11 continuity — see ARCHITECTURE.md §3 continuity
+                module). Pass to /reading-journeys/:id/resolve-position.
 
     WorkListResponse:
       type: object
@@ -689,6 +697,11 @@ components:
         id: { type: string, format: uuid }
         format: { $ref: "#/components/schemas/EditionFormat" }
         publisher: { type: string, nullable: true }
+        copyId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The caller's own copy of this edition, if attached yet.
 
     CopyResponse:
       type: object
@@ -718,6 +731,7 @@ components:
           type: object
           properties:
             fileUrl: { type: string }
+            format: { type: string, enum: [EPUB, PDF] }
             startPosition: { type: string, nullable: true }
             confidence: { type: number, nullable: true }
             sessionId: { type: string, format: uuid }

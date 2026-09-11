@@ -24,3 +24,16 @@ export interface ChapterGraph {
 export function findUnitByStructuralId(graph: ChapterGraph, structuralId: string): ChapterUnit | null {
   return graph.units.find((unit) => unit.structuralId === structuralId) ?? null;
 }
+
+// For a PDF with an outline, a reported page number rarely matches a
+// unit's structuralId exactly (outline units are "outline-N", not page
+// numbers) — this finds which outline entry a given page falls under,
+// by nearest pageNumber. Used to capture a portable chapterLabel for the
+// canonical position even when the exact-id lookup above misses.
+export function findUnitByClosestPage(graph: ChapterGraph, pageNumber: number): ChapterUnit | null {
+  const withPages = graph.units.filter((unit) => unit.pageNumber != null);
+  if (withPages.length === 0) return null;
+  return withPages.reduce((closest, candidate) =>
+    Math.abs(candidate.pageNumber! - pageNumber) < Math.abs(closest.pageNumber! - pageNumber) ? candidate : closest,
+  );
+}

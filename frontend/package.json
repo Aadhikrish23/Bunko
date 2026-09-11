@@ -16,9 +16,15 @@
     "test:e2e": "playwright test --config=e2e/playwright.config.ts"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.1.0",
+    "@fontsource/lora": "^5.1.0",
     "@tanstack/react-query": "^5.59.0",
+    "epubjs": "^0.3.93",
+    "lucide-react": "^0.451.0",
+    "pdfjs-dist": "^4.6.82",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.47.2",

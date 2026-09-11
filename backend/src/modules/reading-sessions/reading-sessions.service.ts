@@ -3,7 +3,7 @@ import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
 import { upsertCanonicalPosition } from '../continuity/canonical-position';
-import { findUnitByStructuralId, type ChapterGraph } from '../reader/chapter-graph';
+import { findUnitByClosestPage, findUnitByStructuralId, type ChapterGraph } from '../reader/chapter-graph';
 import type { EndSessionInput, ReportProgressInput, StartSessionInput } from './reading-sessions.schema';
 
 export interface SessionDto {
@@ -189,15 +189,24 @@ async function updateCanonicalPositionFromSession(session: ReadingSession): Prom
   // Digital endPosition is that edition's own local structuralId — look
   // up its label/anchor/page so the canonical record carries portable
   // signals too, not just an id meaningful only within this one edition.
+  // For PDF, the reported position is always a bare page number
+  // (T-029/T-030) — an exact structuralId match covers the no-outline
+  // page-fallback case (whose ids ARE bare page numbers); when there's
+  // an outline instead, the page falls *under* an outline entry rather
+  // than matching one exactly, so falling back to the closest-by-page
+  // unit still recovers a real chapterLabel/textAnchor for it.
   const copy = await prisma.copy.findUnique({ where: { id: session.copyId }, include: { edition: true } });
   const chapterGraph = copy?.edition.chapterGraph as ChapterGraph | null;
-  const unit = chapterGraph ? findUnitByStructuralId(chapterGraph, session.endPosition) : null;
+  let unit = chapterGraph ? findUnitByStructuralId(chapterGraph, session.endPosition) : null;
+  if (!unit && chapterGraph && session.medium === 'PDF' && /^\d+$/.test(session.endPosition)) {
+    unit = findUnitByClosestPage(chapterGraph, Number(session.endPosition));
+  }
 
   await upsertCanonicalPosition(session.journeyId, {
     structuralId: session.endPosition,
     chapterLabel: unit?.label ?? null,
     textAnchor: unit?.textAnchors[0]?.hash ?? null,
-    pageNumber: unit?.pageNumber ?? null,
+    pageNumber: unit?.pageNumber ?? (session.medium === 'PDF' ? Number(session.endPosition) || null : null),
     confidence: null,
   });
 }

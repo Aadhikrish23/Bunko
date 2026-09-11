@@ -85,11 +85,14 @@ export async function indexPdf(buffer: Buffer): Promise<ChapterGraph> {
     await flatten(outline);
   } else {
     // No bookmarks at all (common for scanned PDFs) — one unit per page,
-    // page number is the only signal available for mapping.
+    // page number is the only signal available for mapping. structuralId
+    // is the bare page number (not "page-N") so it doubles as exactly
+    // what the frontend PDF reader reports as its position (T-029/T-030)
+    // — no separate id scheme to keep in sync.
     for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
       const text = hasTextLayer ? await extractPageText(pageNumber) : '';
       units.push({
-        structuralId: `page-${pageNumber}`,
+        structuralId: String(pageNumber),
         label: `Page ${pageNumber}`,
         order: pageNumber - 1,
         pageNumber,

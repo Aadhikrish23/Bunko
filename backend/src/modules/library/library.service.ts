@@ -8,21 +8,33 @@ export interface WorkSummaryDto {
   title: string;
   authors: string[];
   status: string;
-  editions: { id: string; format: string; publisher: string | null }[];
+  // copyId is the caller's own copy of this edition, if one exists yet
+  // (null right after an edition is created but before a copy is
+  // attached) — exposed so the frontend can start a session or open the
+  // reader without a separate lookup (openapi.yaml's EditionResponse
+  // didn't originally expose this).
+  editions: { id: string; format: string; publisher: string | null; copyId: string | null }[];
+  // Null until the first reading session for this work exists (the
+  // journey is created lazily). Exposed so the frontend can call
+  // continuity's resolve-position (T-035/T-036) without a separate
+  // lookup — openapi.yaml's WorkResponse didn't originally expose this.
+  journeyId: string | null;
 }
 
-const USER_WORK_INCLUDE = {
-  work: {
-    include: {
-      authors: { include: { author: true } },
-      editions: true,
+function userWorkInclude(userId: string) {
+  return {
+    work: {
+      include: {
+        authors: { include: { author: true } },
+        editions: { include: { copies: { where: { userId } } } },
+      },
     },
-  },
-} satisfies Prisma.UserWorkInclude;
+  } satisfies Prisma.UserWorkInclude;
+}
 
-type UserWorkWithRelations = Prisma.UserWorkGetPayload<{ include: typeof USER_WORK_INCLUDE }>;
+type UserWorkWithRelations = Prisma.UserWorkGetPayload<{ include: ReturnType<typeof userWorkInclude> }>;
 
-function toWorkDto(userWork: UserWorkWithRelations): WorkSummaryDto {
+function toWorkDto(userWork: UserWorkWithRelations, journeyId: string | null): WorkSummaryDto {
   return {
     id: userWork.work.id,
     title: userWork.work.title,
@@ -32,7 +44,9 @@ function toWorkDto(userWork: UserWorkWithRelations): WorkSummaryDto {
       id: edition.id,
       format: edition.format,
       publisher: edition.publisher,
+      copyId: edition.copies[0]?.id ?? null,
     })),
+    journeyId,
   };
 }
 
@@ -51,14 +65,17 @@ async function findOrCreateSeries(name: string) {
 }
 
 async function getUserWorkOrThrow(userId: string, workId: string): Promise<WorkSummaryDto> {
-  const userWork = await prisma.userWork.findUnique({
-    where: { userId_workId: { userId, workId } },
-    include: USER_WORK_INCLUDE,
-  });
+  const [userWork, journey] = await Promise.all([
+    prisma.userWork.findUnique({
+      where: { userId_workId: { userId, workId } },
+      include: userWorkInclude(userId),
+    }),
+    prisma.readingJourney.findUnique({ where: { userId_workId: { userId, workId } }, select: { id: true } }),
+  ]);
   if (!userWork) {
     throw new AppError('NOT_FOUND', 'Work not found in your library');
   }
-  return toWorkDto(userWork);
+  return toWorkDto(userWork, journey?.id ?? null);
 }
 
 export async function createWork(
@@ -129,7 +146,7 @@ export async function listWorks(
   const [rows, total] = await Promise.all([
     prisma.userWork.findMany({
       where,
-      include: USER_WORK_INCLUDE,
+      include: userWorkInclude(userId),
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
       orderBy: { addedAt: 'desc' },
@@ -137,7 +154,13 @@ export async function listWorks(
     prisma.userWork.count({ where }),
   ]);
 
-  return { items: rows.map(toWorkDto), total };
+  const journeys = await prisma.readingJourney.findMany({
+    where: { userId, workId: { in: rows.map((row) => row.workId) } },
+    select: { id: true, workId: true },
+  });
+  const journeyIdByWorkId = new Map(journeys.map((journey) => [journey.workId, journey.id]));
+
+  return { items: rows.map((row) => toWorkDto(row, journeyIdByWorkId.get(row.workId) ?? null)), total };
 }
 
 export async function getWork(userId: string, workId: string): Promise<WorkSummaryDto> {

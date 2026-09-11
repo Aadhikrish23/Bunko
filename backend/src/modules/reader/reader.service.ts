@@ -14,6 +14,7 @@ const FILE_URL_EXPIRY_SECONDS = 3600;
 
 export interface ReaderManifestDto {
   fileUrl: string;
+  format: 'EPUB' | 'PDF';
   startPosition: string | null;
   confidence: number | null;
   sessionId: string;
@@ -111,5 +112,11 @@ export async function getReaderManifest(userId: string, editionId: string): Prom
 
   const session = await sessionsService.startSession(userId, { copyId: copy.id, startPosition });
 
-  return { fileUrl, startPosition, confidence, sessionId: session.id };
+  return {
+    fileUrl,
+    format: copy.edition.format as 'EPUB' | 'PDF',
+    startPosition,
+    confidence,
+    sessionId: session.id,
+  };
 }
