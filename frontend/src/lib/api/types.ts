@@ -40,6 +40,7 @@ export interface Work {
   genres: string[];
   seriesName: string | null;
   shelfIds: string[];
+  coverImageUrl: string | null;
 }
 
 export interface MetadataCandidate {

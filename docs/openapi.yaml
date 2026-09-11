@@ -674,6 +674,7 @@ components:
             shelfIds:
               type: array
               items: { type: string, format: uuid }
+            coverImageUrl: { type: string, nullable: true }
 
     WorkListResponse:
       type: object

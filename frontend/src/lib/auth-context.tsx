@@ -21,19 +21,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // On load, there's no access token in memory yet (it's never
     // persisted client-side) — try the httpOnly refresh cookie to
     // restore the session silently.
+    //
+    // `cancelled` guards against React StrictMode's dev-only double
+    // invocation of this effect: refresh tokens rotate on every use
+    // (T-008), so two concurrent restore() calls race — the second one's
+    // refresh fails against the now-already-rotated cookie the first
+    // call's response just set, and if that failure resolves *after*
+    // the first call's success, it would clear the access token right
+    // back out from under a `user` that's already set. Only the most
+    // recent effect run is allowed to apply its result.
+    let cancelled = false;
+
     async function restore() {
       try {
         const data = await api.post<{ accessToken: string }>('/auth/refresh');
+        // Bail before writing anything shared (the token store) if a
+        // newer effect run has already superseded this one — by the
+        // time this await resolves, StrictMode's synchronous
+        // mount/cleanup/remount cycle has already flipped `cancelled`
+        // for a stale first run, so it never touches the token store at
+        // all rather than writing then trying to "undo" it.
+        if (cancelled) return;
         setAccessToken(data.accessToken);
         const profile = await api.get<AuthUser>('/users/me');
+        if (cancelled) return;
         setUser(profile);
       } catch {
-        setAccessToken(null);
+        if (!cancelled) setAccessToken(null);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     }
     restore();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

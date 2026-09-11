@@ -96,7 +96,11 @@ export function LibraryPage() {
               onClick={() => navigate(`/library/${work.id}`)}
               className="focus-visible:focus-ring group flex flex-col gap-2 text-left"
             >
-              <BookCover title={work.title} className="transition-transform group-hover:-translate-y-0.5" />
+              <BookCover
+                title={work.title}
+                coverImageUrl={work.coverImageUrl}
+                className="transition-transform group-hover:-translate-y-0.5"
+              />
               <div>
                 <p className="line-clamp-2 text-sm font-medium text-paper-900">{work.title}</p>
                 <p className="truncate text-xs text-paper-500">{work.authors.join(', ') || 'Unknown author'}</p>

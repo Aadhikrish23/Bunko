@@ -24,6 +24,10 @@ export interface WorkSummaryDto {
   genres: string[];
   seriesName: string | null;
   shelfIds: string[];
+  // Also already stored (set from the Open Library candidate at creation
+  // time, ARCHITECTURE.md §11) but never returned — covers appeared only
+  // in the "add a book" search results and vanished everywhere after.
+  coverImageUrl: string | null;
 }
 
 function userWorkInclude(userId: string) {
@@ -57,6 +61,7 @@ function toWorkDto(userWork: UserWorkWithRelations, journeyId: string | null): W
     genres: userWork.work.genres,
     seriesName: userWork.work.series?.name ?? null,
     shelfIds: userWork.shelves.map((sw) => sw.shelf.id),
+    coverImageUrl: userWork.work.coverImageUrl,
   };
 }
 

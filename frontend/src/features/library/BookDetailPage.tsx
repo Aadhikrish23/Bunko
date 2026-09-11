@@ -43,7 +43,7 @@ export function BookDetailPage() {
 
       <div className="flex gap-6">
         <div className="w-36 flex-shrink-0">
-          <BookCover title={data.title} />
+          <BookCover title={data.title} coverImageUrl={data.coverImageUrl} />
         </div>
         <div className="flex flex-1 flex-col gap-3">
           <div>
