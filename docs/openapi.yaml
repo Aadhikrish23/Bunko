@@ -492,6 +492,28 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/ReadingSessionResponse" }
 
+  /statistics:
+    get:
+      summary: Basic reading statistics for the caller (SRS §19, baseline only)
+      description: >
+        Minimum baseline per docs/TASKS.md T-023 — total books completed,
+        total minutes read, current streak. A full stats/trends dashboard
+        is Phase 7.
+      responses:
+        "200":
+          description: The caller's basic statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      booksCompleted: { type: integer }
+                      totalMinutesRead: { type: integer }
+                      currentStreakDays: { type: integer }
+
 components:
   securitySchemes:
     bearerAuth:

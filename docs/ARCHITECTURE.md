@@ -53,16 +53,20 @@ module is a folder, not a framework-level construct:
 backend/src/modules/
 ├── auth/              # FR-001, FR-002 — registration, login, JWT
 ├── users/             # user profile, account settings
-├── library/           # books/works, authors, series
+├── library/           # books/works, authors, series, and search/filter
+│                      # (SRS §18 has no separate URL prefix — it's query
+│                      # params on GET /works — so it lives here rather
+│                      # than in a standalone search/ module)
+├── metadata/          # external book metadata search, Open Library (SRS §16)
 ├── editions/          # editions, copies, digital files
 ├── files/             # upload, storage, signed URLs (SRS §24)
 ├── reader/            # EPUB/PDF parsing, indexing (SRS §10, §11.6)
 ├── continuity/        # cross-edition mapping engine (SRS §11.7-11.9)
 ├── reading-sessions/  # session lifecycle (SRS §12)
 ├── journal/           # chronological journal view (SRS §12.5)
+├── statistics/        # baseline reading statistics (SRS §19, T-023)
 ├── annotations/       # notes/highlights/quotes — Phase 6, stubbed only
-├── shelves/           # shelves, tags, collections (SRS §15)
-└── search/            # library search/filter (SRS §18)
+└── shelves/           # shelves, tags, collections (SRS §15)
 ```
 
 Each module folder follows the same internal shape (see
