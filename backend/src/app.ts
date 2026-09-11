@@ -16,6 +16,8 @@ import { shelvesRouter } from './modules/shelves/shelves.routes';
 import { readingSessionsRouter } from './modules/reading-sessions/reading-sessions.routes';
 import { journalRouter } from './modules/journal/journal.routes';
 import { statisticsRouter } from './modules/statistics/statistics.routes';
+import { filesRouter } from './modules/files/files.routes';
+import { readerRouter } from './modules/reader/reader.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -37,11 +39,13 @@ export function createApp(): Express {
   app.use('/api/v1/works', worksRouter);
   app.use('/api/v1/metadata', metadataRouter);
   app.use('/api/v1/editions', editionsRouter);
+  app.use('/api/v1/editions', readerRouter);
   app.use('/api/v1/copies', copiesRouter);
   app.use('/api/v1/shelves', shelvesRouter);
   app.use('/api/v1/reading-sessions', readingSessionsRouter);
   app.use('/api/v1/journal', journalRouter);
   app.use('/api/v1/statistics', statisticsRouter);
+  app.use('/api/v1/files', filesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

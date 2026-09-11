@@ -46,6 +46,13 @@ function isWithinGraceWindow(pausedAt: Date, now: Date): boolean {
 export async function startSession(userId: string, input: StartSessionInput, now = new Date()): Promise<SessionDto> {
   const activeSession = await prisma.readingSession.findFirst({ where: { userId, status: 'ACTIVE' } });
   if (activeSession) {
+    // Reopening the reader for the SAME copy (e.g. a page refresh) isn't
+    // "starting a second session" in the sense SRS §12.7 means — just
+    // hand back the one already running. A different copy is the real
+    // conflict the ticket describes.
+    if (activeSession.copyId === input.copyId) {
+      return toSessionDto(activeSession);
+    }
     throw new AppError('CONFLICT', 'Another session is already active for this user');
   }
 
