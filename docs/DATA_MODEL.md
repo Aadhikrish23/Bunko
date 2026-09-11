@@ -21,6 +21,10 @@ model User {
   email        String   @unique
   passwordHash String
   displayName  String
+  // The jti of the most recently issued refresh token, for rotation
+  // (SRS §23.2, added during T-008). MVP tracks a single active session
+  // per user — a real multi-device model is DeviceSession (Phase 9, §5).
+  currentRefreshTokenId String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -73,7 +77,15 @@ model WorkAuthor {
 }
 
 // A user's relationship to a Work (library membership) — SRS §15
+//
+// Correction (found during T-003 implementation): uses a synthetic `id`
+// rather than a composite [userId, workId] primary key, because
+// ShelfWork needs a single-column foreign key to this table, and Prisma
+// relations can only target a model's own scalar field(s) — a composite
+// primary key would require ShelfWork to carry both columns itself.
+// `@@unique([userId, workId])` still enforces one row per user/work pair.
 model UserWork {
+  id        String   @id @default(uuid())
   userId    String
   workId    String
   user      User     @relation(fields: [userId], references: [id])
@@ -83,7 +95,7 @@ model UserWork {
 
   shelves ShelfWork[]
 
-  @@id([userId, workId])
+  @@unique([userId, workId])
 }
 
 enum ReadingStatus {

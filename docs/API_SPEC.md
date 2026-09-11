@@ -98,6 +98,7 @@ sections and backend modules (`ARCHITECTURE.md` §2):
 | Group | Base Path | SRS Ref |
 |---|---|---|
 | Auth | `/auth` | §23 |
+| Users | `/users` | §23 |
 | Library | `/works`, `/shelves` | §15, §16 |
 | Editions & Copies | `/editions`, `/copies` | §16 |
 | Files | `/files` | §24 |

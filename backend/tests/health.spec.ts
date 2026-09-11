@@ -5,5 +5,15 @@ import { test, expect } from '@playwright/test';
 test('GET /health returns ok', async ({ request }) => {
   const response = await request.get('/health');
   expect(response.status()).toBe(200);
-  expect(await response.json()).toEqual({ data: { status: 'ok' } });
+  const body = await response.json();
+  expect(body.data).toEqual({ status: 'ok' });
+  expect(body.meta.requestId).toBeTruthy();
+});
+
+test('unmatched route returns the standard NOT_FOUND envelope', async ({ request }) => {
+  const response = await request.get('/no-such-route');
+  expect(response.status()).toBe(404);
+  const body = await response.json();
+  expect(body.error.code).toBe('NOT_FOUND');
+  expect(body.meta.requestId).toBeTruthy();
 });

@@ -76,6 +76,31 @@ paths:
                     properties:
                       accessToken: { type: string }
 
+  /users/me:
+    get:
+      summary: Get the authenticated user's own profile (SRS §23)
+      responses:
+        "200":
+          description: The caller's profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserResponse" }
+    patch:
+      summary: Update the authenticated user's own profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserResponse" }
+
   /metadata/search:
     get:
       summary: Search external book metadata to populate an "add book" flow (SRS §16)
@@ -461,6 +486,17 @@ components:
           type: string
           nullable: true
           description: Provider's stable ID, from a /metadata/search result
+
+    UserResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string }
+            displayName: { type: string }
+            createdAt: { type: string, format: date-time }
 
     MetadataCandidate:
       type: object
