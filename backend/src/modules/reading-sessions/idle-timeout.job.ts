@@ -13,22 +13,46 @@ export interface IdleTimeoutSweepResult {
 export async function runIdleTimeoutSweep(now: Date = new Date()): Promise<IdleTimeoutSweepResult> {
   const idleThresholdMs = env.SESSION_IDLE_TIMEOUT_MINUTES * 60_000;
   const graceWindowMs = env.SESSION_GRACE_WINDOW_MINUTES * 60_000;
+  const pauseCutoff = new Date(now.getTime() - idleThresholdMs);
+  // A session idle long enough that it would already be past the grace
+  // window too (measuring from the moment it *would have* been paused,
+  // idleThreshold after its last activity) skips the PAUSED
+  // intermediate state entirely and ends directly in this same sweep.
+  // Without this, updating a row always bumps its @updatedAt column, so
+  // pausing it first would erase the very evidence needed to also end
+  // it in the same pass — real idle time beyond both thresholds would
+  // incorrectly take two separate sweep runs (and real wall-clock time
+  // between them) to resolve instead of one.
+  const endCutoffFromActive = new Date(now.getTime() - idleThresholdMs - graceWindowMs);
 
-  // ACTIVE sessions idle beyond the threshold (no progress update, i.e. no
-  // page-turn, which is what bumps `updatedAt`) -> PAUSED (SRS §12.8 step 4).
+  let pausedCount = 0;
+  let endedCount = 0;
+
+  // ACTIVE sessions idle beyond the threshold (no progress update, i.e.
+  // no page-turn, which is what bumps `updatedAt`) — SRS §12.8 step 4.
   const idleActiveSessions = await prisma.readingSession.findMany({
-    where: { status: 'ACTIVE', updatedAt: { lt: new Date(now.getTime() - idleThresholdMs) } },
+    where: { status: 'ACTIVE', updatedAt: { lt: pauseCutoff } },
   });
-  if (idleActiveSessions.length > 0) {
-    await prisma.readingSession.updateMany({
-      where: { id: { in: idleActiveSessions.map((session) => session.id) } },
-      data: { status: 'PAUSED' },
-    });
+
+  for (const session of idleActiveSessions) {
+    if (session.updatedAt < endCutoffFromActive) {
+      const endTime = new Date(session.updatedAt.getTime() + idleThresholdMs);
+      const durationSeconds = Math.max(0, Math.round((endTime.getTime() - session.startTime.getTime()) / 1000));
+      await prisma.readingSession.update({
+        where: { id: session.id },
+        data: { status: 'ENDED', endTime, durationSeconds },
+      });
+      endedCount += 1;
+    } else {
+      await prisma.readingSession.update({ where: { id: session.id }, data: { status: 'PAUSED' } });
+      pausedCount += 1;
+    }
   }
 
-  // PAUSED sessions beyond the grace window -> ENDED, so idle time isn't
-  // counted as reading time (SRS §12.8 step 5). Duration is computed up to
-  // the moment it was paused, not extended by the sweep's own delay.
+  // PAUSED sessions from an *earlier* sweep, now also beyond the grace
+  // window — SRS §12.8 step 5, so idle time isn't counted as reading
+  // time. Duration is computed up to the moment it was paused, not
+  // extended by however long it sat waiting for this sweep.
   const stalePausedSessions = await prisma.readingSession.findMany({
     where: { status: 'PAUSED', updatedAt: { lt: new Date(now.getTime() - graceWindowMs) } },
   });
@@ -41,9 +65,10 @@ export async function runIdleTimeoutSweep(now: Date = new Date()): Promise<IdleT
       where: { id: session.id },
       data: { status: 'ENDED', endTime: session.updatedAt, durationSeconds },
     });
+    endedCount += 1;
   }
 
-  const result = { pausedCount: idleActiveSessions.length, endedCount: stalePausedSessions.length };
+  const result = { pausedCount, endedCount };
   if (result.pausedCount > 0 || result.endedCount > 0) {
     logger.info(result, 'idle-timeout sweep');
   }

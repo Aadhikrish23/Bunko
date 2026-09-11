@@ -40,3 +40,7 @@ Thumbs.db
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Machine-local Docker Compose port overrides (e.g. avoiding a
+# conflict with an existing native service) — not meant to be shared.
+docker-compose.override.yml
