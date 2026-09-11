@@ -37,6 +37,9 @@ export interface Work {
   status: ReadingStatus;
   editions: EditionSummary[];
   journeyId: string | null;
+  genres: string[];
+  seriesName: string | null;
+  shelfIds: string[];
 }
 
 export interface MetadataCandidate {

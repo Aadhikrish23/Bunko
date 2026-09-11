@@ -8,6 +8,7 @@ import { LibraryPage } from './features/library/LibraryPage';
 import { JournalPage } from './features/journal/JournalPage';
 import { ReaderPage } from './features/reader/ReaderPage';
 import { SettingsPage } from './features/settings/SettingsPage';
+import { ShelvesPage } from './features/shelves/ShelvesPage';
 import { StatisticsPage } from './features/statistics/StatisticsPage';
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/library/:workId" element={<BookDetailPage />} />
+            <Route path="/shelves" element={<ShelvesPage />} />
             <Route path="/journal" element={<JournalPage />} />
             <Route path="/statistics" element={<StatisticsPage />} />
             <Route path="/settings" element={<SettingsPage />} />

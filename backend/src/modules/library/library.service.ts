@@ -19,6 +19,11 @@ export interface WorkSummaryDto {
   // continuity's resolve-position (T-035/T-036) without a separate
   // lookup — openapi.yaml's WorkResponse didn't originally expose this.
   journeyId: string | null;
+  // Already stored on Work (DATA_MODEL.md §2) but never exposed via
+  // openapi.yaml — the shelf UI (T-016 frontend) groups books by these.
+  genres: string[];
+  seriesName: string | null;
+  shelfIds: string[];
 }
 
 function userWorkInclude(userId: string) {
@@ -27,8 +32,10 @@ function userWorkInclude(userId: string) {
       include: {
         authors: { include: { author: true } },
         editions: { include: { copies: { where: { userId } } } },
+        series: true,
       },
     },
+    shelves: { include: { shelf: true } },
   } satisfies Prisma.UserWorkInclude;
 }
 
@@ -47,6 +54,9 @@ function toWorkDto(userWork: UserWorkWithRelations, journeyId: string | null): W
       copyId: edition.copies[0]?.id ?? null,
     })),
     journeyId,
+    genres: userWork.work.genres,
+    seriesName: userWork.work.series?.name ?? null,
+    shelfIds: userWork.shelves.map((sw) => sw.shelf.id),
   };
 }
 

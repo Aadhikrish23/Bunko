@@ -40,9 +40,19 @@ export default {
           500: '#B35F2E',
           600: '#93481F',
         },
+        // "wood" — the bookcase chrome for the Shelves view (T-016 UI):
+        // frame/plank tones, not used anywhere else in the app.
+        wood: {
+          200: '#C9A877',
+          400: '#9C6B3E',
+          600: '#7A4E2B',
+          700: '#5E3A20',
+          900: '#3B2417',
+        },
       },
       boxShadow: {
         card: '0 1px 2px rgba(38, 34, 29, 0.06), 0 4px 12px rgba(38, 34, 29, 0.05)',
+        plank: '0 3px 6px rgba(59, 36, 23, 0.35)',
       },
     },
   },

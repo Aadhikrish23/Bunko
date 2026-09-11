@@ -667,6 +667,13 @@ components:
                 Null until the first reading session for this work exists
                 (SRS §11 continuity — see ARCHITECTURE.md §3 continuity
                 module). Pass to /reading-journeys/:id/resolve-position.
+            genres:
+              type: array
+              items: { type: string }
+            seriesName: { type: string, nullable: true }
+            shelfIds:
+              type: array
+              items: { type: string, format: uuid }
 
     WorkListResponse:
       type: object

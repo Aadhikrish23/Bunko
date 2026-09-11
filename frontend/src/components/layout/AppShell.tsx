@@ -1,9 +1,10 @@
-import { BookOpen, LibraryBig, LogOut, NotebookPen, Settings as SettingsIcon, TrendingUp } from 'lucide-react';
+import { BookOpen, LibraryBig, LogOut, NotebookPen, Rows3, Settings as SettingsIcon, TrendingUp } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../lib/auth-context';
 
 const NAV_ITEMS = [
   { to: '/library', label: 'Library', icon: LibraryBig },
+  { to: '/shelves', label: 'Shelves', icon: Rows3 },
   { to: '/journal', label: 'Journal', icon: NotebookPen },
   { to: '/statistics', label: 'Statistics', icon: TrendingUp },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },

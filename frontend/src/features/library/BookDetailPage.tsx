@@ -11,6 +11,7 @@ import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
 import { PhysicalSessionPanel } from './PhysicalSessionPanel';
+import { ShelfAssignmentPanel } from './ShelfAssignmentPanel';
 import { STATUS_OPTIONS, StatusBadge } from './StatusBadge';
 
 const FORMAT_LABELS = { PHYSICAL: 'Physical', EPUB: 'EPUB', PDF: 'PDF' } as const;
@@ -108,6 +109,11 @@ export function BookDetailPage() {
             ))}
           </ul>
         )}
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="mb-3 font-display text-lg text-paper-900">Shelves</h2>
+        <ShelfAssignmentPanel workId={data.id} shelfIds={data.shelfIds} />
       </Card>
 
       {isAddEditionOpen && (
