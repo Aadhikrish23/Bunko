@@ -1,6 +1,6 @@
-import { Bookmark as BookmarkIcon, Minus, Plus, X } from 'lucide-react';
+import { Bookmark as BookmarkIcon, MapPinOff, Minus, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { useReaderManifest } from '../../lib/api/reader';
@@ -8,6 +8,7 @@ import { useEndSession, useReportProgress } from '../../lib/api/sessions';
 import { addBookmark, getBookmarks, type Bookmark } from '../../lib/bookmarks';
 import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
+import { CorrectPositionDialog } from './CorrectPositionDialog';
 import { EpubReader } from './EpubReader';
 import { PdfReader } from './PdfReader';
 import { ReflectionPrompt } from './ReflectionPrompt';
@@ -17,6 +18,8 @@ const PROGRESS_DEBOUNCE_MS = 4000;
 export function ReaderPage() {
   const { editionId } = useParams<{ editionId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const journeyId = (location.state as { journeyId?: string | null } | null)?.journeyId ?? null;
   const manifest = useReaderManifest(editionId);
   const reportProgress = useReportProgress();
   const endSession = useEndSession();
@@ -26,6 +29,7 @@ export function ReaderPage() {
   const [fontScale, setFontScale] = useState(1);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const [showCorrection, setShowCorrection] = useState(false);
   const [endedSession, setEndedSession] = useState<{ durationSeconds: number | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,6 +131,17 @@ export function ReaderPage() {
               </button>
             </>
           )}
+          {journeyId && (
+            <button
+              type="button"
+              onClick={() => setShowCorrection(true)}
+              aria-label="Not where you left off?"
+              title="Not where you left off?"
+              className="focus-visible:focus-ring rounded-md p-2 text-paper-600 hover:bg-paper-100"
+            >
+              <MapPinOff className="h-4 w-4" />
+            </button>
+          )}
           <div className="relative">
             <button
               type="button"
@@ -178,6 +193,10 @@ export function ReaderPage() {
         <div className="px-4 pt-2">
           <ErrorBanner message={error} />
         </div>
+      )}
+
+      {showCorrection && journeyId && (
+        <CorrectPositionDialog journeyId={journeyId} onClose={() => setShowCorrection(false)} />
       )}
 
       <div className="flex-1 overflow-hidden">

@@ -17,7 +17,11 @@ export function ContinueReadingButton({ journeyId, edition }: { journeyId: strin
   const [pendingConfirmation, setPendingConfirmation] = useState<{ chapterLabel: string | null } | null>(null);
 
   function openReader() {
-    navigate(`/read/${edition.id}`);
+    // journeyId travels via router state so the reader can offer a
+    // manual correction (T-037) without a separate lookup — lost on a
+    // hard refresh/direct URL visit, in which case that affordance is
+    // simply unavailable rather than broken.
+    navigate(`/read/${edition.id}`, { state: { journeyId } });
   }
 
   async function handleClick() {
