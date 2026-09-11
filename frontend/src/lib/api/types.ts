@@ -30,6 +30,13 @@ export interface EditionSummary {
   copyId: string | null;
 }
 
+export interface SeriesSibling {
+  workId: string;
+  title: string;
+  coverImageUrl: string | null;
+  inLibrary: boolean;
+}
+
 export interface Work {
   id: string;
   title: string;
@@ -41,6 +48,9 @@ export interface Work {
   seriesName: string | null;
   shelfIds: string[];
   coverImageUrl: string | null;
+  description: string | null;
+  // Only populated on a single-work GET, empty on library-list rows.
+  seriesWorks: SeriesSibling[];
 }
 
 export interface MetadataCandidate {

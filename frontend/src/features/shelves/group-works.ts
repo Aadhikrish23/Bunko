@@ -46,8 +46,8 @@ export function groupWorksForShelf(works: Work[]): WorkGroup[] {
 
   if (ungrouped.length > 0) {
     // "More Books" once there's already a series/genre row above it;
-    // otherwise this row IS the whole shelf, so a row label repeating
-    // the ShelfCase's own title above it would just be noise.
+    // otherwise this is the only row, so a generic "Books" label reads
+    // better than repeating a section heading above it.
     groups.push({ label: groups.length > 0 ? 'More Books' : 'Books', works: ungrouped });
   }
 

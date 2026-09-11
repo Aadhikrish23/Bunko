@@ -11,8 +11,32 @@ import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
 import { PhysicalSessionPanel } from './PhysicalSessionPanel';
+import { SeriesPanel } from './SeriesPanel';
 import { ShelfAssignmentPanel } from './ShelfAssignmentPanel';
 import { STATUS_OPTIONS, StatusBadge } from './StatusBadge';
+
+const SYNOPSIS_COLLAPSE_LENGTH = 320;
+
+function Synopsis({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > SYNOPSIS_COLLAPSE_LENGTH;
+  const shown = expanded || !isLong ? text : `${text.slice(0, SYNOPSIS_COLLAPSE_LENGTH).trimEnd()}…`;
+
+  return (
+    <p className="whitespace-pre-line text-sm leading-relaxed text-paper-700">
+      {shown}{' '}
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="focus-visible:focus-ring font-medium text-moss-600 hover:underline"
+        >
+          {expanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </p>
+  );
+}
 
 const FORMAT_LABELS = { PHYSICAL: 'Physical', EPUB: 'EPUB', PDF: 'PDF' } as const;
 
@@ -49,7 +73,10 @@ export function BookDetailPage() {
           <div>
             <h1 className="font-display text-2xl text-paper-900">{data.title}</h1>
             <p className="mt-1 text-paper-600">{data.authors.join(', ') || 'Unknown author'}</p>
+            {data.seriesName && <p className="text-sm italic text-paper-500">{data.seriesName}</p>}
           </div>
+
+          {data.description && <Synopsis text={data.description} />}
 
           <div className="flex items-center gap-3">
             <StatusBadge status={data.status} />
@@ -115,6 +142,8 @@ export function BookDetailPage() {
         <h2 className="mb-3 font-display text-lg text-paper-900">Shelves</h2>
         <ShelfAssignmentPanel workId={data.id} shelfIds={data.shelfIds} />
       </Card>
+
+      {data.seriesName && <SeriesPanel seriesName={data.seriesName} siblings={data.seriesWorks} />}
 
       {isAddEditionOpen && (
         <AddEditionDialog

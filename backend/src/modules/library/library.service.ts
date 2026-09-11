@@ -1,7 +1,18 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
+import { fetchWorkDescription } from '../metadata/metadata.service';
 import type { CreateWorkInput, ListWorksQuery, UpdateWorkInput } from './library.schema';
+
+export interface SeriesSiblingDto {
+  workId: string;
+  title: string;
+  coverImageUrl: string | null;
+  // Whether the *caller* already has this sibling in their own library —
+  // lets the frontend offer "add" for the ones they don't (the actual
+  // ask behind "show me the remaining books from that collection").
+  inLibrary: boolean;
+}
 
 export interface WorkSummaryDto {
   id: string;
@@ -28,6 +39,12 @@ export interface WorkSummaryDto {
   // time, ARCHITECTURE.md §11) but never returned — covers appeared only
   // in the "add a book" search results and vanished everywhere after.
   coverImageUrl: string | null;
+  // Synopsis — stored on Work (DATA_MODEL.md §2), fetched best-effort
+  // from Open Library at add time (see fetchWorkDescription).
+  description: string | null;
+  // Only populated on a single-work GET, not on list views (avoids an
+  // N+1 for every row in a library listing) — see getWork/getUserWorkOrThrow.
+  seriesWorks: SeriesSiblingDto[];
 }
 
 function userWorkInclude(userId: string) {
@@ -45,7 +62,11 @@ function userWorkInclude(userId: string) {
 
 type UserWorkWithRelations = Prisma.UserWorkGetPayload<{ include: ReturnType<typeof userWorkInclude> }>;
 
-function toWorkDto(userWork: UserWorkWithRelations, journeyId: string | null): WorkSummaryDto {
+function toWorkDto(
+  userWork: UserWorkWithRelations,
+  journeyId: string | null,
+  seriesWorks: SeriesSiblingDto[] = [],
+): WorkSummaryDto {
   return {
     id: userWork.work.id,
     title: userWork.work.title,
@@ -62,7 +83,35 @@ function toWorkDto(userWork: UserWorkWithRelations, journeyId: string | null): W
     seriesName: userWork.work.series?.name ?? null,
     shelfIds: userWork.shelves.map((sw) => sw.shelf.id),
     coverImageUrl: userWork.work.coverImageUrl,
+    description: userWork.work.description,
+    seriesWorks,
   };
+}
+
+// "Other books from that collection" (the actual ask behind wanting
+// series parts to show each other) — every other Work sharing this
+// seriesId, regardless of whose library they're in, with inLibrary
+// telling the frontend whether to link to it or offer to add it.
+async function getSeriesSiblings(seriesId: string, currentWorkId: string, userId: string): Promise<SeriesSiblingDto[]> {
+  const siblings = await prisma.work.findMany({
+    where: { seriesId, id: { not: currentWorkId } },
+    select: { id: true, title: true, coverImageUrl: true },
+    orderBy: { title: 'asc' },
+  });
+  if (siblings.length === 0) return [];
+
+  const memberships = await prisma.userWork.findMany({
+    where: { userId, workId: { in: siblings.map((s) => s.id) } },
+    select: { workId: true },
+  });
+  const inLibraryIds = new Set(memberships.map((m) => m.workId));
+
+  return siblings.map((sibling) => ({
+    workId: sibling.id,
+    title: sibling.title,
+    coverImageUrl: sibling.coverImageUrl,
+    inLibrary: inLibraryIds.has(sibling.id),
+  }));
 }
 
 // No unique constraint on Author.name / Series.name in DATA_MODEL.md, so
@@ -79,6 +128,10 @@ async function findOrCreateSeries(name: string) {
   return existing ?? prisma.series.create({ data: { name } });
 }
 
+// Always includes series siblings — every caller of this helper is
+// working with exactly one Work, so the extra query is cheap; list
+// endpoints (listWorks) build their own DTOs directly with toWorkDto
+// instead of going through this, precisely to skip it at N-row scale.
 async function getUserWorkOrThrow(userId: string, workId: string): Promise<WorkSummaryDto> {
   const [userWork, journey] = await Promise.all([
     prisma.userWork.findUnique({
@@ -90,13 +143,30 @@ async function getUserWorkOrThrow(userId: string, workId: string): Promise<WorkS
   if (!userWork) {
     throw new AppError('NOT_FOUND', 'Work not found in your library');
   }
-  return toWorkDto(userWork, journey?.id ?? null);
+  const seriesWorks = userWork.work.seriesId
+    ? await getSeriesSiblings(userWork.work.seriesId, userWork.work.id, userId)
+    : [];
+  return toWorkDto(userWork, journey?.id ?? null, seriesWorks);
 }
 
 export async function createWork(
   userId: string,
   input: CreateWorkInput,
 ): Promise<{ dto: WorkSummaryDto; alreadyInLibrary: boolean }> {
+  if ('workId' in input) {
+    const existingWork = await prisma.work.findUnique({ where: { id: input.workId } });
+    if (!existingWork) {
+      throw new AppError('NOT_FOUND', 'Work not found');
+    }
+    const existingMembership = await prisma.userWork.findUnique({
+      where: { userId_workId: { userId, workId: existingWork.id } },
+    });
+    if (!existingMembership) {
+      await prisma.userWork.create({ data: { userId, workId: existingWork.id } });
+    }
+    return { dto: await getUserWorkOrThrow(userId, existingWork.id), alreadyInLibrary: Boolean(existingMembership) };
+  }
+
   let work = input.externalSource && input.externalId
     ? await prisma.work.findUnique({
         where: {
@@ -107,12 +177,21 @@ export async function createWork(
 
   if (!work) {
     const series = input.seriesName ? await findOrCreateSeries(input.seriesName) : null;
+    // Best-effort synopsis — Open Library's search results carry no
+    // description at all, only the work-detail endpoint does, so this
+    // is a second fetch, made once, only when actually creating a new
+    // Work (never repeated for a re-add that reuses an existing row).
+    const description =
+      input.externalSource === 'open-library' && input.externalId
+        ? await fetchWorkDescription(input.externalId)
+        : null;
 
     work = await prisma.work.create({
       data: {
         title: input.title,
         seriesId: series?.id ?? null,
         genres: input.genres,
+        description,
         coverImageUrl: input.coverImageUrl ?? null,
         externalSource: input.externalSource ?? null,
         externalId: input.externalId ?? null,

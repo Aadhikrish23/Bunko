@@ -600,26 +600,36 @@ components:
                 displayName: { type: string }
 
     CreateWorkRequest:
-      type: object
-      required: [title]
-      properties:
-        title: { type: string }
-        authors:
-          type: array
-          items: { type: string }
-        seriesName: { type: string, nullable: true }
-        genres:
-          type: array
-          items: { type: string }
-        coverImageUrl: { type: string, nullable: true }
-        externalSource:
-          type: string
-          nullable: true
-          description: e.g. "open-library"; omit for a manually-entered book
-        externalId:
-          type: string
-          nullable: true
-          description: Provider's stable ID, from a /metadata/search result
+      description: >
+        Either { workId } to add an existing Work already known to Bunko
+        (e.g. a series sibling from another book's page — reuses that
+        row rather than creating a title-matching duplicate), or the
+        normal new-book/search-candidate shape below.
+      oneOf:
+        - type: object
+          required: [workId]
+          properties:
+            workId: { type: string, format: uuid }
+        - type: object
+          required: [title]
+          properties:
+            title: { type: string }
+            authors:
+              type: array
+              items: { type: string }
+            seriesName: { type: string, nullable: true }
+            genres:
+              type: array
+              items: { type: string }
+            coverImageUrl: { type: string, nullable: true }
+            externalSource:
+              type: string
+              nullable: true
+              description: e.g. "open-library"; omit for a manually-entered book
+            externalId:
+              type: string
+              nullable: true
+              description: Provider's stable ID, from a /metadata/search result
 
     UserResponse:
       type: object
@@ -675,6 +685,27 @@ components:
               type: array
               items: { type: string, format: uuid }
             coverImageUrl: { type: string, nullable: true }
+            description:
+              type: string
+              nullable: true
+              description: Synopsis, fetched best-effort from Open Library at add time.
+            seriesWorks:
+              type: array
+              description: >
+                Other Works sharing this seriesId ("the remaining books
+                from that collection"). Only populated on a single-work
+                GET, never on the list endpoint.
+              items: { $ref: "#/components/schemas/SeriesSiblingResponse" }
+
+    SeriesSiblingResponse:
+      type: object
+      properties:
+        workId: { type: string, format: uuid }
+        title: { type: string }
+        coverImageUrl: { type: string, nullable: true }
+        inLibrary:
+          type: boolean
+          description: Whether the caller already has this sibling work in their own library.
 
     WorkListResponse:
       type: object

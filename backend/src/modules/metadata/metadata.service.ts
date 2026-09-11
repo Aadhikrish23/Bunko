@@ -22,8 +22,13 @@ interface OpenLibrarySearchResponse {
 }
 
 const OPEN_LIBRARY_SEARCH_URL = 'https://openlibrary.org/search.json';
+const OPEN_LIBRARY_WORKS_URL = 'https://openlibrary.org/works';
 const MAX_RESULTS = 10;
 const REQUEST_TIMEOUT_MS = 5000;
+
+interface OpenLibraryWorkDetail {
+  description?: string | { value: string };
+}
 
 function toCandidate(doc: OpenLibraryDoc): MetadataCandidate {
   return {
@@ -63,5 +68,35 @@ export async function searchBookMetadata(query: string): Promise<MetadataCandida
   } catch (err) {
     logger.warn({ err }, 'Open Library response was not valid JSON');
     return [];
+  }
+}
+
+// Open Library's search.json has no synopsis field at all — only the
+// work-level detail endpoint does, and it has no reliable series-linking
+// data either (confirmed by hand: searching a known 5-part series like
+// "Ponniyin Selvan" returns inconsistent, unlinked duplicate work
+// entries, not 5 clean parts). So this fetches only what's honestly
+// available — the synopsis — once per add (same policy as search),
+// not something attempted for every candidate in a search result list.
+export async function fetchWorkDescription(externalId: string): Promise<string | null> {
+  const url = `${OPEN_LIBRARY_WORKS_URL}/${encodeURIComponent(externalId)}.json`;
+
+  let response: globalThis.Response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  } catch (err) {
+    logger.warn({ err }, 'Open Library work-detail request failed');
+    return null;
+  }
+
+  if (!response.ok) return null;
+
+  try {
+    const body = (await response.json()) as OpenLibraryWorkDetail;
+    if (!body.description) return null;
+    return typeof body.description === 'string' ? body.description : body.description.value;
+  } catch (err) {
+    logger.warn({ err }, 'Open Library work-detail response was not valid JSON');
+    return null;
   }
 }

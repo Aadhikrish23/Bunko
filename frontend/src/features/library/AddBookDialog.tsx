@@ -23,6 +23,12 @@ export function AddBookDialog({ onClose, onAdded }: { onClose: () => void; onAdd
   const [query, setQuery] = useState('');
   const [manualTitle, setManualTitle] = useState('');
   const [showManual, setShowManual] = useState(false);
+  // Shared across both flows — Open Library's search has no series data
+  // at all (confirmed by hand: a known 5-part series comes back as
+  // inconsistent, unlinked duplicates, not clean parts), so this is how
+  // a user builds one themselves: tag each part with the same series
+  // name as they add it, and SeriesPanel links them on each book's page.
+  const [seriesName, setSeriesName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const debouncedQuery = useDebouncedValue(query, 350);
 
@@ -44,6 +50,7 @@ export function AddBookDialog({ onClose, onAdded }: { onClose: () => void; onAdd
         coverImageUrl: candidate.coverImageUrl,
         externalSource: candidate.externalSource,
         externalId: candidate.externalId,
+        seriesName: seriesName.trim() || null,
       });
       onAdded(work.id);
     } catch (err) {
@@ -55,7 +62,10 @@ export function AddBookDialog({ onClose, onAdded }: { onClose: () => void; onAdd
     if (!manualTitle.trim()) return;
     setError(null);
     try {
-      const work = await createWork.mutateAsync({ title: manualTitle.trim() });
+      const work = await createWork.mutateAsync({
+        title: manualTitle.trim(),
+        seriesName: seriesName.trim() || null,
+      });
       onAdded(work.id);
     } catch (err) {
       setError(errorMessage(err, 'Could not add this book.'));
@@ -66,6 +76,13 @@ export function AddBookDialog({ onClose, onAdded }: { onClose: () => void; onAdd
     <Modal title="Add a book" onClose={onClose}>
       <div className="flex flex-col gap-4">
         {error && <ErrorBanner message={error} />}
+
+        <Input
+          label="Series (optional)"
+          placeholder="e.g. Ponniyin Selvan — tag each part the same way"
+          value={seriesName}
+          onChange={(e) => setSeriesName(e.target.value)}
+        />
 
         {!showManual ? (
           <>
@@ -129,7 +146,7 @@ export function AddBookDialog({ onClose, onAdded }: { onClose: () => void; onAdd
               label="Title"
               value={manualTitle}
               onChange={(e) => setManualTitle(e.target.value)}
-              placeholder="e.g. Ponniyin Selvan"
+              placeholder="e.g. Ponniyin Selvan Part 1: The First Floods"
             />
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => setShowManual(false)}>

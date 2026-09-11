@@ -26,15 +26,17 @@ export function useWork(workId: string | undefined) {
   });
 }
 
-export interface CreateWorkInput {
-  title: string;
-  authors?: string[];
-  seriesName?: string | null;
-  genres?: string[];
-  coverImageUrl?: string | null;
-  externalSource?: string | null;
-  externalId?: string | null;
-}
+export type CreateWorkInput =
+  | { workId: string }
+  | {
+      title: string;
+      authors?: string[];
+      seriesName?: string | null;
+      genres?: string[];
+      coverImageUrl?: string | null;
+      externalSource?: string | null;
+      externalId?: string | null;
+    };
 
 export function useCreateWork() {
   const queryClient = useQueryClient();
