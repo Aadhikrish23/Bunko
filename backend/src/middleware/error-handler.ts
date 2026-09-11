@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../lib/app-error';
@@ -28,6 +29,28 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
       meta: { requestId },
     });
     return;
+  }
+
+  // Never leak a raw Prisma error message to the client
+  // (CODING_STANDARDS.md §5) — map the two common cases to the envelope,
+  // and fall through to a generic 500 for everything else.
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') {
+      req.log.warn({ meta: err.meta }, 'unique constraint violation');
+      res.status(409).json({
+        error: { code: 'CONFLICT', message: 'Resource already exists' },
+        meta: { requestId },
+      });
+      return;
+    }
+    if (err.code === 'P2025') {
+      req.log.warn({ meta: err.meta }, 'record not found');
+      res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Resource not found' },
+        meta: { requestId },
+      });
+      return;
+    }
   }
 
   req.log.error({ err }, 'unhandled error');

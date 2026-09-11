@@ -9,6 +9,10 @@ import { requestLogger } from './middleware/request-logger';
 import { sendOk } from './lib/response';
 import { authRouter } from './modules/auth/auth.routes';
 import { usersRouter } from './modules/users/users.routes';
+import { worksRouter } from './modules/library/library.routes';
+import { metadataRouter } from './modules/metadata/metadata.routes';
+import { copiesRouter, editionsRouter } from './modules/editions/editions.routes';
+import { shelvesRouter } from './modules/shelves/shelves.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -27,6 +31,11 @@ export function createApp(): Express {
 
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/users', usersRouter);
+  app.use('/api/v1/works', worksRouter);
+  app.use('/api/v1/metadata', metadataRouter);
+  app.use('/api/v1/editions', editionsRouter);
+  app.use('/api/v1/copies', copiesRouter);
+  app.use('/api/v1/shelves', shelvesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

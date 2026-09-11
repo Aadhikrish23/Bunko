@@ -236,6 +236,79 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CopyResponse" }
 
+  /shelves:
+    get:
+      summary: List the caller's shelves (SRS §15)
+      responses:
+        "200":
+          description: The caller's shelves
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ShelfResponse" }
+    post:
+      summary: Create a shelf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        "201":
+          description: Shelf created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShelfResponse" }
+        "409":
+          description: A shelf with this name already exists for this user
+
+  /shelves/{shelfId}:
+    delete:
+      summary: Delete a shelf (does not delete the works on it)
+      parameters:
+        - $ref: "#/components/parameters/ShelfId"
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not found or not owned by caller }
+
+  /shelves/{shelfId}/works:
+    post:
+      summary: Assign a work (already in the caller's library) to a shelf
+      parameters:
+        - $ref: "#/components/parameters/ShelfId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workId]
+              properties:
+                workId: { type: string, format: uuid }
+      responses:
+        "204": { description: Assigned }
+        "404": { description: Shelf or work not found }
+
+  /shelves/{shelfId}/works/{workId}:
+    delete:
+      summary: Remove a work from a shelf (other shelves are unaffected)
+      parameters:
+        - $ref: "#/components/parameters/ShelfId"
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Removed }
+
   /files/upload-url:
     post:
       summary: Request a signed URL to upload a digital book file
@@ -437,8 +510,22 @@ components:
       name: sessionId
       required: true
       schema: { type: string, format: uuid }
+    ShelfId:
+      in: path
+      name: shelfId
+      required: true
+      schema: { type: string, format: uuid }
 
   schemas:
+    ShelfResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+
     ReadingStatus:
       type: string
       enum: [WANT_TO_READ, READING, FINISHED, DID_NOT_FINISH]
