@@ -1,8 +1,10 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { s3Client, S3_BUCKET } from '../../config/s3';
 import { AppError } from '../../lib/app-error';
+import { runMappingAlgorithm } from '../continuity/mapping-algorithm';
 import * as sessionsService from '../reading-sessions/reading-sessions.service';
 import type { ChapterGraph } from './chapter-graph';
 import { indexEpub } from './epub-indexer';
@@ -17,7 +19,7 @@ export interface ReaderManifestDto {
   sessionId: string;
 }
 
-async function ensureIndexed(
+export async function ensureIndexed(
   edition: { id: string; format: string; chapterGraph: unknown },
   digitalFile: { storageKey: string },
 ): Promise<ChapterGraph> {
@@ -37,24 +39,45 @@ async function ensureIndexed(
   return chapterGraph;
 }
 
-// Phase 4 resolves a start position only within the SAME edition (resume
-// where a previous session on this exact copy left off). Cross-edition
-// mapping — a canonical position recorded on a *different* edition or
-// format — is the continuity engine, Phase 5 (SRS §11.7); this function
-// is the seam that phase extends.
+// Resolution order: (1) resume where a previous session on this exact
+// edition left off (confidence 1.0, no ambiguity); (2) fall back to the
+// journey's canonical position mapped through the continuity engine
+// (Phase 5, SRS §11.7). A below-threshold cross-edition guess is
+// deliberately NOT returned here — T-034 requires that the system never
+// silently auto-navigate on low confidence, so this only ever hands back
+// a startPosition safe to jump to. A low-confidence candidate is instead
+// available via the explicit POST /reading-journeys/:id/resolve-position
+// (T-035), which the frontend confirmation prompt (T-036) uses.
 async function resolveStartPosition(
   userId: string,
-  editionId: string,
+  edition: { id: string; workId: string; chapterGraph: unknown },
 ): Promise<{ startPosition: string | null; confidence: number | null }> {
   const lastSession = await prisma.readingSession.findFirst({
-    where: { userId, copy: { editionId } },
+    where: { userId, copy: { editionId: edition.id } },
     orderBy: { updatedAt: 'desc' },
   });
-  if (!lastSession) {
+  if (lastSession) {
+    const position = lastSession.endPosition ?? lastSession.startPosition;
+    if (position) {
+      return { startPosition: position, confidence: 1.0 };
+    }
+  }
+
+  const journey = await prisma.readingJourney.findUnique({
+    where: { userId_workId: { userId, workId: edition.workId } },
+    include: { canonicalPosition: true },
+  });
+  const source = journey?.canonicalPosition;
+  const chapterGraph = edition.chapterGraph as ChapterGraph | null;
+  if (!source || !chapterGraph) {
     return { startPosition: null, confidence: null };
   }
-  const position = lastSession.endPosition ?? lastSession.startPosition;
-  return { startPosition: position, confidence: position ? 1.0 : null };
+
+  const result = runMappingAlgorithm(source, chapterGraph);
+  if (result.unit && result.confidence >= env.MAPPING_CONFIDENCE_THRESHOLD) {
+    return { startPosition: result.unit.structuralId, confidence: result.confidence };
+  }
+  return { startPosition: null, confidence: null };
 }
 
 // Resolves the signed file URL, the last saved position for this user,
@@ -73,9 +96,12 @@ export async function getReaderManifest(userId: string, editionId: string): Prom
     throw new AppError('VALIDATION_ERROR', 'This edition is physical and has no reader manifest');
   }
 
-  await ensureIndexed(copy.edition, copy.digitalFile);
+  const chapterGraph = await ensureIndexed(copy.edition, copy.digitalFile);
 
-  const { startPosition, confidence } = await resolveStartPosition(userId, editionId);
+  const { startPosition, confidence } = await resolveStartPosition(userId, {
+    ...copy.edition,
+    chapterGraph,
+  });
 
   const fileUrl = await getSignedUrl(
     s3Client,

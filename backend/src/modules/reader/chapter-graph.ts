@@ -20,3 +20,7 @@ export interface ChapterGraph {
   // table (T-026).
   hasTextLayer: boolean;
 }
+
+export function findUnitByStructuralId(graph: ChapterGraph, structuralId: string): ChapterUnit | null {
+  return graph.units.find((unit) => unit.structuralId === structuralId) ?? null;
+}

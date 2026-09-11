@@ -18,6 +18,7 @@ import { journalRouter } from './modules/journal/journal.routes';
 import { statisticsRouter } from './modules/statistics/statistics.routes';
 import { filesRouter } from './modules/files/files.routes';
 import { readerRouter } from './modules/reader/reader.routes';
+import { continuityRouter } from './modules/continuity/continuity.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -46,6 +47,7 @@ export function createApp(): Express {
   app.use('/api/v1/journal', journalRouter);
   app.use('/api/v1/statistics', statisticsRouter);
   app.use('/api/v1/files', filesRouter);
+  app.use('/api/v1/reading-journeys', continuityRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

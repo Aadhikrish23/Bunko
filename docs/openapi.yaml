@@ -397,6 +397,31 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ResolvedPositionResponse" }
 
+  /reading-journeys/{journeyId}/position:
+    post:
+      summary: Confirm or correct the canonical position for a reading journey (SRS §11.5)
+      description: >
+        Both "confirm this resolved candidate" and "no, actually here"
+        are the same operation — telling Bunko the definitive canonical
+        position now (T-037). Scoped to the caller's own journey.
+      parameters:
+        - in: path
+          name: journeyId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                structuralId: { type: string, nullable: true }
+                chapterLabel: { type: string, nullable: true }
+                pageNumber: { type: integer, nullable: true }
+      responses:
+        "204": { description: Canonical position updated }
+        "404": { description: Reading journey not found }
+
   /reading-sessions:
     post:
       summary: Start a reading session (SRS §12.7-12.9)
