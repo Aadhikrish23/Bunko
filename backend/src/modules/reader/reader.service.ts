@@ -1,6 +1,5 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { s3Client, S3_BUCKET } from '../../config/s3';
 import { AppError } from '../../lib/app-error';
@@ -43,12 +42,16 @@ export async function ensureIndexed(
 // Resolution order: (1) resume where a previous session on this exact
 // edition left off (confidence 1.0, no ambiguity); (2) fall back to the
 // journey's canonical position mapped through the continuity engine
-// (Phase 5, SRS §11.7). A below-threshold cross-edition guess is
-// deliberately NOT returned here — T-034 requires that the system never
-// silently auto-navigate on low confidence, so this only ever hands back
-// a startPosition safe to jump to. A low-confidence candidate is instead
-// available via the explicit POST /reading-journeys/:id/resolve-position
-// (T-035), which the frontend confirmation prompt (T-036) uses.
+// (Phase 5, SRS §11.7) — but ONLY an exact structural-ID match, the one
+// method that's fully trusted (see continuity.service.ts's
+// requiresConfirmation for the full reasoning: title/anchor/proportional
+// matches always need a human "yes"). Any candidate weaker than that is
+// deliberately NOT returned here — this endpoint has no way to ask the
+// user first, so it only ever hands back a startPosition safe to
+// silently jump to. A less-certain candidate is instead available via
+// the explicit POST /reading-journeys/:id/resolve-position (T-035),
+// which the frontend confirmation prompt (T-036) uses *before* opening
+// the reader.
 async function resolveStartPosition(
   userId: string,
   edition: { id: string; workId: string; chapterGraph: unknown },
@@ -75,7 +78,7 @@ async function resolveStartPosition(
   }
 
   const result = runMappingAlgorithm(source, chapterGraph);
-  if (result.unit && result.confidence >= env.MAPPING_CONFIDENCE_THRESHOLD) {
+  if (result.unit && result.method === 'structural') {
     return { startPosition: result.unit.structuralId, confidence: result.confidence };
   }
   return { startPosition: null, confidence: null };

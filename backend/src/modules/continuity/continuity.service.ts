@@ -1,4 +1,3 @@
-import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
 import { ensureIndexed } from '../reader/reader.service';
@@ -66,13 +65,23 @@ export async function resolvePosition(
 
   const result = runMappingAlgorithm(source, chapterGraph);
 
+  // Only an exact structural-ID match is fully trusted (SRS §11.7 step 1
+  // — the same edition's own id space, effectively certain). Every other
+  // method — including title match's 0.7-0.9 band, which is *above*
+  // MAPPING_CONFIDENCE_THRESHOLD's default 0.6 — still asks for
+  // confirmation: this is exactly what the SRS §11.9 worked example
+  // describes (0.85 confidence, "Prompt shown ... since confidence is in
+  // the 0.7-0.9 band"). A plain "confidence < threshold" check would
+  // never satisfy that example, since title match can never score below
+  // 0.7 when it fires at all. "No match at all" (method 'none') also
+  // doesn't need confirmation — there's nothing to confirm, and the
+  // frontend already only shows the prompt when a candidate label/id
+  // exists (T-036).
   return {
     structuralId: result.unit?.structuralId ?? null,
     chapterLabel: result.unit?.label ?? null,
     confidence: result.confidence,
-    // Below-threshold confidence must not auto-navigate (T-034) — the
-    // frontend confirmation prompt (T-036) is gated on this flag exactly.
-    requiresConfirmation: result.confidence < env.MAPPING_CONFIDENCE_THRESHOLD,
+    requiresConfirmation: result.method !== 'structural' && result.method !== 'none',
   };
 }
 

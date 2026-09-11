@@ -100,7 +100,13 @@ export function AddEditionDialog({ workId, onClose, onAdded }: { workId: string;
           </div>
         )}
 
-        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileChange}
+          data-testid="digital-file-input"
+        />
       </div>
     </Modal>
   );
