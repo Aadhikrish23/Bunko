@@ -17,6 +17,10 @@ out/
 # Prisma
 backend/prisma/*.db
 
+# Tesseract OCR language data — downloaded/cached at runtime (T-037a),
+# not source, and multi-MB per language file.
+*.traineddata
+
 # Testing
 coverage/
 playwright-report/
