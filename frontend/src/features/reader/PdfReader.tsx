@@ -21,6 +21,7 @@ interface PdfReaderProps {
   onTextSelected?: (selection: { text: string; x: number; y: number; position: string }) => void;
   onFlipStart?: (direction: 'next' | 'prev') => void;
   onCoverChange?: (isCover: boolean) => void;
+  onPageCountLoaded?: (pageCount: number) => void;
 }
 
 // In-memory PDF document cache to eliminate repeated downloads and make loading instant
@@ -58,6 +59,7 @@ export function PdfReader({
   onTextSelected,
   onFlipStart,
   onCoverChange,
+  onPageCountLoaded,
 }: PdfReaderProps) {
   const leftCanvasRef = useRef<HTMLCanvasElement>(null);
   const rightCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -130,6 +132,7 @@ export function PdfReader({
         if (cancelled) return;
         docRef.current = doc;
         setPageCount(doc.numPages);
+        onPageCountLoaded?.(doc.numPages);
         const initialPage = startPosition ? Number(startPosition) : 1;
         setCurrentPage(Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1);
 
@@ -187,7 +190,7 @@ export function PdfReader({
     return () => {
       cancelled = true;
     };
-  }, [fileUrl, onRegisterSearch, startPosition]);
+  }, [fileUrl, onRegisterSearch, startPosition, onPageCountLoaded]);
 
   const handlePrev = useCallback(() => {
     if (currentPage <= 1) return;

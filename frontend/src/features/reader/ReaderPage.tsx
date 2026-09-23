@@ -67,6 +67,7 @@ export function ReaderPage() {
 
   const [currentProgressPercent, setCurrentProgressPercent] = useState(0);
   const [toc, setToc] = useState<EpubTocItem[]>([]);
+  const [pdfPageCount, setPdfPageCount] = useState(0);
   const [showToc, setShowToc] = useState(false);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [showBookmarks, setShowBookmarks] = useState(false);
@@ -143,8 +144,10 @@ export function ReaderPage() {
     }
     const numericPos = Number(position);
     if (Number.isFinite(numericPos) && numericPos > 0) {
-      // Estimate percentage assuming numeric page numbers
-      const total = toc.length > 0 ? toc.length : 100;
+      // Estimate percentage assuming numeric page/chapter numbers, against
+      // the book's real length — pdfPageCount for PDFs (reported once
+      // pdf.js has loaded the document), toc.length for EPUBs.
+      const total = manifest.data?.format === 'PDF' ? pdfPageCount || 1 : toc.length > 0 ? toc.length : 1;
       const pct = Math.min(100, Math.max(0, (numericPos / total) * 100));
       setCurrentProgressPercent(pct);
     }
@@ -512,6 +515,7 @@ export function ReaderPage() {
               onTextSelected={(sel) => setActiveSelection(sel)}
               onFlipStart={handleFlipStart}
               onCoverChange={setIsCover}
+              onPageCountLoaded={setPdfPageCount}
             />
           )}
         </BookFlipWrapper>
@@ -521,12 +525,19 @@ export function ReaderPage() {
       <ReaderProgressScrubber
         currentProgressPercent={currentProgressPercent}
         locationLabel={manifest.data.format === 'PDF' ? `Page ${currentPositionRef.current || 1}` : undefined}
-        totalChaptersOrPages={toc.length > 0 ? toc.length : 20}
+        totalChaptersOrPages={manifest.data.format === 'PDF' ? pdfPageCount || undefined : toc.length || undefined}
         onSeekPercent={(pct) => {
           setCurrentProgressPercent(pct);
           if (manifest.data.format === 'PDF') {
-            const targetPage = Math.max(1, Math.ceil((pct / 100) * 20));
+            if (!pdfPageCount) return;
+            const targetPage = Math.min(pdfPageCount, Math.max(1, Math.round((pct / 100) * pdfPageCount)));
             setJumpTo(String(targetPage));
+          } else if (toc.length > 0) {
+            // EPUBs don't have linear page numbers — seek to the chapter
+            // proportional to the requested percentage instead.
+            const targetIndex = Math.min(toc.length - 1, Math.max(0, Math.round((pct / 100) * (toc.length - 1))));
+            const target = toc[targetIndex];
+            if (target) setJumpTo(target.href);
           }
         }}
       />

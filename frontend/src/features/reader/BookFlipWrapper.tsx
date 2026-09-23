@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
 import type { ReaderSettings } from './reader-settings';
 import { THEME_STYLES, type ThemeColors } from './reader-settings';
 
@@ -150,6 +159,67 @@ function TurningLeaf({ theme, direction, full, snapshot, drag }: TurningLeafProp
           direction === 'next' ? 'right-0' : 'left-0'
         }`}
       />
+    </div>
+  );
+}
+
+const CURL_STRIP_COUNT = 14;
+const CURL_STAGGER_MS = 260;
+
+interface StripCurlLeafProps {
+  direction: 'next' | 'prev';
+  full: boolean;
+  src: string;
+  drag: { progress: number; settling: boolean } | null;
+}
+
+// A genuine bending curl (not a single flat rectangle rotating around a
+// hinge): the page is sliced into thin vertical strips, each rotating
+// by a slightly different amount at any instant, so together they trace
+// a curved surface — the strip nearest the free edge leads, the one at
+// the spine lags, so the curl visibly peels across the page rather than
+// the whole thing swinging and vanishing at 90° like a stiff card.
+// Only usable when we have a real pixel snapshot (PDF canvas) — a
+// same-origin CSS background-position slice — since arbitrary EPUB
+// markup can't be sliced this way.
+function StripCurlLeaf({ direction, full, src, drag }: StripCurlLeafProps) {
+  const positionClass = full ? 'inset-0' : `inset-y-0 w-1/2 ${direction === 'next' ? 'right-0' : 'left-0'}`;
+  const animateClass =
+    drag === null
+      ? direction === 'next'
+        ? 'animate-[flipNext3D_700ms_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
+        : 'animate-[flipPrev3D_700ms_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
+      : '';
+
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute z-40 will-change-transform [transform-style:preserve-3d] ${positionClass}`}
+    >
+      {Array.from({ length: CURL_STRIP_COUNT }, (_, i) => {
+        // 0 at the spine/hinge, 1 at the free edge that leads the curl.
+        const edgeFactor = direction === 'next' ? i / (CURL_STRIP_COUNT - 1) : 1 - i / (CURL_STRIP_COUNT - 1);
+        const style: CSSProperties = {
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: `${(i / CURL_STRIP_COUNT) * 100}%`,
+          width: `${100 / CURL_STRIP_COUNT}%`,
+          backgroundImage: `linear-gradient(${direction === 'next' ? '90deg' : '270deg'}, transparent 82%, rgba(0,0,0,0.14) 100%), url(${src})`,
+          backgroundSize: `100% 100%, ${CURL_STRIP_COUNT * 100}% 100%`,
+          backgroundPosition: `0 0, ${(i / (CURL_STRIP_COUNT - 1)) * 100}% 0`,
+          backfaceVisibility: 'hidden',
+          transformOrigin: direction === 'next' ? 'left center' : 'right center',
+        };
+        if (drag) {
+          const localProgress = Math.min(1, Math.max(0, drag.progress * 1.6 - edgeFactor * 0.6));
+          style.transform = curlTransform(localProgress, direction);
+          style.transition = drag.settling ? `transform ${FLIP_DURATION_MS * 0.4}ms cubic-bezier(0.45,0.05,0.55,0.95)` : 'none';
+        } else {
+          style.animationDelay = `${-(edgeFactor * CURL_STAGGER_MS)}ms`;
+        }
+        return <div key={i} className={animateClass} style={style} />;
+      })}
     </div>
   );
 }
@@ -362,13 +432,22 @@ export function BookFlipWrapper({
                 {(showDragLeaf || showKeyframeLeaf) && (
                   <>
                     <CastShadow direction={activeDirection} full={isSingle} />
-                    <TurningLeaf
-                      theme={theme}
-                      direction={activeDirection}
-                      full={isSingle}
-                      snapshot={snapshot}
-                      drag={showDragLeaf ? { progress: drag.progress, settling: drag.settling } : null}
-                    />
+                    {snapshot?.kind === 'image' ? (
+                      <StripCurlLeaf
+                        direction={activeDirection}
+                        full={isSingle}
+                        src={snapshot.src}
+                        drag={showDragLeaf ? { progress: drag.progress, settling: drag.settling } : null}
+                      />
+                    ) : (
+                      <TurningLeaf
+                        theme={theme}
+                        direction={activeDirection}
+                        full={isSingle}
+                        snapshot={snapshot}
+                        drag={showDragLeaf ? { progress: drag.progress, settling: drag.settling } : null}
+                      />
+                    )}
                   </>
                 )}
 
