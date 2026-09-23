@@ -3,10 +3,12 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { prisma } from '../../config/prisma';
 import { s3Client, S3_BUCKET } from '../../config/s3';
 import { AppError } from '../../lib/app-error';
+import { logger } from '../../lib/logger';
 import { runMappingAlgorithm } from '../continuity/mapping-algorithm';
 import * as sessionsService from '../reading-sessions/reading-sessions.service';
 import type { ChapterGraph } from './chapter-graph';
 import { indexEpub } from './epub-indexer';
+import { enqueueOcrBackfill } from './ocr-backfill.worker';
 import { indexPdf } from './pdf-indexer';
 
 const FILE_URL_EXPIRY_SECONDS = 3600;
@@ -49,6 +51,17 @@ export async function ensureIndexed(
 
   const chapterGraph = edition.format === 'EPUB' ? indexEpub(buffer) : await indexPdf(buffer);
   await prisma.edition.update({ where: { id: edition.id }, data: { chapterGraph: chapterGraph as object } });
+
+  // T-037a: a scanned PDF gets this fast, empty-text graph immediately
+  // (SRS §38.2 graceful degradation) — OCR to backfill real text runs
+  // separately in the background rather than blocking this response,
+  // since it can take minutes for a real book. The next read of this
+  // edition picks up the enriched graph once the job completes.
+  if (edition.format === 'PDF' && !chapterGraph.hasTextLayer) {
+    enqueueOcrBackfill(edition.id).catch((err) => {
+      logger.warn({ err, editionId: edition.id }, 'Failed to enqueue OCR backfill');
+    });
+  }
 
   return chapterGraph;
 }
