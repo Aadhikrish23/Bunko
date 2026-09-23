@@ -180,6 +180,9 @@ export function PdfReader({
   });
   const [zoomScale, setZoomScale] = useState(1.3);
   const [isScannedPdf, setIsScannedPdf] = useState(false);
+  // width/height ratio of the actual PDF page — defaults to a
+  // letter/A4-ish guess until the real document loads and reports it.
+  const [pageAspect, setPageAspect] = useState(0.72);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 600, height: 800 });
@@ -256,8 +259,13 @@ export function PdfReader({
           if (!textContent.items || textContent.items.length === 0) {
             setIsScannedPdf(true);
           }
+          const nativeViewport = firstPage.getViewport({ scale: 1 });
+          if (nativeViewport.width > 0 && nativeViewport.height > 0) {
+            setPageAspect(nativeViewport.width / nativeViewport.height);
+          }
         } catch {
-          // Ignore text check error
+          // Ignore text check / aspect-ratio read error — falls back to
+          // the default aspect below.
         }
 
         if (onRegisterSearch) {
@@ -371,8 +379,20 @@ export function PdfReader({
   const theme = THEME_STYLES[settings?.theme ?? 'paper'];
   const warmth = settings?.temperature ?? 0;
   const initialPageIndex = Math.max(0, Math.min(Math.max(0, pageCount - 1), currentPage - 1));
-  const bookWidth = Math.round(Math.min(480, Math.max(220, containerSize.width / 2 - 24)));
-  const bookHeight = Math.round(Math.min(700, Math.max(300, containerSize.height - 40)));
+
+  // Size each page slot to the PDF's own aspect ratio, fit within the
+  // available space, so the rendered page fills its slot exactly
+  // instead of being letterboxed inside a mismatched-proportion box.
+  const maxSlotWidth = Math.max(180, containerSize.width / 2 - 24);
+  const maxSlotHeight = Math.max(240, containerSize.height - 40);
+  let bookHeight = Math.min(700, maxSlotHeight);
+  let bookWidth = bookHeight * pageAspect;
+  if (bookWidth > maxSlotWidth) {
+    bookWidth = maxSlotWidth;
+    bookHeight = bookWidth / pageAspect;
+  }
+  bookWidth = Math.round(bookWidth);
+  bookHeight = Math.round(bookHeight);
 
   return (
     <div
@@ -405,6 +425,12 @@ export function PdfReader({
             drawShadow
             flippingTime={700}
             maxShadowOpacity={0.5}
+            // Only the bottom nav, an edge click, or an actual drag/swipe
+            // should turn a page — not a passive mouse hover (the
+            // library's default corner-fold preview) or a click anywhere
+            // on the page body (which would fight text selection).
+            showPageCorners={false}
+            disableFlipByClick
             className="rounded-sm shadow-[0_25px_60px_rgba(0,0,0,0.35)]"
             style={{}}
             onFlip={handleFlip}
