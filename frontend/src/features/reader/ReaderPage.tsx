@@ -483,13 +483,8 @@ export function ReaderPage() {
       )}
 
       <div className="flex-1 overflow-hidden">
-        <BookFlipWrapper
-          settings={readerSettings}
-          isFlipping={isFlipping}
-          flipDirection={flipDirection}
-          isCover={isCover}
-        >
-          {manifest.data.format === 'EPUB' ? (
+        {manifest.data.format === 'EPUB' ? (
+          <BookFlipWrapper settings={readerSettings} isFlipping={isFlipping} flipDirection={flipDirection} isCover={isCover}>
             <EpubReader
               fileUrl={manifest.data.fileUrl}
               startPosition={
@@ -504,21 +499,21 @@ export function ReaderPage() {
               onFlipStart={handleFlipStart}
               onCoverChange={setIsCover}
             />
-          ) : (
-            <PdfReader
-              fileUrl={manifest.data.fileUrl}
-              startPosition={savedPosition ?? manifest.data.startPosition}
-              jumpToPosition={jumpTo}
-              settings={readerSettings}
-              onPositionChange={handlePositionChange}
-              onRegisterSearch={handleRegisterSearch}
-              onTextSelected={(sel) => setActiveSelection(sel)}
-              onFlipStart={handleFlipStart}
-              onCoverChange={setIsCover}
-              onPageCountLoaded={setPdfPageCount}
-            />
-          )}
-        </BookFlipWrapper>
+          </BookFlipWrapper>
+        ) : (
+          // PDF pages have their own real curled page-turn (react-pageflip)
+          // and own their whole viewport — no BookFlipWrapper shell/leaf.
+          <PdfReader
+            fileUrl={manifest.data.fileUrl}
+            startPosition={savedPosition ?? manifest.data.startPosition}
+            jumpToPosition={jumpTo}
+            settings={readerSettings}
+            onPositionChange={handlePositionChange}
+            onRegisterSearch={handleRegisterSearch}
+            onTextSelected={(sel) => setActiveSelection(sel)}
+            onPageCountLoaded={setPdfPageCount}
+          />
+        )}
       </div>
 
 

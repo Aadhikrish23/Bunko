@@ -1,15 +1,29 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import 'pdfjs-dist/web/pdf_viewer.css';
+// StPageFlip's HTML render mode is DOM/CSS-positioned, not canvas-drawn —
+// without its stylesheet every page stacks at (0,0) unstyled. The npm
+// package ships this only under src/, not in its compiled dist/.
+import 'page-flip/src/Style/stPageFlip.css';
+import HTMLFlipBookImport from 'react-pageflip';
+
+// react-pageflip's IProps extends IFlipSetting with every field required,
+// even though its own README only ever passes width/height and relies on
+// documented runtime defaults for the rest — so the strict typing doesn't
+// match its actual usage contract. Loosened here rather than hand-listing
+// every internal setting field just to satisfy the compiler.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const HTMLFlipBook = HTMLFlipBookImport as any;
 import { ChevronLeft, ChevronRight, Info, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
-import { PageSpinner } from '../../components/ui/Spinner';
+import { PageSpinner, Spinner } from '../../components/ui/Spinner';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 import type { SearchMatch } from './InBookSearchDrawer';
 import type { ReaderSettings } from './reader-settings';
+import { THEME_STYLES } from './reader-settings';
 
 interface PdfReaderProps {
   fileUrl: string;
@@ -19,8 +33,6 @@ interface PdfReaderProps {
   onPositionChange: (position: string) => void;
   onRegisterSearch?: (searchFn: (query: string) => Promise<SearchMatch[]>) => void;
   onTextSelected?: (selection: { text: string; x: number; y: number; position: string }) => void;
-  onFlipStart?: (direction: 'next' | 'prev') => void;
-  onCoverChange?: (isCover: boolean) => void;
   onPageCountLoaded?: (pageCount: number) => void;
 }
 
@@ -48,8 +60,104 @@ async function getPdfDocument(fileUrl: string): Promise<any> {
   return promise;
 }
 
-export function PdfReader({
+// Pages within this distance of the current one get their canvas + text
+// layer actually rendered; the rest stay blank until scrolled near. The
+// flip book still mounts one DOM node per page (StPageFlip's HTML mode
+// needs them all present to compute the book), but the expensive pdf.js
+// rendering work only happens for pages the reader could plausibly see.
+const RENDER_WINDOW = 2;
 
+interface PdfPageProps {
+  pageNum: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs-dist's PDFDocumentProxy
+  doc: any;
+  active: boolean;
+  zoomScale: number;
+  paperBg: string;
+  isPaperTheme: boolean;
+}
+
+const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
+  { pageNum, doc, active, zoomScale, paperBg, isPaperTheme },
+  ref
+) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const taskRef = useRef<any>(null);
+  const [rendered, setRendered] = useState(false);
+
+  useEffect(() => {
+    if (!active || rendered || !doc) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const page = await doc.getPage(pageNum);
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale: zoomScale });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+
+        const renderTask = page.render({ canvasContext: context, viewport });
+        taskRef.current = renderTask;
+        await renderTask.promise;
+        if (cancelled) return;
+        setRendered(true);
+
+        if (textLayerRef.current) {
+          textLayerRef.current.innerHTML = '';
+          textLayerRef.current.style.width = `${viewport.width}px`;
+          textLayerRef.current.style.height = `${viewport.height}px`;
+          const textContent = await page.getTextContent();
+          if (cancelled) return;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const TextLayerClass = (pdfjsLib as any).TextLayer;
+          if (TextLayerClass) {
+            const textLayer = new TextLayerClass({
+              textContentSource: textContent,
+              container: textLayerRef.current,
+              viewport,
+            });
+            await textLayer.render();
+          }
+        }
+      } catch {
+        // Ignore render/cancellation errors — a page that fails to render
+        // just stays blank rather than crashing the book.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (taskRef.current) {
+        try {
+          taskRef.current.cancel();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [active, doc, pageNum, rendered, zoomScale]);
+
+  return (
+    <div ref={ref} style={{ backgroundColor: paperBg }} className="relative flex h-full w-full items-center justify-center overflow-hidden">
+      <canvas ref={canvasRef} style={{ mixBlendMode: isPaperTheme ? 'multiply' : 'normal' }} className="max-h-full max-w-full object-contain" />
+      <div ref={textLayerRef} className="textLayer absolute inset-0 select-text overflow-hidden" />
+      {!rendered && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Spinner />
+        </div>
+      )}
+    </div>
+  );
+});
+
+export function PdfReader({
   fileUrl,
   startPosition,
   jumpToPosition,
@@ -57,21 +165,13 @@ export function PdfReader({
   onPositionChange,
   onRegisterSearch,
   onTextSelected,
-  onFlipStart,
-  onCoverChange,
   onPageCountLoaded,
 }: PdfReaderProps) {
-  const leftCanvasRef = useRef<HTMLCanvasElement>(null);
-  const rightCanvasRef = useRef<HTMLCanvasElement>(null);
-  const leftTextLayerRef = useRef<HTMLDivElement>(null);
-  const rightTextLayerRef = useRef<HTMLDivElement>(null);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leftTaskRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rightTaskRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs-dist's PDFDocumentProxy
   const docRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-pageflip's ref exposes an untyped pageFlip() instance
+  const flipBookRef = useRef<any>(null);
+  const isReadyRef = useRef(false);
 
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(() => {
@@ -82,19 +182,36 @@ export function PdfReader({
   const [isScannedPdf, setIsScannedPdf] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [windowWidth, setWindowWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1024));
-
-  const isDualPage = (settings?.pageTurnMode === '3d-flip' || !settings?.pageTurnMode) && windowWidth >= 768;
-  const isCover = isDualPage && currentPage === 1;
+  const [containerSize, setContainerSize] = useState({ width: 600, height: 800 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  // The book remounts when this size changes meaningfully (its width/
+  // height feed the key below). Threshold-gated so the ResizeObserver's
+  // first real measurement — which always differs a little from the
+  // placeholder default right after mount — doesn't force a remount in
+  // the middle of the very first page turn a user makes.
+  const committedSizeRef = useRef({ width: 600, height: 800 });
 
   useEffect(() => {
-    onCoverChange?.(isCover);
-  }, [isCover, onCoverChange]);
-
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const el = containerRef.current;
+    if (!el) return;
+    let frame = 0;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const committed = committedSizeRef.current;
+        if (Math.abs(width - committed.width) < 24 && Math.abs(height - committed.height) < 24) return;
+        committedSizeRef.current = { width, height };
+        setContainerSize({ width: Math.max(200, width), height: Math.max(200, height) });
+      });
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, []);
 
   useEffect(() => {
@@ -118,7 +235,6 @@ export function PdfReader({
   }, [currentPage, onTextSelected]);
 
   useEffect(() => {
-
     let cancelled = false;
     const resolvedUrl =
       typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
@@ -127,14 +243,12 @@ export function PdfReader({
 
     getPdfDocument(resolvedUrl)
       .then(async (doc) => {
-
-
         if (cancelled) return;
         docRef.current = doc;
         setPageCount(doc.numPages);
         onPageCountLoaded?.(doc.numPages);
         const initialPage = startPosition ? Number(startPosition) : 1;
-        setCurrentPage(Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1);
+        setCurrentPage(Number.isFinite(initialPage) && initialPage > 0 ? Math.min(doc.numPages, initialPage) : 1);
 
         try {
           const firstPage = await doc.getPage(1);
@@ -146,7 +260,6 @@ export function PdfReader({
           // Ignore text check error
         }
 
-        // Register PDF full-text search
         if (onRegisterSearch) {
           onRegisterSearch(async (query: string): Promise<SearchMatch[]> => {
             if (!docRef.current) return [];
@@ -193,34 +306,13 @@ export function PdfReader({
   }, [fileUrl, onRegisterSearch, startPosition, onPageCountLoaded]);
 
   const handlePrev = useCallback(() => {
-    if (currentPage <= 1) return;
-    onFlipStart?.('prev');
-    if (isDualPage) {
-      if (currentPage === 2) {
-        setCurrentPage(1);
-      } else {
-        setCurrentPage((p) => Math.max(1, p - 2));
-      }
-    } else {
-      setCurrentPage((p) => Math.max(1, p - 1));
-    }
-  }, [currentPage, isDualPage, onFlipStart]);
+    flipBookRef.current?.pageFlip()?.flipPrev();
+  }, []);
 
   const handleNext = useCallback(() => {
-    if (currentPage >= pageCount) return;
-    onFlipStart?.('next');
-    if (isDualPage) {
-      if (currentPage === 1) {
-        setCurrentPage(2);
-      } else {
-        setCurrentPage((p) => Math.min(pageCount > 0 ? pageCount : p, p + 2));
-      }
-    } else {
-      setCurrentPage((p) => Math.min(pageCount > 0 ? pageCount : p, p + 1));
-    }
-  }, [currentPage, isDualPage, onFlipStart, pageCount]);
+    flipBookRef.current?.pageFlip()?.flipNext();
+  }, []);
 
-  // Keyboard Navigation Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
@@ -228,143 +320,65 @@ export function PdfReader({
       } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
         handleNext();
       } else if (e.key === 'Home') {
-        onFlipStart?.('prev');
-        setCurrentPage(1);
+        flipBookRef.current?.pageFlip()?.turnToPage(0);
       } else if (e.key === 'End' && pageCount > 0) {
-        onFlipStart?.('next');
-        setCurrentPage(pageCount);
+        flipBookRef.current?.pageFlip()?.turnToPage(pageCount - 1);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleNext, handlePrev, onFlipStart, pageCount]);
+  }, [handleNext, handlePrev, pageCount]);
 
   useEffect(() => {
-    if (jumpToPosition) {
-      const page = Number(jumpToPosition);
-      if (Number.isFinite(page) && page > 0) {
-        if (isDualPage && page > 1) {
-          const normalized = page % 2 === 0 ? page : page - 1;
-          setCurrentPage(normalized);
-        } else {
-          setCurrentPage(page);
-        }
-      }
+    if (!jumpToPosition || !isReadyRef.current) return;
+    const page = Number(jumpToPosition);
+    if (Number.isFinite(page) && page > 0 && pageCount > 0) {
+      flipBookRef.current?.pageFlip()?.flip(Math.min(pageCount - 1, Math.max(0, page - 1)));
     }
-  }, [isDualPage, jumpToPosition]);
+  }, [jumpToPosition, pageCount]);
 
-  // Canvas and Text Layer Render Effect with Cancellation Safeguard
-  useEffect(() => {
-    if (!docRef.current) return;
-    let cancelled = false;
+  const handleFlip = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (e: any) => {
+      const newPage = Number(e?.data) + 1;
+      if (!Number.isFinite(newPage) || newPage < 1) return;
+      setCurrentPage(newPage);
+      onPositionChange(String(newPage));
+    },
+    [onPositionChange]
+  );
 
-    const renderPage = async (
-      pageNum: number,
-      canvas: HTMLCanvasElement | null,
-      textLayerContainer: HTMLDivElement | null,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      taskRef: React.MutableRefObject<any>
-    ) => {
-      if (!canvas || !docRef.current || pageNum < 1 || pageNum > docRef.current.numPages) return;
-
-      // Safely cancel previous render task on this canvas if active
-      if (taskRef.current) {
-        try {
-          taskRef.current.cancel();
-        } catch {
-          // ignore
-        }
-        taskRef.current = null;
+  const handleInit = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (e: any) => {
+      isReadyRef.current = true;
+      // onFlip only fires on a later page turn — without this, the
+      // reader never reports its opening position (and the progress
+      // scrubber stays frozen at whatever it showed before mount).
+      const initPage = Number(e?.data?.page) + 1;
+      if (Number.isFinite(initPage) && initPage >= 1) {
+        setCurrentPage(initPage);
+        onPositionChange(String(initPage));
       }
-
-      try {
-        const page = await docRef.current.getPage(pageNum);
-        if (cancelled || !canvas) return;
-        const viewport = page.getViewport({ scale: zoomScale });
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const context = canvas.getContext('2d');
-        if (!context) return;
-
-        const renderTask = page.render({ canvasContext: context, viewport });
-        taskRef.current = renderTask;
-        await renderTask.promise;
-
-        // Render transparent text layer overlay for native text selection
-        if (textLayerContainer && !cancelled) {
-          textLayerContainer.innerHTML = '';
-          textLayerContainer.style.width = `${viewport.width}px`;
-          textLayerContainer.style.height = `${viewport.height}px`;
-
-          const textContent = await page.getTextContent();
-          if (cancelled) return;
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const TextLayerClass = (pdfjsLib as any).TextLayer;
-          if (TextLayerClass) {
-            const textLayer = new TextLayerClass({
-              textContentSource: textContent,
-              container: textLayerContainer,
-              viewport: viewport,
-            });
-            await textLayer.render();
-          }
-        }
-      } catch (err: unknown) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if ((err as any)?.name !== 'RenderingCancelledException') {
-          // Ignore cancellation exceptions
-        }
-      } finally {
-        taskRef.current = null;
-      }
-    };
-
-    const activeLeftTask = leftTaskRef;
-    const activeRightTask = rightTaskRef;
-
-    if (isDualPage) {
-      if (currentPage === 1) {
-        renderPage(1, leftCanvasRef.current, leftTextLayerRef.current, activeLeftTask);
-      } else {
-        renderPage(currentPage, leftCanvasRef.current, leftTextLayerRef.current, activeLeftTask);
-        if (currentPage + 1 <= docRef.current.numPages) {
-          renderPage(currentPage + 1, rightCanvasRef.current, rightTextLayerRef.current, activeRightTask);
-        }
-      }
-    } else {
-      renderPage(currentPage, leftCanvasRef.current, leftTextLayerRef.current, activeLeftTask);
-    }
-
-    onPositionChange(String(currentPage));
-
-    return () => {
-      cancelled = true;
-      if (activeLeftTask.current) {
-        try {
-          activeLeftTask.current.cancel();
-        } catch {
-          // ignore
-        }
-      }
-      if (activeRightTask.current) {
-        try {
-          activeRightTask.current.cancel();
-        } catch {
-          // ignore
-        }
-      }
-    };
-  }, [currentPage, isDualPage, onPositionChange, zoomScale]);
+    },
+    [onPositionChange]
+  );
 
   if (isLoading) return <PageSpinner />;
   if (error) return <ErrorBanner message={error} />;
 
   const isPaperTheme = !settings?.theme || settings.theme === 'paper' || settings.theme === 'sepia';
+  const theme = THEME_STYLES[settings?.theme ?? 'paper'];
+  const warmth = settings?.temperature ?? 0;
+  const initialPageIndex = Math.max(0, Math.min(Math.max(0, pageCount - 1), currentPage - 1));
+  const bookWidth = Math.round(Math.min(480, Math.max(220, containerSize.width / 2 - 24)));
+  const bookHeight = Math.round(Math.min(700, Math.max(300, containerSize.height - 40)));
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center justify-between overflow-hidden p-2 select-none">
-      {/* Scanned PDF Capability Notice */}
+    <div
+      style={{ backgroundColor: theme.bg, filter: `brightness(${settings?.brightness ?? 100}%)` }}
+      className="relative flex h-full w-full flex-col items-center justify-between overflow-hidden p-2 select-none transition-colors duration-300"
+    >
       {isScannedPdf && (
         <div className="absolute top-2 z-20 flex items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-1 text-xs text-amber-900 shadow-sm">
           <Info className="h-4 w-4 shrink-0 text-amber-600" />
@@ -372,82 +386,58 @@ export function PdfReader({
         </div>
       )}
 
-      {/* Main Dual-Page or Single-Page Full-Bleed Viewport */}
-      <div className="flex flex-1 w-full items-center justify-center overflow-auto p-1 sm:p-2">
-        {isDualPage && currentPage === 1 ? (
-          /* Closed Book Single Cover Viewport (No blank right page!) */
-          <div className="flex h-full w-full items-center justify-center overflow-hidden p-0 m-0">
-            <div className="relative flex h-full w-full items-center justify-center">
-              <canvas
-                ref={leftCanvasRef}
-                style={{ mixBlendMode: isPaperTheme ? 'multiply' : 'normal' }}
-                className="h-full w-full object-fill block transition-opacity duration-300"
-              />
-              <div
-                ref={leftTextLayerRef}
-                className="textLayer absolute inset-0 pointer-events-auto select-text overflow-hidden"
-              />
-            </div>
-          </div>
-        ) : isDualPage ? (
-          /* Dual-Page Open Book Spread */
-          <div className="flex h-full w-full items-center justify-center gap-2 sm:gap-6 px-2">
-            {/* Left Page Leaf */}
-            <div className="flex flex-1 h-full w-1/2 items-center justify-center overflow-hidden">
-              <div className="relative flex items-center justify-center max-h-full max-w-full">
-                <canvas
-                  ref={leftCanvasRef}
-                  style={{ mixBlendMode: isPaperTheme ? 'multiply' : 'normal' }}
-                  className="max-h-[78vh] max-w-full object-contain block transition-opacity duration-300"
+      <div
+        ref={containerRef}
+        style={{
+          backgroundImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.06) 0%, transparent 70%)',
+        }}
+        className="flex flex-1 w-full items-center justify-center overflow-hidden p-1 sm:p-2"
+      >
+        {pageCount > 0 && (
+          <HTMLFlipBook
+            key={`${pageCount}-${bookWidth}-${bookHeight}`}
+            ref={flipBookRef}
+            width={bookWidth}
+            height={bookHeight}
+            size="fixed"
+            showCover
+            startPage={initialPageIndex}
+            drawShadow
+            flippingTime={700}
+            maxShadowOpacity={0.5}
+            className="rounded-sm shadow-[0_25px_60px_rgba(0,0,0,0.35)]"
+            style={{}}
+            onFlip={handleFlip}
+            onInit={handleInit}
+          >
+            {Array.from({ length: pageCount }, (_, i) => {
+              const pageNum = i + 1;
+              const active = Math.abs(pageNum - currentPage) <= RENDER_WINDOW;
+              return (
+                <PdfPage
+                  key={`${pageNum}-${zoomScale}`}
+                  pageNum={pageNum}
+                  doc={docRef.current}
+                  active={active}
+                  zoomScale={zoomScale}
+                  paperBg={theme.paperBg}
+                  isPaperTheme={isPaperTheme}
                 />
-                <div
-                  ref={leftTextLayerRef}
-                  className="textLayer absolute inset-0 pointer-events-auto select-text overflow-hidden"
-                />
-              </div>
-            </div>
-
-            {/* Right Page Leaf */}
-            <div className="flex flex-1 h-full w-1/2 items-center justify-center overflow-hidden">
-              {currentPage + 1 <= pageCount ? (
-                <div className="relative flex items-center justify-center max-h-full max-w-full">
-                  <canvas
-                    ref={rightCanvasRef}
-                    style={{ mixBlendMode: isPaperTheme ? 'multiply' : 'normal' }}
-                    className="max-h-[78vh] max-w-full object-contain block transition-opacity duration-300"
-                  />
-                  <div
-                    ref={rightTextLayerRef}
-                    className="textLayer absolute inset-0 pointer-events-auto select-text overflow-hidden"
-                  />
-                </div>
-              ) : (
-                <div className="flex h-[78vh] w-full items-center justify-center text-xs text-paper-400 font-medium">
-                  End of Book
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          /* Single-Page Viewport */
-          <div className="flex h-full w-full items-center justify-center overflow-hidden">
-            <div className="relative flex items-center justify-center max-h-full max-w-full">
-              <canvas
-                ref={leftCanvasRef}
-                style={{ mixBlendMode: isPaperTheme ? 'multiply' : 'normal' }}
-                className="max-h-[80vh] max-w-full object-contain block transition-opacity duration-300"
-              />
-              <div
-                ref={leftTextLayerRef}
-                className="textLayer absolute inset-0 pointer-events-auto select-text overflow-hidden"
-              />
-            </div>
-          </div>
+              );
+            })}
+          </HTMLFlipBook>
         )}
       </div>
 
-      {/* PDF Controls Footer */}
-      <div className="z-20 mt-1 flex flex-wrap items-center gap-3 rounded-xl border border-paper-300/80 bg-paper-50/95 px-3 py-1.5 shadow-lg backdrop-blur text-xs text-paper-700">
+      {warmth > 0 && (
+        <div
+          aria-hidden="true"
+          style={{ backgroundColor: `rgba(255, 160, 40, ${(warmth / 100) * 0.35})`, mixBlendMode: 'multiply' }}
+          className="pointer-events-none absolute inset-0 z-30 transition-opacity duration-300"
+        />
+      )}
+
+      <div className="z-40 mt-1 flex flex-wrap items-center gap-3 rounded-xl border border-paper-300/80 bg-paper-50/95 px-3 py-1.5 shadow-lg backdrop-blur text-xs text-paper-700">
         <button
           type="button"
           disabled={currentPage <= 1}
@@ -459,11 +449,7 @@ export function PdfReader({
         </button>
 
         <span className="font-semibold text-paper-800">
-          {isDualPage && currentPage === 1
-            ? `Cover (Page 1 of ${pageCount})`
-            : isDualPage
-            ? `Pages ${currentPage}${currentPage + 1 <= pageCount ? `–${currentPage + 1}` : ''} of ${pageCount}`
-            : `Page ${currentPage} of ${pageCount}`}
+          Page {currentPage} of {pageCount}
         </span>
 
         <button
