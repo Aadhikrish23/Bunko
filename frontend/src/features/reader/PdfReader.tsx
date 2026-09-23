@@ -341,7 +341,12 @@ export function PdfReader({
     if (!jumpToPosition || !isReadyRef.current) return;
     const page = Number(jumpToPosition);
     if (Number.isFinite(page) && page > 0 && pageCount > 0) {
-      flipBookRef.current?.pageFlip()?.flip(Math.min(pageCount - 1, Math.max(0, page - 1)));
+      // turnToPage(), not flip(): flip() only animates one adjacent
+      // spread-step regardless of the target index (confirmed against
+      // the library's own source — it's built for "next/prev toward a
+      // known destination", not an arbitrary jump), so a seek-slider
+      // drag to a distant page would silently only move one step.
+      flipBookRef.current?.pageFlip()?.turnToPage(Math.min(pageCount - 1, Math.max(0, page - 1)));
     }
   }, [jumpToPosition, pageCount]);
 

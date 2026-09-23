@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
-import { getReaderManifestHandler } from './reader.controller';
+import { getChaptersHandler, getReaderManifestHandler } from './reader.controller';
 import { editionIdParamsSchema } from './reader.schema';
 
 // Mounted at the same base path as editionsRouter ('/api/v1/editions') —
@@ -14,4 +14,11 @@ readerRouter.get(
   authMiddleware,
   validate(editionIdParamsSchema, 'params'),
   getReaderManifestHandler,
+);
+
+readerRouter.get(
+  '/:editionId/chapters',
+  authMiddleware,
+  validate(editionIdParamsSchema, 'params'),
+  getChaptersHandler,
 );

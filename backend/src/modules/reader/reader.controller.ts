@@ -15,3 +15,16 @@ export async function getReaderManifestHandler(
     next(err);
   }
 }
+
+export async function getChaptersHandler(
+  req: Request<{ editionId: string }>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const dto = await readerService.getChapters(requireUserId(req), req.params.editionId);
+    sendOk(res, dto);
+  } catch (err) {
+    next(err);
+  }
+}

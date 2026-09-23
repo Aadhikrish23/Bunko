@@ -139,6 +139,7 @@ export function indexEpub(buffer: Buffer): ChapterGraph {
       order: index,
       pageNumber: null, // EPUB has no native page numbers; continuity relies on structural/anchor matching
       textAnchors: generateTextAnchors(normalized),
+      text: text.replace(/\s+/g, ' ').trim(),
     };
   });
 

@@ -1,6 +1,6 @@
 import { ArrowLeft, FileText, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -130,7 +130,15 @@ export function BookDetailPage() {
                 </div>
                 {edition.format === 'PHYSICAL' && edition.copyId && <PhysicalSessionPanel copyId={edition.copyId} />}
                 {edition.format !== 'PHYSICAL' && edition.copyId && (
-                  <ContinueReadingButton journeyId={data.journeyId} edition={edition} />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <ContinueReadingButton journeyId={data.journeyId} edition={edition} />
+                    <Link
+                      to={`/read-chapters/${edition.id}`}
+                      className="focus-visible:focus-ring text-sm text-paper-500 underline hover:text-paper-800"
+                    >
+                      Read chapters (beta)
+                    </Link>
+                  </div>
                 )}
               </li>
             ))}

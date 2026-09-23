@@ -32,3 +32,35 @@ test.describe('GET /editions/:editionId/reader-manifest (T-027)', () => {
   // resolved to a startPosition) needs a reachable S3-compatible
   // endpoint — see the note in the Phase 4 commit message.
 });
+
+test.describe('GET /editions/:editionId/chapters', () => {
+  test('requires authentication', async ({ request }) => {
+    const response = await request.get('/api/v1/editions/00000000-0000-0000-0000-000000000000/chapters');
+    expect(response.status()).toBe(401);
+  });
+
+  test('returns 404 when there is no digital copy of this edition in the library', async ({ authedRequest }) => {
+    const work = await authedRequest.post('/api/v1/works', { data: { title: 'No Copy Yet For Chapters' } });
+    const workId = (await work.json()).data.id;
+    const edition = await authedRequest.post('/api/v1/editions', { data: { workId, format: 'EPUB' } });
+    const editionId = (await edition.json()).data.id;
+
+    const response = await authedRequest.get(`/api/v1/editions/${editionId}/chapters`);
+    expect(response.status()).toBe(404);
+  });
+
+  test('rejects a physical edition (no chapters apply)', async ({ authedRequest }) => {
+    const work = await authedRequest.post('/api/v1/works', { data: { title: 'Physical Only For Chapters' } });
+    const workId = (await work.json()).data.id;
+    const edition = await authedRequest.post('/api/v1/editions', { data: { workId, format: 'PHYSICAL' } });
+    const editionId = (await edition.json()).data.id;
+    await authedRequest.post('/api/v1/copies', { data: { editionId } });
+
+    const response = await authedRequest.get(`/api/v1/editions/${editionId}/chapters`);
+    expect(response.status()).toBe(404);
+  });
+
+  // The full happy-path (real file, chapter text actually extracted) has
+  // the same real-S3 setup cost noted above — covered instead by a
+  // frontend e2e test against the live flow-reader UI.
+});

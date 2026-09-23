@@ -6,6 +6,7 @@ import { RegisterPage } from './features/auth/RegisterPage';
 import { BookDetailPage } from './features/library/BookDetailPage';
 import { LibraryPage } from './features/library/LibraryPage';
 import { JournalPage } from './features/journal/JournalPage';
+import { FlowReaderPage } from './features/reader/FlowReaderPage';
 import { ReaderPage } from './features/reader/ReaderPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { ShelvesPage } from './features/shelves/ShelvesPage';
@@ -23,6 +24,7 @@ export default function App() {
               wants the reader to minimise UI, not sit inside the app's
               persistent sidebar/chrome. */}
           <Route path="/read/:editionId" element={<ReaderPage />} />
+          <Route path="/read-chapters/:editionId" element={<FlowReaderPage />} />
 
           <Route element={<AppShell />}>
             <Route path="/library" element={<LibraryPage />} />

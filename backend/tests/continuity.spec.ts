@@ -12,15 +12,16 @@ const targetGraph: ChapterGraph = {
   format: 'EPUB',
   hasTextLayer: true,
   units: [
-    { structuralId: 'ch9', label: 'Chapter 9: The Departure', order: 0, pageNumber: 120, textAnchors: [] },
+    { structuralId: 'ch9', label: 'Chapter 9: The Departure', order: 0, pageNumber: 120, textAnchors: [], text: '' },
     {
       structuralId: 'ch10',
       label: 'Chapter 10: The Reckoning',
       order: 1,
       pageNumber: 135,
       textAnchors: [{ hash: 'anchor-a', offset: 0 }, { hash: 'anchor-b', offset: 12 }],
+      text: '',
     },
-    { structuralId: 'ch11', label: 'Chapter 11: Aftermath', order: 2, pageNumber: 150, textAnchors: [] },
+    { structuralId: 'ch11', label: 'Chapter 11: Aftermath', order: 2, pageNumber: 150, textAnchors: [], text: '' },
   ],
 };
 

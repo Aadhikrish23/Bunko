@@ -10,6 +10,11 @@ export interface ChapterUnit {
   order: number;
   pageNumber: number | null;
   textAnchors: TextAnchor[];
+  // Full readable chapter text (not the normalized anchor form) — powers
+  // the flow-reader UI and, later, chapter-level AI features. Empty for a
+  // scanned PDF page with no extractable text layer (SRS §38.2); OCR
+  // backfill is a separate, not-yet-built step.
+  text: string;
 }
 
 export interface ChapterGraph {

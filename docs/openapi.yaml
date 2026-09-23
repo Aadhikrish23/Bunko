@@ -379,6 +379,30 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ReaderManifestResponse" }
 
+  /editions/{editionId}/chapters:
+    get:
+      summary: Get an edition's chapter-wise text
+      description: >
+        Chapter boundaries and full readable text per chapter, built by
+        the same import-time indexing pipeline as the continuity engine
+        (SRS §11.6) — reused here rather than a separate extraction path.
+        Powers the flow-reader UI and future chapter-level AI features.
+        For a PDF with no bookmark outline, each unit is a page rather
+        than a true chapter (no structural signal exists to group
+        pages). `text` is empty for a scanned page with no extractable
+        text layer — OCR backfill is not yet implemented.
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Chapter list with text
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChaptersResponse" }
+
   /reading-journeys/{journeyId}/resolve-position:
     post:
       summary: Resolve the canonical position into a target edition's location
@@ -814,6 +838,25 @@ components:
             startPosition: { type: string, nullable: true }
             confidence: { type: number, nullable: true }
             sessionId: { type: string, format: uuid }
+
+    ChaptersResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            format: { type: string, enum: [EPUB, PDF] }
+            hasTextLayer: { type: boolean }
+            chapters:
+              type: array
+              items:
+                type: object
+                properties:
+                  structuralId: { type: string }
+                  label: { type: string }
+                  order: { type: integer }
+                  pageNumber: { type: integer, nullable: true }
+                  text: { type: string }
 
     ResolvedPositionResponse:
       type: object

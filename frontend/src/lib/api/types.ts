@@ -102,6 +102,20 @@ export interface ReaderManifest {
   sessionId: string;
 }
 
+export interface Chapter {
+  structuralId: string;
+  label: string;
+  order: number;
+  pageNumber: number | null;
+  text: string;
+}
+
+export interface ChaptersResponse {
+  format: 'EPUB' | 'PDF';
+  hasTextLayer: boolean;
+  chapters: Chapter[];
+}
+
 export interface ResolvedPosition {
   structuralId: string | null;
   chapterLabel: string | null;

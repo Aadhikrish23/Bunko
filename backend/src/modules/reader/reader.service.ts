@@ -19,6 +19,20 @@ export interface ReaderManifestDto {
   sessionId: string;
 }
 
+export interface ChapterDto {
+  structuralId: string;
+  label: string;
+  order: number;
+  pageNumber: number | null;
+  text: string;
+}
+
+export interface ChaptersResponseDto {
+  format: 'EPUB' | 'PDF';
+  hasTextLayer: boolean;
+  chapters: ChapterDto[];
+}
+
 export async function ensureIndexed(
   edition: { id: string; format: string; chapterGraph: unknown },
   digitalFile: { storageKey: string },
@@ -121,5 +135,38 @@ export async function getReaderManifest(userId: string, editionId: string): Prom
     startPosition,
     confidence,
     sessionId: session.id,
+  };
+}
+
+// Chapter text for the flow-reader UI and future chapter-level AI
+// features — reuses the same chapterGraph the continuity engine indexes
+// at import time (SRS §11.6) rather than a separate extraction path.
+// Ownership-scoped the same way as the reader manifest above: the caller
+// must hold a copy of this edition.
+export async function getChapters(userId: string, editionId: string): Promise<ChaptersResponseDto> {
+  const copy = await prisma.copy.findFirst({
+    where: { editionId, userId },
+    include: { edition: true, digitalFile: true },
+    orderBy: { acquiredAt: 'desc' },
+  });
+  if (!copy || !copy.digitalFile) {
+    throw new AppError('NOT_FOUND', 'No digital copy of this edition in your library');
+  }
+  if (copy.edition.format === 'PHYSICAL') {
+    throw new AppError('VALIDATION_ERROR', 'This edition is physical and has no chapters');
+  }
+
+  const chapterGraph = await ensureIndexed(copy.edition, copy.digitalFile);
+
+  return {
+    format: chapterGraph.format,
+    hasTextLayer: chapterGraph.hasTextLayer,
+    chapters: chapterGraph.units.map((unit) => ({
+      structuralId: unit.structuralId,
+      label: unit.label,
+      order: unit.order,
+      pageNumber: unit.pageNumber,
+      text: unit.text,
+    })),
   };
 }
