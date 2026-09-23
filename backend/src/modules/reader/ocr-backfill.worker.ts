@@ -1,5 +1,5 @@
 import { Queue, Worker } from 'bullmq';
-import { redisConnection } from '../../lib/queue';
+import { createWorkerConnection, redisConnection } from '../../lib/queue';
 import { logger } from '../../lib/logger';
 import { runOcrBackfill } from './ocr-backfill.job';
 
@@ -17,7 +17,7 @@ export function startOcrBackfillWorker(): Worker<OcrBackfillJobData> {
     async (job) => {
       await runOcrBackfill(job.data.editionId);
     },
-    { connection: redisConnection, concurrency: 1 }, // OCR is CPU-heavy — one at a time
+    { connection: createWorkerConnection(), concurrency: 1 }, // OCR is CPU-heavy — one at a time
   );
   worker.on('failed', (job, err) => {
     logger.warn({ jobId: job?.id, editionId: job?.data.editionId, err }, 'OCR backfill job failed');
@@ -29,5 +29,9 @@ export function startOcrBackfillWorker(): Worker<OcrBackfillJobData> {
 // (e.g. the same scanned edition opened again before OCR finishes)
 // de-duplicates for free rather than queuing redundant OCR runs.
 export async function enqueueOcrBackfill(editionId: string): Promise<void> {
-  await ocrBackfillQueue.add('ocr-backfill', { editionId }, { jobId: `ocr-backfill-${editionId}` });
+  await ocrBackfillQueue.add(
+    'ocr-backfill',
+    { editionId },
+    { jobId: `ocr-backfill-${editionId}`, removeOnComplete: 20, removeOnFail: 20 },
+  );
 }

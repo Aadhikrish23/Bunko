@@ -1,5 +1,5 @@
 import { Queue, Worker } from 'bullmq';
-import { redisConnection } from '../../lib/queue';
+import { createWorkerConnection, redisConnection } from '../../lib/queue';
 import { logger } from '../../lib/logger';
 import { runIdleTimeoutSweep } from './idle-timeout.job';
 
@@ -14,7 +14,7 @@ export function startIdleTimeoutWorker(): Worker {
     async () => {
       await runIdleTimeoutSweep();
     },
-    { connection: redisConnection },
+    { connection: createWorkerConnection() },
   );
   worker.on('failed', (job, err) => {
     logger.warn({ jobId: job?.id, err }, 'idle-timeout sweep job failed');
@@ -24,6 +24,17 @@ export function startIdleTimeoutWorker(): Worker {
 
 // Call once at process startup (server.ts). Repeatable jobs are
 // idempotent to re-add (same jobId), so this is safe across restarts.
+//
+// removeOnComplete/removeOnFail: without a limit, BullMQ keeps every
+// completed job's record in Redis forever by default — for a job that
+// repeats every 60s, that's ~1,440 retained records/day, unbounded.
+// Found via a real Redis inspection during this dev session (~2,500
+// accumulated completed-job keys after a few hours) — keeping only a
+// small recent window is all a sweep job's history is ever useful for.
 export async function scheduleIdleTimeoutSweep(): Promise<void> {
-  await idleTimeoutQueue.add('sweep', {}, { repeat: { every: SWEEP_INTERVAL_MS }, jobId: 'sweep-repeatable' });
+  await idleTimeoutQueue.add(
+    'sweep',
+    {},
+    { repeat: { every: SWEEP_INTERVAL_MS }, jobId: 'sweep-repeatable', removeOnComplete: 20, removeOnFail: 20 },
+  );
 }
