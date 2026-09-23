@@ -2,6 +2,26 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { ReaderSettings } from './reader-settings';
 import { THEME_STYLES } from './reader-settings';
 
+// Paragraph-like line widths so the turning leaf reads as a page of
+// text rather than a blank sheet — a fixed pattern is enough since it's
+// only visible mid-flip, never held still long enough to scrutinize.
+const FAUX_LINE_WIDTHS = [96, 100, 88, 97, 92, 100, 85, 98, 90, 94, 60];
+
+function FauxPageContent({ textColor }: { textColor: string }) {
+  return (
+    <div aria-hidden="true" className="absolute inset-0 flex flex-col gap-[10px] px-[13%] py-[12%]">
+      <div className="mb-2 h-[7px] w-[38%] rounded-sm" style={{ backgroundColor: textColor, opacity: 0.32 }} />
+      {FAUX_LINE_WIDTHS.map((width, i) => (
+        <div
+          key={i}
+          className="h-[3px] rounded-full"
+          style={{ backgroundColor: textColor, opacity: 0.16, width: `${width}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 interface BookFlipWrapperProps {
   settings: ReaderSettings;
   children: ReactNode;
@@ -112,20 +132,57 @@ export function BookFlipWrapper({
                 {/* 3D Realistic Double-Sided Turning Leaf Animation */}
                 {turning && (
                   isSingle ? (
-                    <div
-                      className={`pointer-events-none absolute inset-0 z-40 will-change-transform [transform-style:preserve-3d] ${
-                        flipDirection === 'next'
-                          ? 'origin-left animate-[flipNext3D_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
-                          : 'origin-right animate-[flipPrev3D_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
-                      }`}
-                    >
+                    <>
+                      {/* Cast shadow beneath the lifting leaf */}
                       <div
-                        style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
-                        className="absolute inset-0 border [backface-visibility:hidden] overflow-hidden"
+                        aria-hidden="true"
+                        className={`pointer-events-none absolute inset-y-0 z-35 w-full transition-opacity ${
+                          flipDirection === 'next'
+                            ? 'right-0 origin-left animate-[castShadowNext_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards] bg-gradient-to-r from-black/25 via-black/10 to-transparent'
+                            : 'left-0 origin-right animate-[castShadowPrev_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards] bg-gradient-to-l from-black/25 via-black/10 to-transparent'
+                        }`}
+                      />
+
+                      <div
+                        className={`pointer-events-none absolute inset-0 z-40 will-change-transform [transform-style:preserve-3d] ${
+                          flipDirection === 'next'
+                            ? 'origin-left animate-[flipNext3D_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
+                            : 'origin-right animate-[flipPrev3D_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
+                        }`}
                       >
-                        <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-black/5 to-transparent" />
+                        {/* Leaf Front Face — the page being turned away */}
+                        <div
+                          style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
+                          className="absolute inset-0 border [backface-visibility:hidden] overflow-hidden"
+                        >
+                          <FauxPageContent textColor={theme.text} />
+                          <div
+                            className={`absolute inset-0 bg-gradient-to-r ${
+                              flipDirection === 'next' ? 'from-black/5 via-black/15 to-black/35' : 'from-black/35 via-black/15 to-black/5'
+                            }`}
+                          />
+                          <div
+                            aria-hidden="true"
+                            className={`absolute inset-y-0 w-10 bg-gradient-to-r from-transparent via-white/25 to-transparent ${
+                              flipDirection === 'next' ? 'right-0' : 'left-0'
+                            }`}
+                          />
+                        </div>
+
+                        {/* Leaf Back Face — the next page arriving */}
+                        <div
+                          style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
+                          className="absolute inset-0 border [transform:rotateY(180deg)] [backface-visibility:hidden] overflow-hidden"
+                        >
+                          <FauxPageContent textColor={theme.text} />
+                          <div
+                            className={`absolute inset-0 bg-gradient-to-l ${
+                              flipDirection === 'next' ? 'from-black/5 via-black/15 to-black/35' : 'from-black/35 via-black/15 to-black/5'
+                            }`}
+                          />
+                        </div>
                       </div>
-                    </div>
+                    </>
                   ) : (
                     <>
                       {/* Dynamic Cast Shadow beneath turning leaf */}
@@ -151,7 +208,12 @@ export function BookFlipWrapper({
                           style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
                           className="absolute inset-0 border [backface-visibility:hidden] overflow-hidden"
                         >
+                          <FauxPageContent textColor={theme.text} />
                           <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/10 to-transparent" />
+                          <div
+                            aria-hidden="true"
+                            className="absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                          />
                         </div>
 
                         {/* Leaf Back Face */}
@@ -159,6 +221,7 @@ export function BookFlipWrapper({
                           style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
                           className="absolute inset-0 border [transform:rotateY(180deg)] [backface-visibility:hidden] overflow-hidden"
                         >
+                          <FauxPageContent textColor={theme.text} />
                           <div className="absolute inset-0 bg-gradient-to-l from-black/30 via-black/10 to-transparent" />
                         </div>
                       </div>
