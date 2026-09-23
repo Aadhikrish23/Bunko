@@ -366,6 +366,32 @@ stored to improve future mapping for that user's edition pair.
 - [x] Correction is scoped to the user (does not affect other users'
       mappings)
 
+### T-037a — OCR backfill for scanned PDFs
+Depends on: T-026 · SRS: §11.6 step 1, §38.2
+
+Pulled into Phase 5 as a requirement change (see SRS.md's Requirement
+Change Policy → Change Log, 2026-09) — was previously deliberately out
+of scope (T-026 chose graceful degradation instead). For a PDF with
+`hasTextLayer: false` (`pdf-indexer.ts`), run OCR to produce a text
+layer before the existing indexing pipeline (chapter graph, text
+anchors) runs over it, rather than leaving every unit's `text` empty.
+
+- [ ] A scanned PDF with a bookmark outline gets real per-chapter OCR
+      text (not just page-fallback navigation)
+- [ ] A scanned PDF with no outline gets real per-page OCR text
+- [ ] OCR runs as a background job (BullMQ), not inline in the
+      request/response cycle — a large scanned book must not block
+      opening the reader or time out the HTTP request
+- [ ] The scanned page image remains what the reader displays; OCR
+      text is index-only (search/chapters/continuity anchors), per the
+      chapter-extraction plan's scope decision — this ticket does not
+      change T-026/T-029's rendering behavior
+- [ ] OCR failure/low-confidence output degrades gracefully back to
+      T-026's existing page-fallback-only behavior, not a hard error
+- [ ] No OCR is attempted for a PDF that already has a text layer
+      (`hasTextLayer: true` short-circuits before this ticket's code
+      path, matching the existing check)
+
 ---
 
 ## Cross-Cutting Frontend Tickets (interleave with backend phases above)
@@ -410,9 +436,9 @@ flow diagram in SRS §12.10 exactly (skip must be one tap).
 | 2 — Book Management | T-012 – T-017 + T-013a (7) | **100% Complete** |
 | 3 — Reading Tracking | T-018 – T-023 (6) | **100% Complete** |
 | 4 — Digital Reading | T-024 – T-031 (8) | **100% Complete** |
-| 5 — Unified Reading | T-032 – T-037 (6) | **100% Complete** |
+| 5 — Unified Reading | T-032 – T-037 + T-037a (7) | **86% Complete** (T-037a pending) |
 | Cross-cutting Frontend | T-038 – T-041 (4) | **100% Complete** |
-| **Total (MVP)** | **44** | **100% Complete** |
+| **Total (MVP)** | **45** | **98% Complete** (T-037a pending) |
 
 Phase 6+ tickets (Annotations, Reviews, Soundtrack, Offline/Sync, AI)
 are intentionally not written yet — see `AGENTS.md` §3. Do not

@@ -759,7 +759,11 @@ runtime mapping algorithm (11.7) depends on.
 
 1.  **Structural parse.** Extract the edition's native structure
     (table of contents, chapter/section headings, EPUB spine order, PDF
-    bookmarks/outline where present).
+    bookmarks/outline where present). For a PDF with no extractable
+    text layer (a scanned/image-only PDF), OCR shall run first to
+    produce one before this step proceeds — see the Requirement Change
+    Policy log at the end of this document. OCR output feeds the same
+    pipeline as native PDF text; it is not a separate code path.
 2.  **Canonical chapter graph.** Build an ordered list of structural
     units (e.g. `Chapter 1`, `Chapter 2`, ...) and assign each a stable
     `structural_id`, independent of page numbers.
@@ -2366,7 +2370,11 @@ and user correction.
 PDFs may contain scanned pages, unusual layouts, missing text layers, or
 inconsistent metadata.
 
-**Mitigation:** PDF capability detection and graceful degradation.
+**Mitigation:** PDF capability detection and graceful degradation as the
+baseline (page-fallback-only navigation when no text layer exists), plus
+OCR (§11.6 step 1) to backfill a text layer for a scanned PDF where
+possible — degradation remains the fallback for whatever OCR still
+can't recover (illegible scans, unsupported scripts, OCR failure).
 
 ## 38.3 EPUB Complexity
 
@@ -2615,3 +2623,21 @@ This SRS is the baseline product specification. Any material change to:
 
 should be documented as a requirement change and reviewed before
 implementation.
+
+### Change Log
+
+-   **2026-09 — OCR for scanned PDFs pulled into Phase 5.** Digital-file
+    handling change. §38.2's mitigation for a PDF with no text layer was
+    graceful degradation only (page-fallback navigation, no chapter
+    text/anchors) — OCR was deliberately out of scope for the original
+    Phase 4/5 MVP (T-026 chose degradation, not OCR, for exactly this
+    case). Reviewed and approved directly by the product owner in
+    session; folded into Phase 5 as T-037a (`docs/TASKS.md`) rather than
+    deferred to Phase 6+, since it's a natural extension of the existing
+    import-time indexing pipeline (§11.6) rather than a new subsystem.
+    Scope: OCR text feeds the same pipeline as native PDF text (chapter
+    graph, text anchors, continuity mapping) — it does not change what
+    the reader displays (the scanned page image stays primary), only
+    what becomes searchable/anchorable/chapter-extractable. See also the
+    chapter-extraction project memory note for the related, broader
+    (non-SRS-formalized) plan this sits inside.
