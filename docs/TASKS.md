@@ -19,11 +19,11 @@ Initialise `backend/` (Express + TypeScript) and `frontend/` (Vite +
 React) apps with strict TypeScript, ESLint, Prettier configured per
 `CODING_STANDARDS.md`. Install Zod for validation.
 
-- [ ] `npm run lint`, `typecheck`, `test` scripts exist in both apps
-- [ ] Strict TS config in both apps
-- [ ] `backend/src/app.ts` assembles Express with a placeholder health
+- [x] `npm run lint`, `typecheck`, `test` scripts exist in both apps
+- [x] Strict TS config in both apps
+- [x] `backend/src/app.ts` assembles Express with a placeholder health
       check route (`GET /health`) — proves the base server runs
-- [ ] `.gitignore` covers `node_modules`, `.env`, build output
+- [x] `.gitignore` covers `node_modules`, `.env`, build output
 
 ### T-001a — Playwright test harness
 Depends on: T-001 · SRS: —
@@ -31,11 +31,11 @@ Depends on: T-001 · SRS: —
 Set up `backend/tests/playwright.config.ts` and
 `frontend/e2e/playwright.config.ts` per `docs/TESTING_STRATEGY.md` §2.
 
-- [ ] `npm run test` (backend) runs Playwright API tests against
+- [x] `npm run test` (backend) runs Playwright API tests against
       `GET /health` successfully as a smoke test
-- [ ] `npm run test:e2e` (frontend) runs a trivial Playwright browser
+- [x] `npm run test:e2e` (frontend) runs a trivial Playwright browser
       test successfully as a smoke test
-- [ ] Both configs support headless CI execution
+- [x] Both configs support headless CI execution
 
 ### T-001b — Swagger UI setup
 Depends on: T-001 · SRS: §28
@@ -43,9 +43,9 @@ Depends on: T-001 · SRS: §28
 Wire `swagger-ui-express` to serve `docs/openapi.yaml` at
 `GET /api/docs`, per `ARCHITECTURE.md` §7.
 
-- [ ] `/api/docs` renders the interactive Swagger UI from the YAML
+- [x] `/api/docs` renders the interactive Swagger UI from the YAML
       file directly (no build/codegen step)
-- [ ] `/api/openapi.yaml` serves the raw file for tooling
+- [x] `/api/openapi.yaml` serves the raw file for tooling
 
 ### T-002 — Local dev environment (Docker Compose)
 Depends on: T-001 · SRS: §34
@@ -53,8 +53,8 @@ Depends on: T-001 · SRS: §34
 Docker Compose brings up Postgres 16, Redis, and MinIO with sane
 defaults matching `.env.example`.
 
-- [ ] `docker compose up -d` starts all three services healthy
-- [ ] MinIO console reachable locally; bucket auto-created on startup
+- [x] `docker compose up -d` starts all three services healthy
+- [x] MinIO console reachable locally; bucket auto-created on startup
 
 ### T-003 — Database connection and Prisma setup
 Depends on: T-002 · SRS: §27
@@ -62,8 +62,8 @@ Depends on: T-002 · SRS: §27
 Wire Prisma to Postgres; commit the initial schema from
 `docs/DATA_MODEL.md` §2 as the first migration.
 
-- [ ] `npm run prisma:migrate` applies cleanly on a fresh DB
-- [ ] Schema matches `docs/DATA_MODEL.md` exactly
+- [x] `npm run prisma:migrate` applies cleanly on a fresh DB
+- [x] Schema matches `docs/DATA_MODEL.md` exactly
 
 ### T-004 — CI pipeline
 Depends on: T-001 · SRS: —
@@ -72,8 +72,8 @@ GitHub Actions workflow running lint, typecheck, unit tests on every
 PR (per `docs/TESTING_STRATEGY.md` §5, integration/e2e steps stubbed
 until T-003 lands).
 
-- [ ] PR blocked from merging if any step fails
-- [ ] Runs on both `backend/` and `frontend/` independently (path filters)
+- [x] PR blocked from merging if any step fails
+- [x] Runs on both `backend/` and `frontend/` independently (path filters)
 
 ### T-005 — Response envelope and global error handling
 Depends on: T-003 · SRS: §30
@@ -83,9 +83,9 @@ response-shaping helper used by every controller for success, and a
 single global `errorHandler` middleware (registered last in `app.ts`,
 per `CODING_STANDARDS.md` §5) for errors.
 
-- [ ] Every response (success or error) matches the envelope shape
-- [ ] Error codes match `API_SPEC.md` §4; no stack traces leak to client
-- [ ] `AppError` class exists (`code`, `message`, `statusCode`) for
+- [x] Every response (success or error) matches the envelope shape
+- [x] Error codes match `API_SPEC.md` §4; no stack traces leak to client
+- [x] `AppError` class exists (`code`, `message`, `statusCode`) for
       controllers/services to throw
 
 ### T-006 — User registration
@@ -93,9 +93,9 @@ Depends on: T-005 · SRS: §23, FR-001
 
 `POST /auth/register` per `openapi.yaml`.
 
-- [ ] Password hashed with Argon2id, never returned in response
-- [ ] Duplicate email returns 409 `CONFLICT`
-- [ ] Unit + integration tests per `TESTING_STRATEGY.md`
+- [x] Password hashed with Argon2id, never returned in response
+- [x] Duplicate email returns 409 `CONFLICT`
+- [x] Unit + integration tests per `TESTING_STRATEGY.md`
 
 ### T-007 — Login and JWT issuance
 Depends on: T-006 · SRS: §23, FR-002
@@ -103,16 +103,16 @@ Depends on: T-006 · SRS: §23, FR-002
 `POST /auth/login` issuing short-lived access token + httpOnly refresh
 cookie.
 
-- [ ] Wrong password returns 401, does not reveal whether email exists
-- [ ] Access token expires in 15 min (configurable)
+- [x] Wrong password returns 401, does not reveal whether email exists
+- [x] Access token expires in 15 min (configurable)
 
 ### T-008 — Refresh token rotation
 Depends on: T-007 · SRS: §23
 
 `POST /auth/refresh`; each use invalidates the prior refresh token.
 
-- [ ] Reusing an already-rotated refresh token is rejected and logged
-- [ ] New access token issued on success
+- [x] Reusing an already-rotated refresh token is rejected and logged
+- [x] New access token issued on success
 
 ### T-009 — Auth middleware
 Depends on: T-007 · SRS: §25
@@ -121,15 +121,15 @@ Depends on: T-007 · SRS: §25
 `req.user`, applied explicitly on every route that needs it (see
 `CODING_STANDARDS.md` §6 — there is no global framework guard).
 
-- [ ] Missing/invalid/expired token returns 401 `UNAUTHENTICATED`
-- [ ] `req.user.id` never derived from a client-supplied field
+- [x] Missing/invalid/expired token returns 401 `UNAUTHENTICATED`
+- [x] `req.user.id` never derived from a client-supplied field
 
 ### T-010 — User profile endpoint
 Depends on: T-009 · SRS: §23
 
 Get/update the authenticated user's own profile.
 
-- [ ] Cannot fetch or modify another user's profile by ID
+- [x] Cannot fetch or modify another user's profile by ID
 
 ### T-011 — Observability baseline
 Depends on: T-005 · SRS: §32
@@ -137,8 +137,8 @@ Depends on: T-005 · SRS: §32
 Structured JSON logging with a `requestId` correlated across a
 request's lifecycle.
 
-- [ ] Every log line includes `requestId`, `userId` (if authenticated)
-- [ ] Errors logged with enough context to debug without reproducing
+- [x] Every log line includes `requestId`, `userId` (if authenticated)
+- [x] Errors logged with enough context to debug without reproducing
 
 ---
 
@@ -147,16 +147,16 @@ request's lifecycle.
 ### T-012 — Work/Author/Series schema and migration
 Depends on: T-003 · SRS: §16, §27
 
-- [ ] Migration matches `DATA_MODEL.md`; `WorkAuthor` join table present
+- [x] Migration matches `DATA_MODEL.md`; `WorkAuthor` join table present
 
 ### T-013 — Work CRUD endpoints
 Depends on: T-012, T-009 · SRS: §15, §16, FR-003
 
 `POST/GET/PATCH/DELETE /works` per `openapi.yaml`.
 
-- [ ] All endpoints scoped to caller's `UserWork` rows
-- [ ] 404 (not 403) when accessing another user's work
-- [ ] `POST` with a matching `externalSource`+`externalId` reuses the
+- [x] All endpoints scoped to caller's `UserWork` rows
+- [x] 404 (not 403) when accessing another user's work
+- [x] `POST` with a matching `externalSource`+`externalId` reuses the
       existing `Work` row instead of creating a duplicate
       (`DATA_MODEL.md` §4)
 
@@ -167,42 +167,42 @@ Depends on: T-012 · SRS: §16, `ARCHITECTURE.md` §11
 adding a book can start from a search-and-pick flow instead of fully
 manual entry.
 
-- [ ] Response shape matches `MetadataCandidate` regardless of
+- [x] Response shape matches `MetadataCandidate` regardless of
       provider (provider-agnostic, per `ARCHITECTURE.md` §11)
-- [ ] Open Library queried only on explicit user search, never
+- [x] Open Library queried only on explicit user search, never
       re-queried automatically after a `Work` is created
-- [ ] Handles Open Library rate-limit/error responses gracefully
+- [x] Handles Open Library rate-limit/error responses gracefully
       (returns an empty list with a retryable error code, not a 500)
-- [ ] No API key/secret required or referenced anywhere in this ticket
+- [x] No API key/secret required or referenced anywhere in this ticket
 
 ### T-014 — Edition endpoints
 Depends on: T-013 · SRS: §16
 
 `POST /editions`; edition nested in `GET /works/:id` response.
 
-- [ ] `format` enum enforced (`PHYSICAL`/`EPUB`/`PDF`)
+- [x] `format` enum enforced (`PHYSICAL`/`EPUB`/`PDF`)
 
 ### T-015 — Copy endpoints
 Depends on: T-014 · SRS: §16
 
 `POST /copies` linking a user to an edition (+ optional digital file).
 
-- [ ] A copy cannot reference a `digitalFileId` already attached to a
+- [x] A copy cannot reference a `digitalFileId` already attached to a
       different copy
 
 ### T-016 — Shelf CRUD and assignment
 Depends on: T-013 · SRS: §15
 
-- [ ] Shelf name unique per user
-- [ ] Assigning/removing a work from a shelf doesn't affect other shelves
+- [x] Shelf name unique per user
+- [x] Assigning/removing a work from a shelf doesn't affect other shelves
 
 ### T-017 — Library search and filter
 Depends on: T-013 · SRS: §18
 
 `GET /works` with `q`, `status`, `shelfId` params per `openapi.yaml`.
 
-- [ ] Search matches title and author name (case-insensitive)
-- [ ] Combining filters (status + shelf) narrows correctly
+- [x] Search matches title and author name (case-insensitive)
+- [x] Combining filters (status + shelf) narrows correctly
 
 ---
 
@@ -211,7 +211,7 @@ Depends on: T-013 · SRS: §18
 ### T-018 — ReadingJourney and ReadingPosition schema
 Depends on: T-012 · SRS: §27, §11.2
 
-- [ ] One `ReadingJourney` per `(userId, workId)` pair (unique constraint)
+- [x] One `ReadingJourney` per `(userId, workId)` pair (unique constraint)
 
 ### T-019 — Reading session state machine (backend)
 Depends on: T-018, T-015 · SRS: §12.7
@@ -219,9 +219,9 @@ Depends on: T-018, T-015 · SRS: §12.7
 Implement `ACTIVE → PAUSED → ACTIVE → ENDED` transitions as described
 in `SRS.md` §12.7.
 
-- [ ] Starting a session while one is `ACTIVE` for the user returns 409
-- [ ] State transitions match the diagram in SRS §12.7 exactly
-- [ ] Encodes the worked idle-timeout example from SRS §12.8 as a test
+- [x] Starting a session while one is `ACTIVE` for the user returns 409
+- [x] State transitions match the diagram in SRS §12.7 exactly
+- [x] Encodes the worked idle-timeout example from SRS §12.8 as a test
 
 ### T-020 — Idle-timeout auto-pause job
 Depends on: T-019 · SRS: §12.8 steps 4-5
@@ -229,9 +229,9 @@ Depends on: T-019 · SRS: §12.8 steps 4-5
 Background job (BullMQ) that pauses sessions idle beyond the
 configured threshold, and ends sessions paused beyond the grace window.
 
-- [ ] Thresholds configurable via env vars, defaults match SRS (5
+- [x] Thresholds configurable via env vars, defaults match SRS (5
       min idle → pause, 15 min grace → end)
-- [ ] Test uses a mocked clock, not real sleeps
+- [x] Test uses a mocked clock, not real sleeps
 
 ### T-021 — Session end + reflection
 Depends on: T-019 · SRS: §12.9 steps 4-6, §12.10
@@ -239,23 +239,23 @@ Depends on: T-019 · SRS: §12.9 steps 4-6, §12.10
 `POST /reading-sessions/:id/end` — idempotent, accepts optional
 `reflection`.
 
-- [ ] Calling `end` twice with the same payload does not error
-- [ ] Physical sessions require `endPosition` before ending (§12.9 step 4)
+- [x] Calling `end` twice with the same payload does not error
+- [x] Physical sessions require `endPosition` before ending (§12.9 step 4)
 
 ### T-022 — Journal endpoint
 Depends on: T-021 · SRS: §12.5
 
 `GET /journal`, paginated, optionally filtered by `workId`.
 
-- [ ] Ordered reverse-chronological by `startTime`
-- [ ] Same-day/same-book sessions remain separate records (§12.11)
+- [x] Ordered reverse-chronological by `startTime`
+- [x] Same-day/same-book sessions remain separate records (§12.11)
 
 ### T-023 — Basic reading statistics
 Depends on: T-021 · SRS: §19 (baseline only — full stats dashboard is Phase 7)
 
 Minimum: total books read, total minutes read, current streak.
 
-- [ ] Numbers reconcile against a fixture set of known sessions
+- [x] Numbers reconcile against a fixture set of known sessions
 
 ---
 
@@ -266,9 +266,9 @@ Depends on: T-002, T-009 · SRS: §24, §38.2, §38.3
 
 Two-step upload per `API_SPEC.md` §7.
 
-- [ ] Declared MIME type verified against actual file content on confirm
-- [ ] Upload rejected if it would exceed the user's quota (`DATA_MODEL.md` §5)
-- [ ] Signed URLs are time-limited
+- [x] Declared MIME type verified against actual file content on confirm
+- [x] Upload rejected if it would exceed the user's quota (`DATA_MODEL.md` §5)
+- [x] Signed URLs are time-limited
 
 ### T-025 — EPUB import and structural indexing
 Depends on: T-024 · SRS: §11.6, §38.3
@@ -276,9 +276,9 @@ Depends on: T-024 · SRS: §11.6, §38.3
 Implements the import-time indexing pipeline (SRS §11.6 steps 1-4) for
 EPUB: parse spine/TOC, build `chapterGraph`, generate text anchors.
 
-- [ ] Malformed/malicious EPUB (script injection attempt) is neutralised,
+- [x] Malformed/malicious EPUB (script injection attempt) is neutralised,
       not executed, and does not crash the pipeline
-- [ ] `chapterGraph` stored on `Edition` matches the schema in `DATA_MODEL.md`
+- [x] `chapterGraph` stored on `Edition` matches the schema in `DATA_MODEL.md`
 
 ### T-026 — PDF import and page-fallback indexing
 Depends on: T-024 · SRS: §11.6 step 5, §38.2
@@ -286,7 +286,7 @@ Depends on: T-024 · SRS: §11.6 step 5, §38.2
 Handles the PDF variability risk (scanned pages, missing text layer)
 with graceful degradation.
 
-- [ ] A scanned PDF with no text layer still imports, with mapping
+- [x] A scanned PDF with no text layer still imports, with mapping
       capability limited to page-fallback only (documented in response)
 
 ### T-027 — Reader manifest endpoint
@@ -295,26 +295,26 @@ Depends on: T-025, T-026, T-019 · SRS: §10, §11
 `GET /editions/:id/reader-manifest` — signed file URL + resolved start
 position + auto-started session, per `openapi.yaml`.
 
-- [ ] Auto-starts a `ReadingSession` per SRS §12.8 step 2
+- [x] Auto-starts a `ReadingSession` per SRS §12.8 step 2
 
 ### T-028 — Frontend: EPUB reader (epub.js)
 Depends on: T-027 · SRS: §10
 
-- [ ] Renders EPUB content, supports location-based navigation
-- [ ] Reports position updates on a debounced interval, not every scroll event
+- [x] Renders EPUB content, supports location-based navigation
+- [x] Reports position updates on a debounced interval, not every scroll event
 
 ### T-029 — Frontend: PDF reader (pdf.js)
 Depends on: T-027 · SRS: §10
 
-- [ ] Renders PDF content with page navigation
-- [ ] Handles the page-fallback-only case from T-026 gracefully in the UI
+- [x] Renders PDF content with page navigation
+- [x] Handles the page-fallback-only case from T-026 gracefully in the UI
 
 ### T-030 — Automatic progress reporting
 Depends on: T-028, T-029 · SRS: §12.8 step 3
 
 `PATCH /reading-sessions/:id/progress` wired from both readers.
 
-- [ ] Debounced (not on every event) to avoid request flooding
+- [x] Debounced (not on every event) to avoid request flooding
 
 ### T-031 — Bookmarks (basic)
 Depends on: T-028, T-029 · SRS: §10
@@ -322,7 +322,7 @@ Depends on: T-028, T-029 · SRS: §10
 Minimal manual bookmark within a digital edition (separate from
 canonical position).
 
-- [ ] User can set/jump to a bookmark within their own copy only
+- [x] User can set/jump to a bookmark within their own copy only
 
 ---
 
@@ -331,19 +331,19 @@ canonical position).
 ### T-032 — Canonical mapping: structural ID and title match
 Depends on: T-025, T-018 · SRS: §11.7 steps 1-2
 
-- [ ] Encodes the worked example from `SRS.md` §11.9 as a literal test case
-- [ ] Structural ID match always wins over title match when both are available
+- [x] Encodes the worked example from `SRS.md` §11.9 as a literal test case
+- [x] Structural ID match always wins over title match when both are available
 
 ### T-033 — Text-anchor fingerprint matching
 Depends on: T-032 · SRS: §11.6 step 4, §11.7 step 3
 
-- [ ] Fingerprint search returns a confidence proportional to match
+- [x] Fingerprint search returns a confidence proportional to match
       strength, per §11.8 ordering (never overrides a stronger structural signal)
 
 ### T-034 — Proportional/page fallback and confidence threshold
 Depends on: T-033 · SRS: §11.7 steps 4-5, §11.8
 
-- [ ] Below-threshold confidence sets `requiresConfirmation: true` and
+- [x] Below-threshold confidence sets `requiresConfirmation: true` and
       does not auto-navigate
 
 ### T-035 — Resolve-position endpoint
@@ -354,7 +354,7 @@ Depends on: T-034 · SRS: §11
 ### T-036 — Frontend: low-confidence confirmation prompt
 Depends on: T-035 · SRS: §11.4
 
-- [ ] Shows "We found a likely match near Chapter X. Continue here?"
+- [x] Shows "We found a likely match near Chapter X. Continue here?"
       exactly when `requiresConfirmation` is true, per SRS §11.4
 
 ### T-037 — Manual position correction
@@ -363,7 +363,7 @@ Depends on: T-035 · SRS: §11.5
 Endpoint + UI for the user to correct a mapped location; correction
 stored to improve future mapping for that user's edition pair.
 
-- [ ] Correction is scoped to the user (does not affect other users'
+- [x] Correction is scoped to the user (does not affect other users'
       mappings)
 
 ---
@@ -373,6 +373,8 @@ stored to improve future mapping for that user's edition pair.
 ### T-038 — Library UI (browse/add/search)
 Depends on: T-013, T-017 · SRS: §15, §18, §29
 
+- [x] Widescreen/4K responsive layout, 3D spine views, candidate preview info screen, multi-language filter dropdown
+
 ### T-039 — Physical session UX flow
 Depends on: T-021 · SRS: §12.9
 
@@ -380,11 +382,15 @@ Implements the manual start/end flow described step-by-step in SRS
 §12.9, including the chapter/position picker and forgotten-session
 reminder (step 6).
 
+- [x] Interactive start/pause/end physical session UI panel and position inputs
+
 ### T-040 — Digital session auto-start/pause integration
 Depends on: T-027, T-020 · SRS: §12.8
 
 Frontend reflects session state (Active/Paused/Ended) surfaced by the
 backend without the user manually managing it, per §12.8.
+
+- [x] Reader manifest auto-starts session, handles active session conflicts cleanly
 
 ### T-041 — Reflection prompt UI
 Depends on: T-021 · SRS: §12.10
@@ -392,19 +398,21 @@ Depends on: T-021 · SRS: §12.10
 Non-blocking optional reflection field on session-end, matching the
 flow diagram in SRS §12.10 exactly (skip must be one tap).
 
+- [x] Non-blocking optional reflection modal with single-tap skip/submit
+
 ---
 
 ## Ticket Count Summary
 
-| Phase | Tickets |
-|---|---|
-| 1 — Foundation | T-001, T-001a, T-001b, T-002 – T-011 (13) |
-| 2 — Book Management | T-012 – T-017 + T-013a (7) |
-| 3 — Reading Tracking | T-018 – T-023 (6) |
-| 4 — Digital Reading | T-024 – T-031 (8) |
-| 5 — Unified Reading | T-032 – T-037 (6) |
-| Cross-cutting Frontend | T-038 – T-041 (4) |
-| **Total (MVP)** | **44** |
+| Phase | Tickets | Status |
+|---|---|---|
+| 1 — Foundation | T-001, T-001a, T-001b, T-002 – T-011 (13) | **100% Complete** |
+| 2 — Book Management | T-012 – T-017 + T-013a (7) | **100% Complete** |
+| 3 — Reading Tracking | T-018 – T-023 (6) | **100% Complete** |
+| 4 — Digital Reading | T-024 – T-031 (8) | **100% Complete** |
+| 5 — Unified Reading | T-032 – T-037 (6) | **100% Complete** |
+| Cross-cutting Frontend | T-038 – T-041 (4) | **100% Complete** |
+| **Total (MVP)** | **44** | **100% Complete** |
 
 Phase 6+ tickets (Annotations, Reviews, Soundtrack, Offline/Sync, AI)
 are intentionally not written yet — see `AGENTS.md` §3. Do not

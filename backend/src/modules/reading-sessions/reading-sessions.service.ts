@@ -120,6 +120,12 @@ export async function pauseSession(userId: string, sessionId: string): Promise<S
   return toSessionDto(updated);
 }
 
+export async function pauseActiveSession(userId: string): Promise<SessionDto | null> {
+  const activeSession = await prisma.readingSession.findFirst({ where: { userId, status: 'ACTIVE' } });
+  if (!activeSession) return null;
+  return pauseSession(userId, activeSession.id);
+}
+
 export async function endSession(
   userId: string,
   sessionId: string,

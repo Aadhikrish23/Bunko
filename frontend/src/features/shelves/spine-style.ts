@@ -31,8 +31,8 @@ export function getSpineStyle(seed: string): SpineStyle {
   const hash = hashString(seed);
   return {
     color: SPINE_PALETTE[hash % SPINE_PALETTE.length]!,
-    heightPx: 148 + (hash % 5) * 9, // 148-184px
-    widthPx: 30 + ((hash >> 3) % 4) * 3, // 30-39px
+    heightPx: 190 + (hash % 5) * 10, // 190-230px (provides ample vertical height for long titles)
+    widthPx: 36 + ((hash >> 3) % 4) * 4, // 36-48px
     tiltDeg: ((hash >> 6) % 5) - 2, // -2..2deg
   };
 }

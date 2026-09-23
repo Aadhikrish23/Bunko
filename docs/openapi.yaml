@@ -105,14 +105,20 @@ paths:
     get:
       summary: Search external book metadata to populate an "add book" flow (SRS §16)
       description: >
-        Proxies Open Library (see ARCHITECTURE.md §11), returning a
-        provider-agnostic candidate list. Called once per user search,
+        Searches book metadata via a resilient multi-tier waterfall (Google Books
+        if GOOGLE_BOOKS_API_KEY is configured, enhanced Open Library with multi-key
+        cover resolution, and Inventaire.io zero-config fallback; see ARCHITECTURE.md §11),
+        returning a provider-agnostic candidate list. Called once per user search,
         not on every page load — see caching note in ARCHITECTURE.md §11.
       parameters:
         - in: query
           name: q
           required: true
           schema: { type: string }
+        - in: query
+          name: lang
+          required: false
+          schema: { type: string, example: "ja" }
       responses:
         "200":
           description: Candidate matches for the user to pick from
@@ -460,6 +466,22 @@ paths:
       responses:
         "200": { description: Progress recorded }
 
+  /reading-sessions/pause-active:
+    post:
+      summary: Pause the user's currently active reading session (SRS §12.7)
+      responses:
+        "200":
+          description: Session paused (or null if none active)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    nullable: true
+                    allOf:
+                      - $ref: "#/components/schemas/ReadingSessionResponse"
+
   /reading-sessions/{sessionId}/pause:
     post:
       summary: Pause an active session (idle timeout or manual)
@@ -630,6 +652,14 @@ components:
               type: string
               nullable: true
               description: Provider's stable ID, from a /metadata/search result
+            description:
+              type: string
+              nullable: true
+              description: Optional synopsis / summary to pre-populate the Work
+            originalLanguage: { type: string, nullable: true }
+            language: { type: string, nullable: true }
+            partsCount: { type: integer, nullable: true }
+            chaptersCount: { type: integer, nullable: true }
 
     UserResponse:
       type: object
@@ -653,6 +683,12 @@ components:
           items: { type: string }
         coverImageUrl: { type: string, nullable: true }
         firstPublishYear: { type: integer, nullable: true }
+        description: { type: string, nullable: true, description: "Book synopsis or summary if available from provider" }
+        seriesName: { type: string, nullable: true, description: "Series or universe name if available" }
+        originalLanguage: { type: string, nullable: true }
+        language: { type: string, nullable: true }
+        partsCount: { type: integer, nullable: true }
+        chaptersCount: { type: integer, nullable: true }
 
     WorkResponse:
       type: object
@@ -689,6 +725,10 @@ components:
               type: string
               nullable: true
               description: Synopsis, fetched best-effort from Open Library at add time.
+            originalLanguage: { type: string, nullable: true }
+            language: { type: string, nullable: true }
+            partsCount: { type: integer, nullable: true }
+            chaptersCount: { type: integer, nullable: true }
             seriesWorks:
               type: array
               description: >

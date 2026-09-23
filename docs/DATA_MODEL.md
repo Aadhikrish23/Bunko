@@ -56,6 +56,10 @@ model Work {
   description    String?
   genres         String[] // simple string array for MVP; normalise later if needed
   coverImageUrl  String?
+  originalLanguage String?
+  language         String?
+  partsCount       Int?
+  chaptersCount    Int?
   externalSource String?  // e.g. "open-library"; null if manually entered
   externalId     String?  // e.g. Open Library work key ("OL45804W")
   createdAt      DateTime @default(now())

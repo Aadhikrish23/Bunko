@@ -27,6 +27,8 @@ const envSchema = z.object({
   SESSION_IDLE_TIMEOUT_MINUTES: z.coerce.number().default(5),
   SESSION_GRACE_WINDOW_MINUTES: z.coerce.number().default(15),
   MAPPING_CONFIDENCE_THRESHOLD: z.coerce.number().default(0.6),
+  GOOGLE_BOOKS_API_KEY: z.string().optional(),
+  HARDCOVER_API_KEY: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

@@ -1,6 +1,5 @@
 import { LibraryBig, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -10,6 +9,7 @@ import type { ReadingStatus } from '../../lib/api/types';
 import { errorMessage } from '../../lib/error-message';
 import { AddBookDialog } from './AddBookDialog';
 import { BookCover } from './BookCover';
+import { BookQuickActionModal } from './BookQuickActionModal';
 import { STATUS_OPTIONS, StatusBadge } from './StatusBadge';
 
 const FILTERS: { value: ReadingStatus | 'ALL'; label: string }[] = [
@@ -18,10 +18,10 @@ const FILTERS: { value: ReadingStatus | 'ALL'; label: string }[] = [
 ];
 
 export function LibraryPage() {
-  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'ALL'>('ALL');
   const [query, setQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [quickActionWorkId, setQuickActionWorkId] = useState<string | null>(null);
 
   const works = useWorks({ status: statusFilter === 'ALL' ? undefined : statusFilter, q: query || undefined });
 
@@ -88,12 +88,12 @@ export function LibraryPage() {
       )}
 
       {works.data && works.data.items.length > 0 && (
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10">
           {works.data.items.map((work) => (
             <button
               key={work.id}
               type="button"
-              onClick={() => navigate(`/library/${work.id}`)}
+              onClick={() => setQuickActionWorkId(work.id)}
               className="focus-visible:focus-ring group flex flex-col gap-2 text-left"
             >
               <BookCover
@@ -118,8 +118,15 @@ export function LibraryPage() {
           onClose={() => setIsAddOpen(false)}
           onAdded={(workId) => {
             setIsAddOpen(false);
-            navigate(`/library/${workId}`);
+            setQuickActionWorkId(workId);
           }}
+        />
+      )}
+
+      {quickActionWorkId && (
+        <BookQuickActionModal
+          workId={quickActionWorkId}
+          onClose={() => setQuickActionWorkId(null)}
         />
       )}
     </div>

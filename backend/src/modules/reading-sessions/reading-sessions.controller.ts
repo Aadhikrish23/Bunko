@@ -43,6 +43,19 @@ export async function pauseSessionHandler(
   }
 }
 
+export async function pauseActiveSessionHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const dto = await sessionsService.pauseActiveSession(requireUserId(req));
+    sendOk(res, dto);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function endSessionHandler(
   req: Request<{ sessionId: string }, unknown, EndSessionInput>,
   res: Response,

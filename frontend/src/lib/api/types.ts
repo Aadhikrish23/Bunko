@@ -49,6 +49,10 @@ export interface Work {
   shelfIds: string[];
   coverImageUrl: string | null;
   description: string | null;
+  originalLanguage?: string | null;
+  language?: string | null;
+  partsCount?: number | null;
+  chaptersCount?: number | null;
   // Only populated on a single-work GET, empty on library-list rows.
   seriesWorks: SeriesSibling[];
 }
@@ -60,6 +64,12 @@ export interface MetadataCandidate {
   authors: string[];
   coverImageUrl: string | null;
   firstPublishYear: number | null;
+  description?: string | null;
+  seriesName?: string | null;
+  originalLanguage?: string | null;
+  language?: string | null;
+  partsCount?: number | null;
+  chaptersCount?: number | null;
 }
 
 export interface Shelf {

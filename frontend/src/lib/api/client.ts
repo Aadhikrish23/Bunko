@@ -1,6 +1,11 @@
 import { getAccessToken, setAccessToken } from './token-store';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? `${window.location.protocol}//${window.location.hostname}:3000/api/v1`
+    : 'http://localhost:3000/api/v1');
+
 
 export interface ApiErrorDetail {
   field: string;

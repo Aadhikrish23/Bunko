@@ -22,6 +22,16 @@ export function usePauseSession() {
   });
 }
 
+export function usePauseActiveSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<ReadingSession | null>('/reading-sessions/pause-active'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['journal'] });
+    },
+  });
+}
+
 export function useEndSession() {
   const queryClient = useQueryClient();
   return useMutation({

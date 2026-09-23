@@ -24,7 +24,25 @@ export function createApp(): Express {
   const app = express();
 
   app.use(requestLogger);
-  app.use(cors({ origin: env.FRONTEND_ORIGIN, credentials: true }));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (
+          !origin ||
+          origin === env.FRONTEND_ORIGIN ||
+          /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.\d+\.\d+\.\d+|26\.\d+\.\d+\.\d+)(:\d+)?$/.test(
+            origin,
+          )
+        ) {
+          callback(null, true);
+        } else {
+          callback(null, false);
+        }
+      },
+      credentials: true,
+    }),
+  );
+
   app.use(cookieParser());
   app.use(express.json());
 

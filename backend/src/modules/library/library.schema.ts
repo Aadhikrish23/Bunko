@@ -17,6 +17,11 @@ const newWorkSchema = z
     coverImageUrl: z.string().url().nullable().optional(),
     externalSource: z.string().min(1).nullable().optional(),
     externalId: z.string().min(1).nullable().optional(),
+    description: z.string().nullable().optional(),
+    originalLanguage: z.string().nullable().optional(),
+    language: z.string().nullable().optional(),
+    partsCount: z.number().int().min(0).nullable().optional(),
+    chaptersCount: z.number().int().min(0).nullable().optional(),
   })
   .strict();
 

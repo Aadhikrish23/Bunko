@@ -14,9 +14,31 @@ test.describe('GET /metadata/search (T-013a)', () => {
     const body = await response.json();
     expect(Array.isArray(body.data)).toBe(true);
     if (body.data.length > 0) {
-      expect(body.data[0]).toHaveProperty('externalSource', 'open-library');
+      expect(['open-library', 'inventaire', 'google-books']).toContain(body.data[0].externalSource);
       expect(body.data[0]).toHaveProperty('externalId');
       expect(body.data[0]).toHaveProperty('title');
+    }
+  });
+
+  test('searching a universe returns constituent works (e.g. grishaverse)', async ({ authedRequest }) => {
+    const response = await authedRequest.get('/api/v1/metadata/search?q=grishaverse');
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(Array.isArray(body.data)).toBe(true);
+    if (body.data.length > 0) {
+      const titles = body.data.map((b: { title: string }) => b.title.toLowerCase());
+      expect(titles.some((t: string) => t.includes('crows') || t.includes('shadow') || t.includes('kingdom'))).toBe(true);
+    }
+  });
+
+  test('supports non-Latin and multi-language queries (e.g. Tamil)', async ({ authedRequest }) => {
+    const response = await authedRequest.get('/api/v1/metadata/search?q=' + encodeURIComponent('பொன்னியின் செல்வன்'));
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(Array.isArray(body.data)).toBe(true);
+    if (body.data.length > 0) {
+      expect(body.data[0]).toHaveProperty('title');
+      expect(body.data[0]).toHaveProperty('authors');
     }
   });
 });

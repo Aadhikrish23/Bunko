@@ -34,6 +34,20 @@ test.describe('POST /reading-sessions (T-019)', () => {
     const second = await authedRequest.post('/api/v1/reading-sessions', { data: { copyId: secondCopyId } });
     expect(second.status()).toBe(409);
   });
+
+  test('pausing active session unblocks starting a session for another copy', async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest);
+    const first = await authedRequest.post('/api/v1/reading-sessions', { data: { copyId } });
+    expect(first.status()).toBe(201);
+
+    const pauseRes = await authedRequest.post('/api/v1/reading-sessions/pause-active');
+    expect(pauseRes.status()).toBe(200);
+    expect((await pauseRes.json()).data.status).toBe('PAUSED');
+
+    const secondCopyId = await createCopy(authedRequest);
+    const second = await authedRequest.post('/api/v1/reading-sessions', { data: { copyId: secondCopyId } });
+    expect(second.status()).toBe(201);
+  });
 });
 
 test.describe('idle timeout (T-020, SRS §12.8 steps 4-5)', () => {

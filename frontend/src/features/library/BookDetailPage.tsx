@@ -65,11 +65,11 @@ export function BookDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Back to library
       </button>
 
-      <div className="flex gap-6">
-        <div className="w-36 flex-shrink-0">
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+        <div className="w-32 sm:w-36 flex-shrink-0">
           <BookCover title={data.title} coverImageUrl={data.coverImageUrl} />
         </div>
-        <div className="flex flex-1 flex-col gap-3">
+        <div className="flex flex-1 flex-col gap-3 w-full">
           <div>
             <h1 className="font-display text-2xl text-paper-900">{data.title}</h1>
             <p className="mt-1 text-paper-600">{data.authors.join(', ') || 'Unknown author'}</p>

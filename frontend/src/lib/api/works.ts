@@ -36,6 +36,11 @@ export type CreateWorkInput =
       coverImageUrl?: string | null;
       externalSource?: string | null;
       externalId?: string | null;
+      description?: string | null;
+      originalLanguage?: string | null;
+      language?: string | null;
+      partsCount?: number | null;
+      chaptersCount?: number | null;
     };
 
 export function useCreateWork() {

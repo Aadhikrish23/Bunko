@@ -19,6 +19,7 @@ readingSessionsRouter.patch(
   validate(reportProgressSchema),
   controller.reportProgressHandler,
 );
+readingSessionsRouter.post('/pause-active', authMiddleware, controller.pauseActiveSessionHandler);
 readingSessionsRouter.post(
   '/:sessionId/pause',
   authMiddleware,

@@ -211,37 +211,24 @@ a container image regardless of final hosting choice.
 Adding a book (T-013) needs a source for title/author/cover/ISBN
 metadata rather than requiring the user to type everything by hand.
 
-**Decision: Open Library (openlibrary.org) as the sole MVP provider.**
+**Decision: Resilient Multi-Tier Waterfall (Google Books -> Open Library -> Inventaire.io).**
 
-| Criterion | Open Library | Google Books (not used in MVP) |
-|---|---|---|
-| Cost | Free, no tier | Free daily quota (~1,000/day), no paid tier available |
-| Auth | None required | Requires a Google Cloud API key |
-| Rate limit | ~100 req/5min per IP (unofficial, "polite" limit) | Hard daily cap, increases not guaranteed |
-| Fit | Explicitly positioned for real-time, low-volume, human-facing lookup — matches a personal library app exactly | Better cover art / newer-release coverage, but adds a credential to manage for a benefit MVP doesn't need |
+| Provider | Role | Cost / Auth | Cover Resolution & Data Richness |
+|---|---|---|---|
+| **Google Books** | Tier 1 (Optional) | Free tier (~1,000 req/day); requires `GOOGLE_BOOKS_API_KEY` | High-res cover images, comprehensive synopses, fast response time |
+| **Open Library** | Tier 2 (Default primary) | Free, no API key required | Enhanced with multi-key cover fallback (`cover_i` -> `cover_edition_key` -> `isbn[0]`), first-sentence previews, 4s timeout |
+| **Inventaire.io** | Tier 3 (Zero-config fallback) | Free, no API key required, open book catalog backed by Wikidata | Fast sub-second search, entity WebP images, Wikidata work summaries, robust fallback when Open Library times out |
 
 **Integration pattern:**
 
-- New `GET /api/v1/metadata/search?q=` endpoint (`openapi.yaml`) proxies
-  to `https://openlibrary.org/search.json?q=`, returning a short list
-  of candidates (title, author, cover URL, `externalId`) for the
-  user to pick from in the "add a book" flow.
-- On selection, the backend creates (or reuses, via
-  `DATA_MODEL.md` §4's dedup) a `Work` row populated from the chosen
-  result — Open Library is queried **once per add**, never repeatedly.
-  Do not re-fetch from Open Library on every page load; the stored
-  `Work` row is the source of truth after creation.
-- The user can still skip search and enter a book manually
-  (`externalSource`/`externalId` left `null`).
-- Cover images: fetched once and re-hosted through `files`/object
-  storage rather than hot-linking Open Library's cover CDN on every
-  page load, to stay a well-behaved API consumer per their stated
-  "not a bulk backend" policy.
-- No API key, so no new `.env.example` entry is required for this
-  provider.
-
-**Revisit later if:** cover-art quality or missing recent titles
-becomes a recurring user complaint — Google Books can be added as a
-secondary, optional lookup at that point without changing the
-`metadata/search` contract (the response shape already returns a
-provider-agnostic candidate list).
+- `GET /api/v1/metadata/search?q=` (`openapi.yaml`) executes the waterfall:
+  1. If `GOOGLE_BOOKS_API_KEY` is configured in `.env`, Google Books is queried first.
+  2. Otherwise (or if Google Books returns empty/errors), Open Library is queried with multiple cover fallbacks and a 4-second timeout.
+  3. If Open Library times out, fails, or returns no results, Inventaire.io is queried immediately as a zero-config fallback.
+  4. Degrades gracefully to `[]` on total upstream failure (never a 500 error, T-013a).
+- The candidate shape is provider-agnostic (`title`, `authors`, `coverImageUrl`, `firstPublishYear`, `externalSource`, `externalId`, optional `description`).
+- When a candidate is selected:
+  - If a synopsis/description was provided in the search candidate (e.g. from Google Books or Inventaire), `createWork` saves it directly without a redundant round-trip fetch.
+  - If missing, `fetchWorkDescription(source, externalId)` fetches it once from the respective provider.
+- The stored `Work` row is the source of truth after creation — external APIs are never queried on page load.
+- The user can still skip search and enter a book manually (`externalSource`/`externalId` left `null`).

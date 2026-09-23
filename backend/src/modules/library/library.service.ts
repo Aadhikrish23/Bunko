@@ -1,7 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
-import { fetchWorkDescription } from '../metadata/metadata.service';
+import { logger } from '../../lib/logger';
+import { discoverRelatedBooks, fetchWorkDescription, searchBookMetadata } from '../metadata/metadata.service';
 import type { CreateWorkInput, ListWorksQuery, UpdateWorkInput } from './library.schema';
 
 export interface SeriesSiblingDto {
@@ -42,6 +43,10 @@ export interface WorkSummaryDto {
   // Synopsis — stored on Work (DATA_MODEL.md §2), fetched best-effort
   // from Open Library at add time (see fetchWorkDescription).
   description: string | null;
+  originalLanguage: string | null;
+  language: string | null;
+  partsCount: number | null;
+  chaptersCount: number | null;
   // Only populated on a single-work GET, not on list views (avoids an
   // N+1 for every row in a library listing) — see getWork/getUserWorkOrThrow.
   seriesWorks: SeriesSiblingDto[];
@@ -84,6 +89,10 @@ function toWorkDto(
     shelfIds: userWork.shelves.map((sw) => sw.shelf.id),
     coverImageUrl: userWork.work.coverImageUrl,
     description: userWork.work.description,
+    originalLanguage: userWork.work.originalLanguage,
+    language: userWork.work.language,
+    partsCount: userWork.work.partsCount,
+    chaptersCount: userWork.work.chaptersCount,
     seriesWorks,
   };
 }
@@ -128,6 +137,66 @@ async function findOrCreateSeries(name: string) {
   return existing ?? prisma.series.create({ data: { name } });
 }
 
+async function syncRelatedSeriesWorks(
+  work: { id: string; title: string; seriesId: string | null; genres: string[] },
+  authorNames: string[],
+): Promise<string | null> {
+  try {
+    const discovery = await discoverRelatedBooks(work.title, authorNames[0]);
+    if (!discovery || discovery.books.length === 0) return work.seriesId;
+
+    let seriesId = work.seriesId;
+    if (!seriesId) {
+      const series = await findOrCreateSeries(discovery.seriesName);
+      seriesId = series.id;
+      await prisma.work.update({
+        where: { id: work.id },
+        data: { seriesId: series.id },
+      });
+    }
+
+    for (const sibling of discovery.books) {
+      const existing = await prisma.work.findFirst({
+        where: {
+          OR: [
+            { seriesId, title: { equals: sibling.title, mode: 'insensitive' } },
+            ...(sibling.externalId
+              ? [{ externalSource: sibling.externalSource, externalId: sibling.externalId }]
+              : []),
+          ],
+        },
+      });
+
+      if (!existing) {
+        const createdSibling = await prisma.work.create({
+          data: {
+            title: sibling.title,
+            seriesId,
+            genres: work.genres,
+            description: sibling.description,
+            coverImageUrl: sibling.coverImageUrl,
+            externalSource: sibling.externalSource,
+            externalId: sibling.externalId,
+          },
+        });
+
+        if (sibling.authors.length > 0) {
+          const authors = await Promise.all(sibling.authors.map(findOrCreateAuthor));
+          await prisma.workAuthor.createMany({
+            data: authors.map((a) => ({ workId: createdSibling.id, authorId: a.id })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    }
+
+    return seriesId;
+  } catch (err) {
+    logger.warn({ err, workId: work.id }, 'Failed to sync related series works');
+    return work.seriesId;
+  }
+}
+
 // Always includes series siblings — every caller of this helper is
 // working with exactly one Work, so the extra query is cheap; list
 // endpoints (listWorks) build their own DTOs directly with toWorkDto
@@ -143,9 +212,45 @@ async function getUserWorkOrThrow(userId: string, workId: string): Promise<WorkS
   if (!userWork) {
     throw new AppError('NOT_FOUND', 'Work not found in your library');
   }
-  const seriesWorks = userWork.work.seriesId
+
+  let seriesWorks = userWork.work.seriesId
     ? await getSeriesSiblings(userWork.work.seriesId, userWork.work.id, userId)
     : [];
+
+  // If no series siblings exist yet, lazily attempt discovery so previously
+  // added books also receive their related siblings on their detail page
+  if (seriesWorks.length === 0) {
+    const authorNames = userWork.work.authors.map((wa) => wa.author.name);
+    const resolvedSeriesId = await syncRelatedSeriesWorks(
+      {
+        id: userWork.work.id,
+        title: userWork.work.title,
+        seriesId: userWork.work.seriesId,
+        genres: userWork.work.genres,
+      },
+      authorNames,
+    );
+    if (resolvedSeriesId) {
+      seriesWorks = await getSeriesSiblings(resolvedSeriesId, userWork.work.id, userId);
+    }
+  }
+
+  if (!userWork.work.coverImageUrl) {
+    try {
+      const candidates = await searchBookMetadata(userWork.work.title);
+      const matched = candidates.find((c) => c.coverImageUrl);
+      if (matched?.coverImageUrl) {
+        await prisma.work.update({
+          where: { id: userWork.work.id },
+          data: { coverImageUrl: matched.coverImageUrl },
+        });
+        userWork.work.coverImageUrl = matched.coverImageUrl;
+      }
+    } catch {
+      // Ignore background cover enrichment failure
+    }
+  }
+
   return toWorkDto(userWork, journey?.id ?? null, seriesWorks);
 }
 
@@ -175,16 +280,79 @@ export async function createWork(
       })
     : null;
 
-  if (!work) {
+  if (work) {
+    // If the work already exists in DB, update any missing metadata fields
+    // (coverImageUrl, description, originalLanguage, language, partsCount, chaptersCount)
+    // with fresh incoming values or fallback search.
+    const updateData: Prisma.WorkUpdateInput = {};
+
+    let newCover = input.coverImageUrl ?? null;
+    if (!newCover && !work.coverImageUrl) {
+      try {
+        const candidates = await searchBookMetadata(input.title);
+        const matched = candidates.find((c) => c.coverImageUrl);
+        if (matched?.coverImageUrl) {
+          newCover = matched.coverImageUrl;
+        }
+      } catch {
+        // Ignore fallback error
+      }
+    }
+
+    if (!work.coverImageUrl && newCover) {
+      updateData.coverImageUrl = newCover;
+      work.coverImageUrl = newCover;
+    }
+    if (!work.description && input.description) {
+      updateData.description = input.description;
+      work.description = input.description;
+    }
+    if (!work.originalLanguage && input.originalLanguage) {
+      updateData.originalLanguage = input.originalLanguage;
+      work.originalLanguage = input.originalLanguage;
+    }
+    if (!work.language && input.language) {
+      updateData.language = input.language;
+      work.language = input.language;
+    }
+    if (work.partsCount === null && input.partsCount !== undefined && input.partsCount !== null) {
+      updateData.partsCount = input.partsCount;
+      work.partsCount = input.partsCount;
+    }
+    if (work.chaptersCount === null && input.chaptersCount !== undefined && input.chaptersCount !== null) {
+      updateData.chaptersCount = input.chaptersCount;
+      work.chaptersCount = input.chaptersCount;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      work = await prisma.work.update({
+        where: { id: work.id },
+        data: updateData,
+      });
+    }
+  } else {
     const series = input.seriesName ? await findOrCreateSeries(input.seriesName) : null;
-    // Best-effort synopsis — Open Library's search results carry no
-    // description at all, only the work-detail endpoint does, so this
-    // is a second fetch, made once, only when actually creating a new
-    // Work (never repeated for a re-add that reuses an existing row).
+    // Best-effort synopsis — if already provided by search candidate (e.g. Google Books,
+    // Inventaire, or first sentence), use it directly. Otherwise, attempt a single fetch
+    // from the external source once per add.
     const description =
-      input.externalSource === 'open-library' && input.externalId
-        ? await fetchWorkDescription(input.externalId)
-        : null;
+      input.description ??
+      (input.externalSource && input.externalId
+        ? await fetchWorkDescription(input.externalSource, input.externalId)
+        : null);
+
+    let coverImageUrl = input.coverImageUrl ?? null;
+    if (!coverImageUrl) {
+      try {
+        const candidates = await searchBookMetadata(input.title);
+        const matched = candidates.find((c) => c.coverImageUrl);
+        if (matched?.coverImageUrl) {
+          coverImageUrl = matched.coverImageUrl;
+        }
+      } catch {
+        // Ignore fallback error
+      }
+    }
 
     work = await prisma.work.create({
       data: {
@@ -192,7 +360,11 @@ export async function createWork(
         seriesId: series?.id ?? null,
         genres: input.genres,
         description,
-        coverImageUrl: input.coverImageUrl ?? null,
+        coverImageUrl,
+        originalLanguage: input.originalLanguage ?? null,
+        language: input.language ?? null,
+        partsCount: input.partsCount ?? null,
+        chaptersCount: input.chaptersCount ?? null,
         externalSource: input.externalSource ?? null,
         externalId: input.externalId ?? null,
       },
@@ -205,6 +377,17 @@ export async function createWork(
         skipDuplicates: true,
       });
     }
+
+    // Automatically discover and link related works in the same series or universe
+    await syncRelatedSeriesWorks(
+      {
+        id: work.id,
+        title: work.title,
+        seriesId: work.seriesId,
+        genres: work.genres,
+      },
+      input.authors,
+    );
   }
 
   const existingMembership = await prisma.userWork.findUnique({
