@@ -1,10 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import type { ReaderSettings } from './reader-settings';
-import { THEME_STYLES } from './reader-settings';
+import { THEME_STYLES, type ThemeColors } from './reader-settings';
 
-// Paragraph-like line widths so the turning leaf reads as a page of
-// text rather than a blank sheet — a fixed pattern is enough since it's
-// only visible mid-flip, never held still long enough to scrutinize.
+const FLIP_DURATION_MS = 700;
+
+// Paragraph-like line widths — only used as a last-resort placeholder
+// when a real snapshot of the page can't be captured yet (e.g. nothing
+// has rendered into the viewport on the very first paint).
 const FAUX_LINE_WIDTHS = [96, 100, 88, 97, 92, 100, 85, 98, 90, 94, 60];
 
 function FauxPageContent({ textColor }: { textColor: string }) {
@@ -22,6 +24,71 @@ function FauxPageContent({ textColor }: { textColor: string }) {
   );
 }
 
+type LeafSnapshot = { kind: 'image'; src: string } | { kind: 'html'; html: string };
+
+// Grabs what's actually on screen right now — the real page, not a
+// mockup — so the turning leaf shows the content it's covering instead
+// of a generic placeholder. PDF pages render to <canvas>, so a pixel
+// copy is trivial and exact; EPUB pages render inside epub.js's
+// same-origin iframe, so we take its live markup instead.
+function captureSnapshot(container: HTMLElement | null): LeafSnapshot | null {
+  if (!container) return null;
+
+  const canvases = Array.from(container.querySelectorAll('canvas'));
+  if (canvases.length > 0) {
+    const rect = container.getBoundingClientRect();
+    const out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(rect.width));
+    out.height = Math.max(1, Math.round(rect.height));
+    const ctx = out.getContext('2d');
+    if (ctx) {
+      try {
+        for (const canvas of canvases) {
+          const canvasRect = canvas.getBoundingClientRect();
+          ctx.drawImage(canvas, canvasRect.left - rect.left, canvasRect.top - rect.top, canvasRect.width, canvasRect.height);
+        }
+        return { kind: 'image', src: out.toDataURL('image/png') };
+      } catch {
+        // Tainted canvas (shouldn't happen for same-origin content) — fall through.
+      }
+    }
+  }
+
+  const iframe = container.querySelector('iframe');
+  try {
+    const body = iframe?.contentDocument?.body;
+    if (body?.innerHTML) return { kind: 'html', html: body.innerHTML };
+  } catch {
+    // Cross-origin iframe — nothing we can read.
+  }
+  return null;
+}
+
+function LeafContent({ snapshot, textColor }: { snapshot: LeafSnapshot | null; textColor: string }) {
+  if (!snapshot) return <FauxPageContent textColor={textColor} />;
+  if (snapshot.kind === 'image') {
+    return <img src={snapshot.src} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" />;
+  }
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 overflow-hidden p-[6%] text-[0.6rem] leading-snug"
+      style={{ color: textColor }}
+      dangerouslySetInnerHTML={{ __html: snapshot.html }}
+    />
+  );
+}
+
+// Mirrors the flipNext3D/flipPrev3D keyframes (index.css) so a manual
+// drag and a programmatic (button/keyboard) flip curl the same way.
+function curlTransform(progress: number, direction: 'next' | 'prev'): string {
+  const angle = 180 * progress * (direction === 'next' ? -1 : 1);
+  const bulge = Math.sin(progress * Math.PI);
+  const z = bulge * 50;
+  const scaleX = 1 - bulge * 0.2;
+  return `rotateY(${angle}deg) translateZ(${z}px) scaleX(${scaleX})`;
+}
+
 interface BookFlipWrapperProps {
   settings: ReaderSettings;
   children: ReactNode;
@@ -29,6 +96,76 @@ interface BookFlipWrapperProps {
   flipDirection?: 'next' | 'prev';
   isCover?: boolean;
 }
+
+interface TurningLeafProps {
+  theme: ThemeColors;
+  direction: 'next' | 'prev';
+  full: boolean;
+  snapshot: LeafSnapshot | null;
+  drag: { progress: number; settling: boolean } | null;
+}
+
+// The page mid-turn. Only its front face is rendered — with
+// backface-visibility hidden, once it rotates past 90° it simply
+// vanishes, revealing the real (already-rendered) next page sitting
+// underneath instead of a fabricated "back of the page." That's also
+// what makes this instant: there's nothing to load, it's already there.
+function TurningLeaf({ theme, direction, full, snapshot, drag }: TurningLeafProps) {
+  const originClass = direction === 'next' ? 'origin-left' : 'origin-right';
+  const positionClass = full ? 'inset-0' : `inset-y-0 w-1/2 ${direction === 'next' ? 'right-0' : 'left-0'}`;
+  // Tailwind's JIT scanner needs the full arbitrary-value class as a
+  // literal string in source — it can't resolve FLIP_DURATION_MS here,
+  // so this duration is kept in sync with that constant by hand.
+  const animateClass =
+    drag === null
+      ? direction === 'next'
+        ? 'animate-[flipNext3D_700ms_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
+        : 'animate-[flipPrev3D_700ms_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
+      : '';
+
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute z-40 overflow-hidden border will-change-transform [backface-visibility:hidden] ${positionClass} ${originClass} ${animateClass}`}
+      style={{
+        backgroundColor: theme.paperBg,
+        borderColor: theme.border,
+        ...(drag
+          ? {
+              transform: curlTransform(drag.progress, direction),
+              transition: drag.settling ? `transform ${FLIP_DURATION_MS * 0.4}ms cubic-bezier(0.45,0.05,0.55,0.95)` : 'none',
+            }
+          : {}),
+      }}
+    >
+      <LeafContent snapshot={snapshot} textColor={theme.text} />
+      <div
+        className={`absolute inset-0 bg-gradient-to-r ${
+          direction === 'next' ? 'from-black/5 via-black/15 to-black/40' : 'from-black/40 via-black/15 to-black/5'
+        }`}
+      />
+      <div
+        aria-hidden="true"
+        className={`absolute inset-y-0 w-10 bg-gradient-to-r from-transparent via-white/25 to-transparent ${
+          direction === 'next' ? 'right-0' : 'left-0'
+        }`}
+      />
+    </div>
+  );
+}
+
+function CastShadow({ direction, full }: { direction: 'next' | 'prev'; full: boolean }) {
+  const positionClass = full ? 'w-full' : `w-1/2 ${direction === 'next' ? 'right-0' : 'left-0'}`;
+  const originClass = direction === 'next' ? 'origin-left' : 'origin-right';
+  const animateClass = direction === 'next' ? 'animate-[castShadowNext_700ms_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]' : 'animate-[castShadowPrev_700ms_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]';
+  const gradientClass = direction === 'next' ? 'bg-gradient-to-r from-black/25 via-black/10 to-transparent' : 'bg-gradient-to-l from-black/25 via-black/10 to-transparent';
+  return (
+    <div aria-hidden="true" className={`pointer-events-none absolute inset-y-0 z-35 transition-opacity ${positionClass} ${originClass} ${animateClass} ${gradientClass}`} />
+  );
+}
+
+const DRAG_START_THRESHOLD_PX = 8;
+const DRAG_COMMIT_THRESHOLD = 0.32;
 
 export function BookFlipWrapper({
   settings,
@@ -54,6 +191,93 @@ export function BookFlipWrapper({
   const isSingle = isCover || isMobile;
 
   const warmthOpacity = (settings.temperature / 100) * 0.35;
+
+  const contentRef = useRef<HTMLDivElement>(null);
+  const pageAreaRef = useRef<HTMLDivElement>(null);
+  const [snapshot, setSnapshot] = useState<LeafSnapshot | null>(null);
+
+  // Captures the outgoing page the instant a programmatic (button or
+  // keyboard) flip starts — before the reader swaps in the new page —
+  // so the leaf that's about to appear shows what was really there.
+  const wasFlipping = useRef(false);
+  useLayoutEffect(() => {
+    if (turning && !wasFlipping.current) {
+      setSnapshot(captureSnapshot(contentRef.current));
+    }
+    wasFlipping.current = turning;
+  }, [turning]);
+
+  // A drag-driven flip visually finishes on its own (see handlePointerUp);
+  // once it does, the parent's `isFlipping` window is still open for a
+  // moment, and it shouldn't spawn a second, from-scratch flip on top.
+  const suppressKeyframeLeaf = useRef(false);
+  useEffect(() => {
+    if (!turning) suppressKeyframeLeaf.current = false;
+  }, [turning]);
+
+  const dragStart = useRef<{ x: number; y: number; direction: 'next' | 'prev' | null } | null>(null);
+  const [drag, setDrag] = useState<{ direction: 'next' | 'prev'; progress: number; settling: boolean } | null>(null);
+
+  const handlePointerDown = useCallback(
+    (e: PointerEvent<HTMLDivElement>) => {
+      if (settings.pageTurnMode !== '3d-flip' || turning || drag) return;
+      dragStart.current = { x: e.clientX, y: e.clientY, direction: null };
+    },
+    [settings.pageTurnMode, turning, drag]
+  );
+
+  const handlePointerMove = useCallback(
+    (e: PointerEvent<HTMLDivElement>) => {
+      const start = dragStart.current;
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+
+      if (!start.direction) {
+        if (Math.abs(dx) < DRAG_START_THRESHOLD_PX || Math.abs(dx) < Math.abs(dy)) return;
+        start.direction = dx < 0 ? 'next' : 'prev';
+        setSnapshot(captureSnapshot(contentRef.current));
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
+
+      const width = pageAreaRef.current?.getBoundingClientRect().width || 400;
+      const dragDistance = width * (isSingle ? 0.7 : 0.55);
+      const progress = Math.min(1, Math.abs(dx) / dragDistance);
+      setDrag({ direction: start.direction, progress, settling: false });
+    },
+    [isSingle]
+  );
+
+  const finishDrag = useCallback((committed: boolean, direction: 'next' | 'prev') => {
+    setDrag({ direction, progress: committed ? 1 : 0, settling: true });
+    if (committed) {
+      suppressKeyframeLeaf.current = true;
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: direction === 'next' ? 'ArrowRight' : 'ArrowLeft' }));
+    }
+    window.setTimeout(() => setDrag(null), FLIP_DURATION_MS * 0.4 + 20);
+  }, []);
+
+  const handlePointerUp = useCallback(
+    (e: PointerEvent<HTMLDivElement>) => {
+      const start = dragStart.current;
+      dragStart.current = null;
+      if (!start?.direction) return;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+      const committed = (drag?.progress ?? 0) >= DRAG_COMMIT_THRESHOLD;
+      finishDrag(committed, start.direction);
+    },
+    [drag, finishDrag]
+  );
+
+  const handlePointerCancel = useCallback(() => {
+    const start = dragStart.current;
+    dragStart.current = null;
+    if (start?.direction) finishDrag(false, start.direction);
+  }, [finishDrag]);
+
+  const showDragLeaf = drag !== null;
+  const showKeyframeLeaf = turning && !showDragLeaf && !suppressKeyframeLeaf.current;
+  const activeDirection = showDragLeaf ? drag.direction : flipDirection;
 
   return (
     <div
@@ -88,7 +312,12 @@ export function BookFlipWrapper({
 
               {/* Paper Block with Stacked Page Thickness Edges */}
               <div
-                style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
+                ref={pageAreaRef}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+                style={{ backgroundColor: theme.paperBg, borderColor: theme.border, touchAction: 'pan-y' }}
                 className={`relative flex h-full w-full flex-1 min-w-0 overflow-hidden transition-colors ${
                   isCover
                     ? 'ml-3 sm:ml-4 rounded-r-xl border border-amber-900/20 shadow-[4px_0_0_#e8dfce,8px_0_0_#ded3bd,0_5px_0_#e8dfce,0_9px_0_#ded3bd]'
@@ -129,108 +358,22 @@ export function BookFlipWrapper({
                   </>
                 )}
 
-                {/* 3D Realistic Double-Sided Turning Leaf Animation */}
-                {turning && (
-                  isSingle ? (
-                    <>
-                      {/* Cast shadow beneath the lifting leaf */}
-                      <div
-                        aria-hidden="true"
-                        className={`pointer-events-none absolute inset-y-0 z-35 w-full transition-opacity ${
-                          flipDirection === 'next'
-                            ? 'right-0 origin-left animate-[castShadowNext_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards] bg-gradient-to-r from-black/25 via-black/10 to-transparent'
-                            : 'left-0 origin-right animate-[castShadowPrev_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards] bg-gradient-to-l from-black/25 via-black/10 to-transparent'
-                        }`}
-                      />
-
-                      <div
-                        className={`pointer-events-none absolute inset-0 z-40 will-change-transform [transform-style:preserve-3d] ${
-                          flipDirection === 'next'
-                            ? 'origin-left animate-[flipNext3D_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
-                            : 'origin-right animate-[flipPrev3D_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
-                        }`}
-                      >
-                        {/* Leaf Front Face — the page being turned away */}
-                        <div
-                          style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
-                          className="absolute inset-0 border [backface-visibility:hidden] overflow-hidden"
-                        >
-                          <FauxPageContent textColor={theme.text} />
-                          <div
-                            className={`absolute inset-0 bg-gradient-to-r ${
-                              flipDirection === 'next' ? 'from-black/5 via-black/15 to-black/35' : 'from-black/35 via-black/15 to-black/5'
-                            }`}
-                          />
-                          <div
-                            aria-hidden="true"
-                            className={`absolute inset-y-0 w-10 bg-gradient-to-r from-transparent via-white/25 to-transparent ${
-                              flipDirection === 'next' ? 'right-0' : 'left-0'
-                            }`}
-                          />
-                        </div>
-
-                        {/* Leaf Back Face — the next page arriving */}
-                        <div
-                          style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
-                          className="absolute inset-0 border [transform:rotateY(180deg)] [backface-visibility:hidden] overflow-hidden"
-                        >
-                          <FauxPageContent textColor={theme.text} />
-                          <div
-                            className={`absolute inset-0 bg-gradient-to-l ${
-                              flipDirection === 'next' ? 'from-black/5 via-black/15 to-black/35' : 'from-black/35 via-black/15 to-black/5'
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Dynamic Cast Shadow beneath turning leaf */}
-                      <div
-                        aria-hidden="true"
-                        className={`pointer-events-none absolute inset-y-0 z-35 w-1/2 transition-opacity ${
-                          flipDirection === 'next'
-                            ? 'right-0 origin-left animate-[castShadowNext_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards] bg-gradient-to-r from-black/20 via-black/10 to-transparent'
-                            : 'left-0 origin-right animate-[castShadowPrev_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards] bg-gradient-to-l from-black/20 via-black/10 to-transparent'
-                        }`}
-                      />
-
-                      {/* Double-Sided 3D Page Leaf */}
-                      <div
-                        className={`pointer-events-none absolute inset-y-0 z-40 w-1/2 will-change-transform [transform-style:preserve-3d] ${
-                          flipDirection === 'next'
-                            ? 'right-0 origin-left animate-[flipNext3D_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
-                            : 'left-0 origin-right animate-[flipPrev3D_0.58s_cubic-bezier(0.45,0.05,0.55,0.95)_forwards]'
-                        }`}
-                      >
-                        {/* Leaf Front Face */}
-                        <div
-                          style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
-                          className="absolute inset-0 border [backface-visibility:hidden] overflow-hidden"
-                        >
-                          <FauxPageContent textColor={theme.text} />
-                          <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/10 to-transparent" />
-                          <div
-                            aria-hidden="true"
-                            className="absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                          />
-                        </div>
-
-                        {/* Leaf Back Face */}
-                        <div
-                          style={{ backgroundColor: theme.paperBg, borderColor: theme.border }}
-                          className="absolute inset-0 border [transform:rotateY(180deg)] [backface-visibility:hidden] overflow-hidden"
-                        >
-                          <FauxPageContent textColor={theme.text} />
-                          <div className="absolute inset-0 bg-gradient-to-l from-black/30 via-black/10 to-transparent" />
-                        </div>
-                      </div>
-                    </>
-                  )
+                {/* Turning leaf — either a live drag or a programmatic (button/keyboard) flip */}
+                {(showDragLeaf || showKeyframeLeaf) && (
+                  <>
+                    <CastShadow direction={activeDirection} full={isSingle} />
+                    <TurningLeaf
+                      theme={theme}
+                      direction={activeDirection}
+                      full={isSingle}
+                      snapshot={snapshot}
+                      drag={showDragLeaf ? { progress: drag.progress, settling: drag.settling } : null}
+                    />
+                  </>
                 )}
 
                 {/* Content Viewport — Permanently mounted without remounting */}
-                <div className="relative z-10 flex h-full w-full flex-1 min-w-0 items-center justify-center overflow-hidden">
+                <div ref={contentRef} className="relative z-10 flex h-full w-full flex-1 min-w-0 items-center justify-center overflow-hidden">
                   {children}
                 </div>
               </div>

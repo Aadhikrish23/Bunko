@@ -85,7 +85,9 @@ export function ReaderPage() {
   const handleFlipStart = useCallback((direction: 'next' | 'prev') => {
     setFlipDirection(direction);
     setIsFlipping(true);
-    const timer = setTimeout(() => setIsFlipping(false), 580);
+    // Kept in sync with BookFlipWrapper's FLIP_DURATION_MS / the
+    // flipNext3D/flipPrev3D keyframe duration in index.css.
+    const timer = setTimeout(() => setIsFlipping(false), 700);
     return () => clearTimeout(timer);
   }, []);
 

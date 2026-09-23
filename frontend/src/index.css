@@ -67,38 +67,46 @@
 /* Authentic 3D Book Page Turning Keyframes (Steven Monson & Anya Melnyk References) */
 @keyframes flipNext3D {
   0% {
-    transform: rotateY(0deg) translateZ(0px);
+    transform: rotateY(0deg) translateZ(0px) scaleX(1);
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
   }
-  30% {
-    transform: rotateY(-50deg) translateZ(18px);
-    box-shadow: -15px 10px 30px rgba(0, 0, 0, 0.35);
+  25% {
+    transform: rotateY(-40deg) translateZ(34px) scaleX(0.93);
+    box-shadow: -18px 12px 34px rgba(0, 0, 0, 0.38);
   }
-  60% {
-    transform: rotateY(-110deg) translateZ(16px);
-    box-shadow: -25px 10px 35px rgba(0, 0, 0, 0.3);
+  50% {
+    transform: rotateY(-95deg) translateZ(50px) scaleX(0.8);
+    box-shadow: -30px 14px 42px rgba(0, 0, 0, 0.34);
+  }
+  75% {
+    transform: rotateY(-150deg) translateZ(30px) scaleX(0.92);
+    box-shadow: -22px 10px 34px rgba(0, 0, 0, 0.28);
   }
   100% {
-    transform: rotateY(-180deg) translateZ(0px);
+    transform: rotateY(-180deg) translateZ(0px) scaleX(1);
     box-shadow: 0 0 8px rgba(0, 0, 0, 0.08);
   }
 }
 
 @keyframes flipPrev3D {
   0% {
-    transform: rotateY(0deg) translateZ(0px);
+    transform: rotateY(0deg) translateZ(0px) scaleX(1);
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
   }
-  30% {
-    transform: rotateY(50deg) translateZ(18px);
-    box-shadow: 15px 10px 30px rgba(0, 0, 0, 0.35);
+  25% {
+    transform: rotateY(40deg) translateZ(34px) scaleX(0.93);
+    box-shadow: 18px 12px 34px rgba(0, 0, 0, 0.38);
   }
-  60% {
-    transform: rotateY(110deg) translateZ(16px);
-    box-shadow: 25px 10px 35px rgba(0, 0, 0, 0.3);
+  50% {
+    transform: rotateY(95deg) translateZ(50px) scaleX(0.8);
+    box-shadow: 30px 14px 42px rgba(0, 0, 0, 0.34);
+  }
+  75% {
+    transform: rotateY(150deg) translateZ(30px) scaleX(0.92);
+    box-shadow: 22px 10px 34px rgba(0, 0, 0, 0.28);
   }
   100% {
-    transform: rotateY(180deg) translateZ(0px);
+    transform: rotateY(180deg) translateZ(0px) scaleX(1);
     box-shadow: 0 0 8px rgba(0, 0, 0, 0.08);
   }
 }
