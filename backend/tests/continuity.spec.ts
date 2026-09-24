@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures/auth.fixture';
 import { runMappingAlgorithm } from '../src/modules/continuity/mapping-algorithm';
-import type { ChapterGraph } from '../src/modules/reader/chapter-graph';
+import { CURRENT_CHAPTER_GRAPH_VERSION, type ChapterGraph } from '../src/modules/reader/chapter-graph';
 
 // The mapping algorithm has no natural HTTP surface to unit-test through
 // (docs/TESTING_STRATEGY.md §1's stated exception) — and T-032's own
@@ -9,6 +9,7 @@ import type { ChapterGraph } from '../src/modules/reader/chapter-graph';
 // the pure function can give deterministically.
 
 const targetGraph: ChapterGraph = {
+  version: CURRENT_CHAPTER_GRAPH_VERSION,
   format: 'EPUB',
   hasTextLayer: true,
   units: [

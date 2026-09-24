@@ -17,7 +17,16 @@ export interface ChapterUnit {
   text: string;
 }
 
+// Bump whenever the shape or content of a ChapterGraph produced by the
+// indexers changes (e.g. adding the `text` field for T-037a) — ensureIndexed
+// (reader.service.ts) re-indexes any edition whose stored graph doesn't
+// carry this version, instead of treating "chapterGraph is non-null" as
+// "chapterGraph is up to date". A graph saved before this field existed has
+// `version === undefined`, which never matches, so it re-indexes too.
+export const CURRENT_CHAPTER_GRAPH_VERSION = 2;
+
 export interface ChapterGraph {
+  version: number;
   format: 'EPUB' | 'PDF';
   units: ChapterUnit[];
   // False for a scanned PDF with no extractable text layer (SRS §38.2) —

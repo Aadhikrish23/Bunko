@@ -6,7 +6,7 @@ import { AppError } from '../../lib/app-error';
 import { logger } from '../../lib/logger';
 import { runMappingAlgorithm } from '../continuity/mapping-algorithm';
 import * as sessionsService from '../reading-sessions/reading-sessions.service';
-import type { ChapterGraph } from './chapter-graph';
+import { CURRENT_CHAPTER_GRAPH_VERSION, type ChapterGraph } from './chapter-graph';
 import { indexEpub } from './epub-indexer';
 import { enqueueOcrBackfill } from './ocr-backfill.worker';
 import { indexPdf } from './pdf-indexer';
@@ -39,8 +39,9 @@ export async function ensureIndexed(
   edition: { id: string; format: string; chapterGraph: unknown },
   digitalFile: { storageKey: string },
 ): Promise<ChapterGraph> {
-  if (edition.chapterGraph) {
-    return edition.chapterGraph as ChapterGraph;
+  const existingGraph = edition.chapterGraph as ChapterGraph | null;
+  if (existingGraph && existingGraph.version === CURRENT_CHAPTER_GRAPH_VERSION) {
+    return existingGraph;
   }
 
   const object = await s3Client.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: digitalFile.storageKey }));

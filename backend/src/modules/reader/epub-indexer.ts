@@ -1,7 +1,7 @@
 import AdmZip from 'adm-zip';
 import { XMLParser } from 'fast-xml-parser';
 import { AppError } from '../../lib/app-error';
-import type { ChapterGraph, ChapterUnit } from './chapter-graph';
+import { CURRENT_CHAPTER_GRAPH_VERSION, type ChapterGraph, type ChapterUnit } from './chapter-graph';
 import { generateTextAnchors, normalizeText } from './text-anchor';
 
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
@@ -143,5 +143,5 @@ export function indexEpub(buffer: Buffer): ChapterGraph {
     };
   });
 
-  return { format: 'EPUB', units, hasTextLayer: true };
+  return { version: CURRENT_CHAPTER_GRAPH_VERSION, format: 'EPUB', units, hasTextLayer: true };
 }

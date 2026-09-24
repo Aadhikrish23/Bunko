@@ -1,7 +1,7 @@
 import * as napiCanvas from '@napi-rs/canvas';
 import { AppError } from '../../lib/app-error';
 import { logger } from '../../lib/logger';
-import type { ChapterGraph, ChapterUnit } from './chapter-graph';
+import { CURRENT_CHAPTER_GRAPH_VERSION, type ChapterGraph, type ChapterUnit } from './chapter-graph';
 import { generateTextAnchors, normalizeText } from './text-anchor';
 
 interface OutlineNode {
@@ -191,5 +191,5 @@ export async function indexPdf(
     }
   }
 
-  return { format: 'PDF', units, hasTextLayer };
+  return { version: CURRENT_CHAPTER_GRAPH_VERSION, format: 'PDF', units, hasTextLayer };
 }
