@@ -42,7 +42,7 @@ export function BookQuickActionModal({ workId, onClose }: BookQuickActionModalPr
     try {
       await startSession.mutateAsync({ copyId: defaultEditionWithCopy.copyId });
       if (defaultEditionWithCopy.format === 'EPUB' || defaultEditionWithCopy.format === 'PDF') {
-        navigate(`/read/${defaultEditionWithCopy.id}`);
+        navigate(`/read-chapters/${defaultEditionWithCopy.id}`);
       } else {
         navigate(`/library/${workId}`);
       }

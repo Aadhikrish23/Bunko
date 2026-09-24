@@ -21,7 +21,12 @@ export function ContinueReadingButton({ journeyId, edition }: { journeyId: strin
     // manual correction (T-037) without a separate lookup — lost on a
     // hard refresh/direct URL visit, in which case that affordance is
     // simply unavailable rather than broken.
-    navigate(`/read/${edition.id}`, { state: { journeyId } });
+    //
+    // /read-chapters (FlowReaderPage) is the default entry point — the
+    // unified chapter-text reader shared by EPUB and PDF. /read
+    // (ReaderPage, format-native PdfReader/EpubReader) remains available
+    // as the "View Original" escape hatch from within the reader itself.
+    navigate(`/read-chapters/${edition.id}`, { state: { journeyId } });
   }
 
   async function handleClick() {
