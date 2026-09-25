@@ -369,6 +369,31 @@ export function FlowReaderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pages, chapters.data, manifest.isLoading, manifest.data, editionId]);
 
+  // Re-anchor currentPageIndex whenever the book gets re-paginated after
+  // the reader has already opened it — a container resize changes
+  // bookWidth/bookHeight, which changes how many characters fit per page,
+  // which changes the *total* page count and therefore what every
+  // existing page index actually points to. Left alone, currentPageIndex
+  // just kept whatever stale value it had against the old, differently-
+  // sized pages array — visibly "Page 7 of 4" and a >100% progress
+  // reading (7 / (4-1) * 100), since neither was ever re-derived. Only
+  // fires on a genuine re-pagination: `pages` is memoized on
+  // [chapters.data, bookWidth, bookHeight, settings.fontScale], so this
+  // effect's dependency is reference-stable across renders that don't
+  // actually change any of those.
+  useEffect(() => {
+    if (!positionResolved || pages.length === 0) return;
+    const pos = currentPositionRef.current;
+    const chapter = pos ? chapters.data?.chapters.find((c) => c.structuralId === pos) : undefined;
+    const target = chapter ? chapterStartPageIndex.get(chapter.order) : undefined;
+    if (target != null) {
+      setCurrentPageIndex(target);
+    } else {
+      setCurrentPageIndex((idx) => Math.min(idx, pages.length - 1));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages]);
+
   // Re-sync position when the reader switches between flipbook and
   // continuous scroll mid-session (the two modes track position through
   // entirely different mechanisms) — best-effort, lands on the current
