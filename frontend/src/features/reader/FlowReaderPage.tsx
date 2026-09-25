@@ -1,6 +1,8 @@
 import {
   BookOpen,
   Bookmark as BookmarkIcon,
+  ChevronLeft,
+  ChevronRight,
   Highlighter,
   List,
   MapPinOff,
@@ -321,7 +323,12 @@ export function FlowReaderPage() {
     if (!chapter) return;
     const target = chapterStartPageIndex.get(chapter.order);
     if (target != null) {
-      setCoverOpened(true); // a direct jump always counts as "past the cover"
+      // A jump only counts as "past the cover" if it doesn't land back on
+      // the cover page itself — otherwise resuming exactly where a
+      // previous session left off (the cover, page 0) would wrongly skip
+      // the splash and fall through to the flipbook's own cover-in-spread
+      // rendering instead.
+      if (target !== 0) setCoverOpened(true);
       setCurrentPageIndex(target);
       setJumpNonce((n) => n + 1);
       // A jump (unlike a natural flip) never fires onFlip, so position
@@ -387,6 +394,14 @@ export function FlowReaderPage() {
     if (page) handlePositionChange(page.structuralId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function handlePrevPage() {
+    flipBookRef.current?.pageFlip()?.flipPrev();
+  }
+
+  function handleNextPage() {
+    flipBookRef.current?.pageFlip()?.flipNext();
+  }
 
   function handleOpenCover() {
     setCoverOpened(true);
@@ -911,33 +926,52 @@ export function FlowReaderPage() {
           style={{ backgroundImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.06) 0%, transparent 70%)' }}
           className="flex flex-1 items-center justify-center overflow-hidden p-2 sm:p-4"
         >
-          <div style={pageFilterStyle}>
-            <HTMLFlipBook
-              key={`${pages.length}-${bookWidth}-${bookHeight}-${jumpNonce}`}
-              ref={flipBookRef}
-              width={bookWidth}
-              height={bookHeight}
-              size="fixed"
-              startPage={currentPageIndex}
-              showCover
-              drawShadow
-              flippingTime={settings.pageTurnMode === 'paginated' ? 150 : 700}
-              maxShadowOpacity={0.5}
-              showPageCorners={false}
-              disableFlipByClick
-              className="rounded-sm shadow-[0_25px_60px_rgba(0,0,0,0.35)]"
-              style={{}}
-              onFlip={handleFlip}
-            >
-              {pages.map((page, i) =>
-                page.isCoverPlaceholder && coverImageUrl ? (
-                  <div key={i} style={{ backgroundColor: theme.paperBg }} className="flex h-full w-full items-center justify-center overflow-hidden">
+          <HTMLFlipBook
+            key={`${pages.length}-${bookWidth}-${bookHeight}-${jumpNonce}`}
+            ref={flipBookRef}
+            width={bookWidth}
+            height={bookHeight}
+            size="fixed"
+            startPage={currentPageIndex}
+            showCover
+            drawShadow
+            flippingTime={settings.pageTurnMode === 'paginated' ? 1 : 700}
+            maxShadowOpacity={0.5}
+            showPageCorners={false}
+            disableFlipByClick
+            className="rounded-sm shadow-[0_25px_60px_rgba(0,0,0,0.35)]"
+            style={{}}
+            onFlip={handleFlip}
+          >
+            {/* react-pageflip's internal engine imperatively rewrites the
+                *entire* style attribute of whatever element it's directly
+                given (its own positioning: absolute/width/height/z-index),
+                clobbering any custom inline style set there — confirmed
+                live: backgroundColor/padding/filter were all silently gone
+                from that element shortly after mount, even though React
+                had just rendered them. Every page below is therefore just
+                a plain flex box for react-pageflip to own; an inner div one
+                level deeper (never touched by the library) carries
+                background/padding/filter/theme instead. */}
+            {pages.map((page, i) =>
+              page.isCoverPlaceholder && coverImageUrl ? (
+                <div key={i} className="h-full w-full overflow-hidden [backface-visibility:hidden]">
+                  <div
+                    style={{ backgroundColor: theme.paperBg, ...pageFilterStyle }}
+                    className="flex h-full w-full items-center justify-center overflow-hidden"
+                  >
                     <img src={coverImageUrl} alt={page.chapterLabel} className="h-full w-full object-cover" />
                   </div>
-                ) : (
+                </div>
+              ) : (
+                <div key={i} className="h-full w-full overflow-hidden [backface-visibility:hidden]">
                   <div
-                    key={i}
-                    style={{ backgroundColor: theme.paperBg, color: theme.text, padding: MARGIN_SIZE_PADDING[settings.marginSize] }}
+                    style={{
+                      backgroundColor: theme.paperBg,
+                      color: theme.text,
+                      padding: MARGIN_SIZE_PADDING[settings.marginSize],
+                      ...pageFilterStyle,
+                    }}
                     className="flex h-full w-full flex-col overflow-hidden"
                   >
                     {page.isChapterStart && (
@@ -959,13 +993,39 @@ export function FlowReaderPage() {
                       {page.text}
                     </p>
                   </div>
-                )
-              )}
-            </HTMLFlipBook>
-          </div>
+                </div>
+              )
+            )}
+          </HTMLFlipBook>
         </div>
       )}
       </div>
+
+      {positionResolved && !isContinuous && !showCoverSplash && (
+        <div className="flex items-center justify-center gap-4 border-t border-paper-200 bg-paper-50 py-1.5 text-xs text-paper-700">
+          <button
+            type="button"
+            onClick={handlePrevPage}
+            disabled={currentPageIndex <= 0}
+            aria-label="Previous page"
+            className="focus-visible:focus-ring rounded-md p-1.5 hover:bg-paper-100 disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="font-semibold text-paper-800">
+            Page {currentPageIndex + 1} of {pages.length}
+          </span>
+          <button
+            type="button"
+            onClick={handleNextPage}
+            disabled={currentPageIndex >= pages.length - 1}
+            aria-label="Next page"
+            className="focus-visible:focus-ring rounded-md p-1.5 hover:bg-paper-100 disabled:opacity-30"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <ReaderProgressScrubber
         currentProgressPercent={currentProgressPercent}
