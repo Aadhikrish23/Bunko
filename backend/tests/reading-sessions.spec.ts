@@ -12,7 +12,18 @@ async function createCopy(
   authedRequest: APIRequestContext,
   format: 'PHYSICAL' | 'EPUB' | 'PDF' = 'EPUB',
 ): Promise<string> {
-  const work = await authedRequest.post('/api/v1/works', { data: { title: `Test Book ${Date.now()}` } });
+  // coverImageUrl is set to a dummy value so createWork (library.service.ts)
+  // skips its live external metadata-search waterfall (Google Books →
+  // Hardcover → Open Library) — that cascade only runs when a cover is
+  // missing, and for a nonsense test title every tier legitimately finds
+  // no match before falling through to the next, real network round-trip
+  // each. This test calls createCopy twice per test, so that cascade
+  // running twice was the actual cause of the intermittent 20s+ stalls
+  // on this file's two multi-copy tests (root-caused after ruling out
+  // Node version, the OCR worker, and Postgres locks/bloat).
+  const work = await authedRequest.post('/api/v1/works', {
+    data: { title: `Test Book ${Date.now()}`, coverImageUrl: 'https://example.com/cover.jpg' },
+  });
   const workId = (await work.json()).data.id;
   const edition = await authedRequest.post('/api/v1/editions', { data: { workId, format } });
   const editionId = (await edition.json()).data.id;
