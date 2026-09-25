@@ -54,6 +54,13 @@ interface FlowPage {
   structuralId: string;
   isChapterStart: boolean;
   text: string;
+  // True only for the book's very first unit when it has no extractable
+  // text — an EPUB's image-only cover/front-matter spine item, almost
+  // always. Chapter-text extraction strips all images (see epub-indexer.ts),
+  // so that unit's text is always empty; without this, the reader's very
+  // first page would just be blank instead of showing the cover art the
+  // rest of the app already has (Work.coverImageUrl).
+  isCoverPlaceholder: boolean;
 }
 
 // The unified "personalized book" template for reading extracted
@@ -75,7 +82,9 @@ export function FlowReaderPage() {
   const { editionId } = useParams<{ editionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const journeyId = (location.state as { journeyId?: string | null } | null)?.journeyId ?? null;
+  const routerState = location.state as { journeyId?: string | null; coverImageUrl?: string | null } | null;
+  const journeyId = routerState?.journeyId ?? null;
+  const coverImageUrl = routerState?.coverImageUrl ?? null;
 
   const manifest = useReaderManifest(editionId);
   const chapters = useChapters(editionId);
@@ -173,7 +182,8 @@ export function FlowReaderPage() {
     if (!list || list.length === 0) return [];
     const charsPerPage = estimateCharsPerPage(bookWidth, bookHeight, settings.fontScale);
     const result: FlowPage[] = [];
-    for (const chapter of [...list].sort((a, b) => a.order - b.order)) {
+    const sorted = [...list].sort((a, b) => a.order - b.order);
+    sorted.forEach((chapter, chapterIndex) => {
       const chunks = paginateText(chapter.text, charsPerPage);
       chunks.forEach((chunk, i) => {
         result.push({
@@ -182,9 +192,10 @@ export function FlowReaderPage() {
           structuralId: chapter.structuralId,
           isChapterStart: i === 0,
           text: chunk,
+          isCoverPlaceholder: chapterIndex === 0 && chapter.text.trim().length === 0,
         });
       });
-    }
+    });
     return result;
   }, [chapters.data, bookWidth, bookHeight, settings.fontScale]);
 
@@ -674,22 +685,28 @@ export function FlowReaderPage() {
           style={{}}
           onFlip={handleFlip}
         >
-          {pages.map((page, i) => (
-            <div
-              key={i}
-              style={{ backgroundColor: theme.paperBg, color: theme.text }}
-              className="flex h-full w-full flex-col overflow-hidden p-[8%]"
-            >
-              {page.isChapterStart && (
-                <h2 className="mb-4 font-display text-lg" style={{ color: theme.text }}>
-                  {page.chapterLabel}
-                </h2>
-              )}
-              <p className="whitespace-pre-line overflow-hidden text-sm leading-relaxed" style={{ fontSize: `${0.95 * settings.fontScale}rem` }}>
-                {page.text}
-              </p>
-            </div>
-          ))}
+          {pages.map((page, i) =>
+            page.isCoverPlaceholder && coverImageUrl ? (
+              <div key={i} style={{ backgroundColor: theme.paperBg }} className="flex h-full w-full items-center justify-center overflow-hidden">
+                <img src={coverImageUrl} alt={page.chapterLabel} className="h-full w-full object-cover" />
+              </div>
+            ) : (
+              <div
+                key={i}
+                style={{ backgroundColor: theme.paperBg, color: theme.text }}
+                className="flex h-full w-full flex-col overflow-hidden p-[8%]"
+              >
+                {page.isChapterStart && (
+                  <h2 className="mb-4 font-display text-lg" style={{ color: theme.text }}>
+                    {page.chapterLabel}
+                  </h2>
+                )}
+                <p className="whitespace-pre-line overflow-hidden text-sm leading-relaxed" style={{ fontSize: `${0.95 * settings.fontScale}rem` }}>
+                  {page.text}
+                </p>
+              </div>
+            )
+          )}
         </HTMLFlipBook>
       </div>
 

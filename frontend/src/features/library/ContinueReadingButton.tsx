@@ -10,7 +10,15 @@ import { ContinuityPrompt } from './ContinuityPrompt';
 // prompt (T-036) before navigating, per the resolve-position confidence
 // (T-034/T-035) — never auto-navigates on a low-confidence guess itself;
 // that's already enforced by the backend, this just surfaces the choice.
-export function ContinueReadingButton({ journeyId, edition }: { journeyId: string | null; edition: EditionSummary }) {
+export function ContinueReadingButton({
+  journeyId,
+  edition,
+  coverImageUrl,
+}: {
+  journeyId: string | null;
+  edition: EditionSummary;
+  coverImageUrl?: string | null;
+}) {
   const navigate = useNavigate();
   const resolvePosition = useResolvePosition();
   const correctPosition = useCorrectPosition();
@@ -26,7 +34,13 @@ export function ContinueReadingButton({ journeyId, edition }: { journeyId: strin
     // unified chapter-text reader shared by EPUB and PDF. /read
     // (ReaderPage, format-native PdfReader/EpubReader) remains available
     // as the "View Original" escape hatch from within the reader itself.
-    navigate(`/read-chapters/${edition.id}`, { state: { journeyId } });
+    //
+    // coverImageUrl also travels via router state (same lost-on-refresh
+    // caveat as journeyId) so FlowReaderPage can show the Work's actual
+    // cover art instead of a blank page for an EPUB's image-only cover
+    // spine item — chapter-text extraction strips all images, so that
+    // unit's text always comes out empty.
+    navigate(`/read-chapters/${edition.id}`, { state: { journeyId, coverImageUrl } });
   }
 
   async function handleClick() {

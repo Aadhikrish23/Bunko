@@ -42,7 +42,7 @@ export function BookQuickActionModal({ workId, onClose }: BookQuickActionModalPr
     try {
       await startSession.mutateAsync({ copyId: defaultEditionWithCopy.copyId });
       if (defaultEditionWithCopy.format === 'EPUB' || defaultEditionWithCopy.format === 'PDF') {
-        navigate(`/read-chapters/${defaultEditionWithCopy.id}`);
+        navigate(`/read-chapters/${defaultEditionWithCopy.id}`, { state: { coverImageUrl: work?.coverImageUrl } });
       } else {
         navigate(`/library/${workId}`);
       }
@@ -85,7 +85,7 @@ export function BookQuickActionModal({ workId, onClose }: BookQuickActionModalPr
               {/* Action Buttons */}
               <div className="mt-2 flex flex-col gap-2">
                 {digitalEdition ? (
-                  <ContinueReadingButton journeyId={work.journeyId} edition={digitalEdition} />
+                  <ContinueReadingButton journeyId={work.journeyId} edition={digitalEdition} coverImageUrl={work.coverImageUrl} />
                 ) : (
                   <Button
                     variant="secondary"
