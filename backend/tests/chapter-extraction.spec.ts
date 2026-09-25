@@ -1,9 +1,31 @@
 import { createWorker } from 'tesseract.js';
 import { test, expect } from './fixtures/auth.fixture';
 import { indexEpub } from '../src/modules/reader/epub-indexer';
-import { indexPdf } from '../src/modules/reader/pdf-indexer';
+import {
+  indexPdf,
+  joinTextItems,
+  looksLikeGarbledText,
+  normalizePageText,
+  type PdfTextItem,
+} from '../src/modules/reader/pdf-indexer';
+import { resolveOcrLanguage } from '../src/modules/reader/ocr-language';
 import { generateSampleEpub } from './fixtures/generate-sample-epub';
 import { generateScannedPdf, generateScannedPdfWithOutline } from './fixtures/generate-scanned-pdf';
+
+// Builds a fake pdf.js TextItem — real coordinates matter here (they
+// drive joinTextItems's spacing/footnote-skip heuristics), so tests
+// construct them directly rather than via a real rendered PDF, which
+// can't pin down exact glyph positions deterministically.
+function textItem(
+  str: string,
+  x: number,
+  y: number,
+  width: number,
+  fontSize: number,
+  hasEOL = false
+): PdfTextItem {
+  return { str, transform: [fontSize, 0, 0, fontSize, x, y], width, height: fontSize, hasEOL };
+}
 
 // Like continuity.spec.ts, this has no natural HTTP surface to test
 // through end-to-end (the full reader-manifest happy path needs a real
@@ -93,5 +115,120 @@ test.describe('chapter text extraction (flow-reader foundation)', () => {
     } finally {
       await ocrWorker.terminate();
     }
+  });
+});
+
+test.describe('joinTextItems (PDF text-layer spacing reconstruction)', () => {
+  test('does not split a word around a mid-word superscript footnote marker', () => {
+    // Reproduces the real bug this was written to fix: "What do you
+    // mean" extracted from a live PDF came out as "W 1 hat do you mean"
+    // because a footnote-reference "1", superscript and smaller than the
+    // body text, sat between the "W" and "hat" runs in the content
+    // stream. Geometry below mirrors that: "W" and "hat" are on the same
+    // baseline (y=700) with the footnote occupying the horizontal gap
+    // between them, raised and shrunk.
+    const items = [
+      textItem('W', 100, 700, 7, 10),
+      textItem('1', 108, 706, 4, 6), // superscript, smaller font — the footnote marker
+      textItem('hat', 112, 700, 18, 10),
+      textItem(' do', 131, 700, 15, 10),
+    ];
+
+    expect(joinTextItems(items)).toBe('What do');
+  });
+
+  test('inserts a space at a genuine word boundary', () => {
+    const items = [textItem('Hello', 100, 700, 30, 10), textItem('world', 140, 700, 30, 10)];
+    expect(joinTextItems(items)).toBe('Hello world');
+  });
+
+  test('does not insert a space between adjacent glyph runs of the same word', () => {
+    // Some PDFs split a single word across text runs (kerning pairs,
+    // drop caps) with no real gap between them — this must not become
+    // "Hel lo".
+    const items = [textItem('Hel', 100, 700, 15, 10), textItem('lo', 115, 700, 10, 10)];
+    expect(joinTextItems(items)).toBe('Hello');
+  });
+
+  test('turns hasEOL into a newline instead of a space, preserving paragraph structure', () => {
+    const items = [
+      textItem('First line.', 100, 700, 60, 10, true),
+      textItem('Second line.', 100, 685, 65, 10),
+    ];
+    expect(joinTextItems(items)).toBe('First line.\nSecond line.');
+  });
+
+  test('keeps a body-sized inline number intact (does not mistake it for a footnote marker)', () => {
+    // A same-size, same-baseline "2024" must survive — the footnote
+    // heuristic only fires on a *smaller, vertically-offset* number.
+    const items = [
+      textItem('Copyright', 100, 700, 50, 10),
+      textItem('2024', 153, 700, 25, 10),
+    ];
+    expect(joinTextItems(items)).toBe('Copyright 2024');
+  });
+});
+
+test.describe('normalizePageText', () => {
+  test('collapses repeated spaces/tabs without eating the newlines joinTextItems inserted', () => {
+    expect(normalizePageText('Hello   world.\n\nNext   paragraph.')).toBe('Hello world.\n\nNext paragraph.');
+  });
+
+  test('collapses 3+ consecutive newlines down to a single paragraph break', () => {
+    expect(normalizePageText('One.\n\n\n\nTwo.')).toBe('One.\n\nTwo.');
+  });
+
+  test('trims leading/trailing whitespace', () => {
+    expect(normalizePageText('  \n Hello.  \n ')).toBe('Hello.');
+  });
+});
+
+test.describe('looksLikeGarbledText (legacy non-Unicode font detection)', () => {
+  test('does not flag clean English prose', () => {
+    const text =
+      'What do you mean, not enough rooms? I said to Arijit Banerjee, the lobby manager of the Goa Marriott.';
+    expect(looksLikeGarbledText(text)).toBe(false);
+  });
+
+  test('does not flag clean Tamil Unicode prose', () => {
+    // A plain, generic factual sentence (Tamil is an ancient language,
+    // spoken in India) — real Tamil letters are \p{L}, same as any other
+    // script's, so this must not be mistaken for corruption.
+    const text = 'தமிழ் ஒரு பழமையான மொழி. இது இந்தியாவில் பேசப்படுகிறது.';
+    expect(looksLikeGarbledText(text)).toBe(false);
+  });
+
+  test('flags Tamil text extracted through a legacy non-Unicode font', () => {
+    // Mirrors what a real legacy-font (TSCII/Bamini/Vanavil-style) PDF
+    // actually produces: genuine Tamil letters still present, but
+    // interleaved with stray symbols the font's private encoding
+        // happened to reuse in place of the letters it couldn't represent.
+    const text = 'த{மிழ்} ஒ¶ரு பழ²மையான மொ£ழி~ . இ`து இந்தி{யாவில்} பேச¶ப்படு²கிறது~.';
+    expect(looksLikeGarbledText(text)).toBe(true);
+  });
+
+  test('does not judge very short strings either way', () => {
+    expect(looksLikeGarbledText('Hi')).toBe(false);
+    expect(looksLikeGarbledText('{}~²')).toBe(false);
+  });
+});
+
+test.describe('resolveOcrLanguage', () => {
+  test('maps a known display name to its Tesseract code, case-insensitively', () => {
+    expect(resolveOcrLanguage('Tamil')).toBe('tam');
+    expect(resolveOcrLanguage('tamil')).toBe('tam');
+    expect(resolveOcrLanguage('ENGLISH')).toBe('eng');
+  });
+
+  test('falls back to English when nothing is provided or recognized', () => {
+    expect(resolveOcrLanguage(null, undefined)).toBe('eng');
+    expect(resolveOcrLanguage('Klingon')).toBe('eng');
+  });
+
+  test('prefers the first matching candidate in priority order', () => {
+    // Mirrors ocr-backfill.job.ts's call: Edition.language first, then
+    // Work.language, then Work.originalLanguage.
+    expect(resolveOcrLanguage(null, 'Tamil', 'English')).toBe('tam');
+    expect(resolveOcrLanguage('Hindi', 'Tamil', 'English')).toBe('hin');
   });
 });

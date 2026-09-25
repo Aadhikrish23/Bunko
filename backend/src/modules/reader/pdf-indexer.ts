@@ -13,6 +13,136 @@ interface OutlineNode {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PdfJsDocument = any;
 
+// pdf.js's own TextItem shape (not exported as a usable type from the
+// legacy build we dynamic-import) — the honest subset this file reads.
+export interface PdfTextItem {
+  str: string;
+  hasEOL?: boolean;
+  // [scaleX, skewX, skewY, scaleY, x, y] — the item's position/size matrix.
+  transform: [number, number, number, number, number, number];
+  width: number;
+  height: number;
+}
+
+// pdf.js's getTextContent() returns items in the PDF's internal content-
+// stream order, not reading order, and — critically — never guarantees
+// correct spacing between them (mozilla/pdf.js#18201, #14493). Blindly
+// joining item.str with a single space, which is what this file used to
+// do, produces exactly the kind of garbling seen in practice: a footnote
+// marker or drop-cap sitting between two runs of one real word comes out
+// as "W 1 hat" instead of "What¹". This rebuilds spacing/line-breaks from
+// each item's own geometry instead of trusting stream order:
+//   - a real word boundary gets a space, judged by the horizontal gap
+//     between one item's right edge and the next item's left edge,
+//     scaled to that text's own font size (so it works across page
+//     zoom/font-size variation, not a fixed pixel threshold);
+//   - hasEOL (pdf.js's own line-break flag on the text item) becomes a
+//     newline instead of a space, so paragraph structure survives;
+//   - a short, purely-numeric item that's vertically offset from the
+//     item before it and rendered in a noticeably smaller font — the
+//     signature of a footnote marker or superscript reference number
+//     wedged mid-sentence — is dropped rather than spliced into the
+//     surrounding word. This is a heuristic, not a citation parser: it
+//     only fires on the narrow "1-3 digit number, small, offset" shape,
+//     so it won't eat real inline numbers written at body size.
+export function joinTextItems(items: PdfTextItem[]): string {
+  let result = '';
+  // The last item actually emitted into `result` — used for hasEOL and
+  // font-size comparisons. Kept separate from cursorEndX below because a
+  // skipped footnote marker must still absorb its own horizontal span
+  // (so the *next* real item's gap is measured from where the line
+  // visually continues), without becoming the reference point for
+  // hasEOL/font-size decisions itself.
+  let prevItem: PdfTextItem | null = null;
+  let cursorEndX: number | null = null;
+
+  for (const item of items) {
+    if (!item.str) continue;
+
+    const fontSize = Math.hypot(item.transform[2], item.transform[3]) || Math.abs(item.transform[3]) || 1;
+    const isFootnoteMarker =
+      prevItem !== null &&
+      /^\d{1,3}$/.test(item.str.trim()) &&
+      item.transform[5] > prevItem.transform[5] + prevItem.height * 0.2 &&
+      fontSize < Math.hypot(prevItem.transform[2], prevItem.transform[3]) * 0.85;
+
+    if (isFootnoteMarker) {
+      cursorEndX = item.transform[4] + item.width;
+      continue;
+    }
+
+    if (prevItem) {
+      if (prevItem.hasEOL) {
+        result += '\n';
+      } else {
+        const gap = item.transform[4] - (cursorEndX ?? prevItem.transform[4] + prevItem.width);
+        if (gap > fontSize * 0.15) result += ' ';
+      }
+    }
+
+    result += item.str;
+    prevItem = item;
+    cursorEndX = item.transform[4] + item.width;
+  }
+
+  return result;
+}
+
+// Collapses runs of spaces/tabs (pdf.js's own habit of emitting multiple
+// consecutive space items) without touching the newlines joinTextItems
+// deliberately inserted — a blanket `\s+` -> ' ' collapse, which this
+// file used to apply, would silently undo that paragraph structure right
+// back into one wall of text.
+export function normalizePageText(text: string): string {
+  return text
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Detects a real, well-known failure mode distinct from the spacing bug
+// joinTextItems fixes: a PDF whose embedded font remaps glyph shapes onto
+// arbitrary codepoints instead of true Unicode — common in Tamil (and
+// other Indian-language) documents produced before Unicode fonts were
+// standard tooling (TSCII, Bamini, Vanavil, and similar legacy 8-bit
+// encodings). pdf.js decodes these faithfully; there's just no real
+// Unicode text underneath to decode, so extraction comes out as real
+// script letters interleaved with stray symbols the font's private
+// encoding happened to reuse ("{", "}", "~", "²", "£", "¶", …) — visibly
+// wrong to a reader, but not something hasTextLayer's plain non-empty
+// check catches, since the string genuinely isn't empty.
+//
+// Exported so ensureIndexed-level code (and tests) can reuse the exact
+// same judgment this file uses internally, rather than duplicating it.
+export function looksLikeGarbledText(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 20) return false; // too short to judge reliably either way
+
+  let flagged = 0;
+  let total = 0;
+  for (const ch of trimmed) {
+    if (/\s/.test(ch)) continue;
+    total += 1;
+    // Any script's letters/digits, plus ordinary prose punctuation, are
+    // fine. \p{M} (combining marks) matters for real Tamil/Hindi/etc.
+    // prose specifically — dependent vowel signs and virama (redundant
+    // consonant marker) are Unicode Mark characters, not Letters, and a
+    // real sentence in these scripts uses them constantly; without this
+    // the check flagged perfectly clean Tamil as "garbled" just for
+    // being written in Tamil. What's NOT fine at any real density: stray
+    // symbol/currency/superscript characters a legacy font's private
+    // encoding tends to surface in place of real letters.
+    if (/[\p{L}\p{M}\p{N}.,;:!?'"()\-–—…/&@%*+=]/u.test(ch)) continue;
+    flagged += 1;
+  }
+  if (total === 0) return false;
+  // Real prose in any language essentially never puts "{", "¶", "²", "£"
+  // etc. at more than a token rate — 10%+ is a strong, deliberately
+  // conservative signal of encoding corruption rather than normal text.
+  return flagged / total > 0.1;
+}
+
 // Renders one page to a PNG buffer via @napi-rs/canvas — the same
 // library pdfjs-dist's own package.json declares as an optional
 // dependency (pinned to the exact range it expects; see the commit
@@ -76,12 +206,29 @@ export async function indexPdf(
 
   const pageCount: number = doc.numPages;
 
+  // Non-empty alone isn't enough — a legacy non-Unicode font (see
+  // looksLikeGarbledText) produces plenty of non-empty, entirely unusable
+  // text. Sample up to a handful of pages that actually have text and
+  // require at least one to look like real prose before trusting the
+  // layer; if every sampled page is garbled, treat this the same as "no
+  // text layer" so the OCR fallback (which doesn't care what encoding
+  // produced the glyph shapes on screen) picks it up instead. Bounded
+  // rather than scanning the whole document — a book's font choice is
+  // essentially always uniform throughout.
+  const MAX_PAGES_TO_SAMPLE_FOR_TEXT_LAYER = 5;
   let hasTextLayer = false;
-  for (let pageNum = 1; pageNum <= pageCount && !hasTextLayer; pageNum += 1) {
-    // Sequential by design — bails out on the first page with real text.
+  let sampledNonEmptyPages = 0;
+  for (
+    let pageNum = 1;
+    pageNum <= pageCount && !hasTextLayer && sampledNonEmptyPages < MAX_PAGES_TO_SAMPLE_FOR_TEXT_LAYER;
+    pageNum += 1
+  ) {
     const page = await doc.getPage(pageNum);
     const content = await page.getTextContent();
-    if (content.items.some((item: { str?: string }) => (item.str ?? '').trim().length > 0)) {
+    const items = content.items as PdfTextItem[];
+    if (!items.some((item) => (item.str ?? '').trim().length > 0)) continue;
+    sampledNonEmptyPages += 1;
+    if (!looksLikeGarbledText(joinTextItems(items))) {
       hasTextLayer = true;
     }
   }
@@ -118,7 +265,7 @@ export async function indexPdf(
     if (hasTextLayer) {
       const page = await doc.getPage(pageNumber);
       const content = await page.getTextContent();
-      return content.items.map((item: { str?: string }) => item.str ?? '').join(' ');
+      return joinTextItems(content.items as PdfTextItem[]);
     }
     return ocrPageText(pageNumber);
   }
@@ -167,7 +314,7 @@ export async function indexPdf(
         order,
         pageNumber,
         textAnchors: generateTextAnchors(normalizeText(text)),
-        text: text.replace(/\s+/g, ' ').trim(),
+        text: normalizePageText(text),
       });
       order += 1;
     }
@@ -186,7 +333,7 @@ export async function indexPdf(
         order: pageNumber - 1,
         pageNumber,
         textAnchors: generateTextAnchors(normalizeText(text)),
-        text: text.replace(/\s+/g, ' ').trim(),
+        text: normalizePageText(text),
       });
     }
   }

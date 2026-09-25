@@ -4,6 +4,7 @@ import { s3Client, S3_BUCKET } from '../../config/s3';
 import { prisma } from '../../config/prisma';
 import { logger } from '../../lib/logger';
 import type { ChapterGraph } from './chapter-graph';
+import { resolveOcrLanguage } from './ocr-language';
 import { indexPdf } from './pdf-indexer';
 
 // T-037a: backfills real chapter text for a scanned PDF (no native
@@ -22,7 +23,10 @@ import { indexPdf } from './pdf-indexer';
 export async function runOcrBackfill(editionId: string): Promise<void> {
   const edition = await prisma.edition.findUnique({
     where: { id: editionId },
-    include: { copies: { where: { digitalFileId: { not: null } }, include: { digitalFile: true }, take: 1 } },
+    include: {
+      copies: { where: { digitalFileId: { not: null } }, include: { digitalFile: true }, take: 1 },
+      work: true,
+    },
   });
   if (!edition || edition.format !== 'PDF') return;
 
@@ -39,13 +43,19 @@ export async function runOcrBackfill(editionId: string): Promise<void> {
   if (!object.Body) return;
   const buffer = Buffer.from(await object.Body.transformToByteArray());
 
-  const ocrWorker = await createWorker('eng');
+  // Edition.language is the more specific signal (the same Work can have
+  // editions in different languages); Work.language/originalLanguage are
+  // the fallback when an edition wasn't tagged individually. All three
+  // are free-text display names ("Tamil"), not ISO codes — resolveOcrLanguage
+  // does that translation for Tesseract's benefit.
+  const ocrLanguage = resolveOcrLanguage(edition.language, edition.work?.language, edition.work?.originalLanguage);
+  const ocrWorker = await createWorker(ocrLanguage);
 
   try {
     const graph = await indexPdf(buffer, { ocrWorker });
     await prisma.edition.update({ where: { id: editionId }, data: { chapterGraph: graph as object } });
     const unitsWithText = graph.units.filter((u) => u.text.length > 0).length;
-    logger.info({ editionId, totalUnits: graph.units.length, unitsWithText }, 'OCR backfill complete');
+    logger.info({ editionId, ocrLanguage, totalUnits: graph.units.length, unitsWithText }, 'OCR backfill complete');
   } finally {
     await ocrWorker.terminate();
   }
