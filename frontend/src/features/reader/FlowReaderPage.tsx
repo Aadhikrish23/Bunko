@@ -37,7 +37,14 @@ import { ReaderProgressScrubber } from './ReaderProgressScrubber';
 import { ReaderSettingsDrawer } from './ReaderSettingsDrawer';
 import { ReflectionPrompt } from './ReflectionPrompt';
 import { TextSelectionToolbar } from './TextSelectionToolbar';
-import { loadReaderSettings, saveReaderSettings, THEME_STYLES, type ReaderSettings } from './reader-settings';
+import {
+  loadReaderSettings,
+  saveReaderSettings,
+  THEME_STYLES,
+  type MarginSize,
+  type ReaderFontFamily,
+  type ReaderSettings,
+} from './reader-settings';
 import { estimateCharsPerPage, paginateText } from './paginate-text';
 
 const PROGRESS_DEBOUNCE_MS = 4000;
@@ -47,6 +54,18 @@ const PROGRESS_DEBOUNCE_MS = 4000;
 // them; loosened here for the same reason.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const HTMLFlipBook = HTMLFlipBookImport as any;
+
+const FONT_FAMILY_STACK: Record<ReaderFontFamily, string> = {
+  serif: "'Lora', Georgia, 'Times New Roman', serif",
+  sans: "'Inter', system-ui, -apple-system, sans-serif",
+  mono: "'Courier New', Courier, monospace",
+};
+
+const MARGIN_SIZE_PADDING: Record<MarginSize, string> = {
+  compact: '6%',
+  standard: '8%',
+  wide: '12%',
+};
 
 interface FlowPage {
   chapterOrder: number;
@@ -95,9 +114,12 @@ export function FlowReaderPage() {
   const settingsInitial = useMemo(() => loadReaderSettings(), []);
   const [settings, setSettings] = useState<ReaderSettings>(settingsInitial);
   const theme = THEME_STYLES[settings.theme];
+  const isContinuous = settings.pageTurnMode === 'continuous';
 
   const currentPositionRef = useRef<string | null>(null);
   const hasResolvedInitialPosition = useRef(false);
+  const [positionResolved, setPositionResolved] = useState(false);
+  const [displayPositionLabel, setDisplayPositionLabel] = useState('');
 
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
@@ -113,9 +135,9 @@ export function FlowReaderPage() {
   const [endedSession, setEndedSession] = useState<{ durationSeconds: number | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 600, height: 800 });
   const committedSizeRef = useRef({ width: 600, height: 800 });
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-pageflip's ref exposes an untyped pageFlip() instance
   const flipBookRef = useRef<any>(null);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -125,6 +147,25 @@ export function FlowReaderPage() {
   // non-adjacent target, so a remount with a fresh startPage is used
   // instead, same mechanism as the initial-position resolution below.
   const [jumpNonce, setJumpNonce] = useState(0);
+
+  // The cover is shown as its own full-bleed "closed book" screen (see
+  // showCoverSplash below) rather than inside the flipbook's two-page
+  // spread — react-pageflip always reserves spread-width space even for
+  // a single unpaired cover page, which is what left half the canvas
+  // blank next to the cover art. coverOpened flips true once the reader
+  // taps through it; it only matters for a book that actually has one
+  // (coverImageUrl set and the first unit textless) — anything else
+  // never shows the splash, so this default is irrelevant there.
+  const [coverOpened, setCoverOpened] = useState(false);
+
+  // Continuous ("Scroll") mode renders every chapter's full text in one
+  // scrollable column instead of the flipbook — a materially different
+  // layout, not just a flipbook setting, so it's a separate render
+  // branch below rather than a flipbook prop.
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const chapterSectionRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const scrollRafRef = useRef<number | null>(null);
+  const [scrollProgressPercent, setScrollProgressPercent] = useState(0);
 
   useEffect(() => {
     if (editionId) {
@@ -139,6 +180,8 @@ export function FlowReaderPage() {
 
   function handlePositionChange(structuralId: string) {
     currentPositionRef.current = structuralId;
+    const chapter = chapters.data?.chapters.find((c) => c.structuralId === structuralId);
+    if (chapter) setDisplayPositionLabel(chapter.label);
     if (editionId) {
       try {
         localStorage.setItem(`bunko_flow_pos_${editionId}`, structuralId);
@@ -151,31 +194,72 @@ export function FlowReaderPage() {
     }
   }
 
-  useEffect(() => {
-    const el = containerRef.current;
+  // A plain ref + `useEffect(..., [])` would only ever attach once, tied
+  // to this component's very FIRST render — and this component's first
+  // render(s) are the isLoading early-return, before the container div
+  // exists at all. That effect would then never re-run once the div
+  // actually mounts later, leaving containerSize stuck at its fallback
+  // default forever. A callback ref sidesteps that entirely: React calls
+  // it with the real node the moment it's actually attached, whichever
+  // render that turns out to be.
+  const containerCallbackRef = useCallback((el: HTMLDivElement | null) => {
+    resizeObserverRef.current?.disconnect();
+    resizeObserverRef.current = null;
     if (!el) return;
-    let frame = 0;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
       const { width, height } = entry.contentRect;
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const committed = committedSizeRef.current;
-        if (Math.abs(width - committed.width) < 24 && Math.abs(height - committed.height) < 24) return;
-        committedSizeRef.current = { width, height };
-        setContainerSize({ width: Math.max(200, width), height: Math.max(200, height) });
-      });
+      const committed = committedSizeRef.current;
+      if (Math.abs(width - committed.width) < 24 && Math.abs(height - committed.height) < 24) return;
+      committedSizeRef.current = { width, height };
+      setContainerSize({ width: Math.max(200, width), height: Math.max(200, height) });
     });
     observer.observe(el);
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-    };
+    resizeObserverRef.current = observer;
   }, []);
 
-  const bookWidth = Math.round(Math.min(480, Math.max(220, containerSize.width / 2 - 24)));
-  const bookHeight = Math.round(Math.min(700, Math.max(300, containerSize.height - 40)));
+  useEffect(() => () => resizeObserverRef.current?.disconnect(), []);
+
+  useEffect(
+    () => () => {
+      if (scrollRafRef.current != null) cancelAnimationFrame(scrollRafRef.current);
+    },
+    []
+  );
+
+  // A4 portrait proportions (1 : sqrt(2)) for a page — a real book's
+  // shape, with genuine margin around it, instead of the previous
+  // arbitrary box that left the book looking cramped and tiny against
+  // the surrounding empty canvas. The flipbook shows two pages side by
+  // side, so each page gets half the available width; the cover splash
+  // gets the full width (capped, so it doesn't turn into a comically
+  // wide "book" on an ultrawide monitor).
+  const CANVAS_MARGIN = 48;
+  const availW = Math.max(200, containerSize.width - CANVAS_MARGIN * 2);
+  const availH = Math.max(200, containerSize.height - CANVAS_MARGIN * 2);
+
+  function fitA4(maxWidth: number): { width: number; height: number } {
+    let width = maxWidth;
+    let height = width * Math.SQRT2;
+    if (height > availH) {
+      height = availH;
+      width = height / Math.SQRT2;
+    }
+    return { width: Math.round(width), height: Math.round(height) };
+  }
+
+  const spreadFit = fitA4(Math.min(availW / 2, 560));
+  const bookWidth = Math.max(240, spreadFit.width);
+  const bookHeight = Math.max(340, spreadFit.height);
+
+  const coverFit = fitA4(Math.min(availW, 640));
+  const coverWidth = Math.max(260, coverFit.width);
+  const coverHeight = Math.max(370, coverFit.height);
+
+  const brightnessFilter = `brightness(${settings.brightness}%)`;
+  const warmthFilter = settings.temperature > 0 ? ` sepia(${(settings.temperature / 100) * 0.5})` : '';
+  const pageFilterStyle = { filter: `${brightnessFilter}${warmthFilter}` };
 
   const pages = useMemo<FlowPage[]>(() => {
     const list = chapters.data?.chapters;
@@ -210,6 +294,17 @@ export function FlowReaderPage() {
     return map;
   }, [pages]);
 
+  const showCoverSplash =
+    positionResolved && !coverOpened && !isContinuous && Boolean(coverImageUrl) && pages[0]?.isCoverPlaceholder && currentPageIndex === 0;
+
+  function scrollToChapter(structuralId: string) {
+    const el = chapterSectionRefs.current.get(structuralId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    handlePositionChange(structuralId);
+  }
+
   // Not memoized with useCallback: it closes over handlePositionChange,
   // which itself closes over manifest.data — a stale memoization here
   // would freeze that closure's manifest.data at whatever it was on the
@@ -218,10 +313,15 @@ export function FlowReaderPage() {
   // reporting for the rest of the session. It's only ever called from
   // direct event handlers, so losing the memoized identity costs nothing.
   function jumpToStructuralId(structuralId: string) {
+    if (isContinuous) {
+      scrollToChapter(structuralId);
+      return;
+    }
     const chapter = chapters.data?.chapters.find((c) => c.structuralId === structuralId);
     if (!chapter) return;
     const target = chapterStartPageIndex.get(chapter.order);
     if (target != null) {
+      setCoverOpened(true); // a direct jump always counts as "past the cover"
       setCurrentPageIndex(target);
       setJumpNonce((n) => n + 1);
       // A jump (unlike a natural flip) never fires onFlip, so position
@@ -254,6 +354,7 @@ export function FlowReaderPage() {
     }
     const target = saved ?? manifest.data?.startPosition ?? null;
     if (target) jumpToStructuralId(target);
+    setPositionResolved(true);
     // jumpToStructuralId is intentionally omitted: it's a plain function
     // recreated every render (see its own comment), and the
     // hasResolvedInitialPosition guard above means this must run at most
@@ -261,14 +362,78 @@ export function FlowReaderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pages, chapters.data, manifest.isLoading, manifest.data, editionId]);
 
+  // Re-sync position when the reader switches between flipbook and
+  // continuous scroll mid-session (the two modes track position through
+  // entirely different mechanisms) — best-effort, lands on the current
+  // chapter's start rather than the exact scroll offset/page.
+  const prevModeRef = useRef(settings.pageTurnMode);
+  useEffect(() => {
+    if (prevModeRef.current === settings.pageTurnMode) return;
+    prevModeRef.current = settings.pageTurnMode;
+    if (!positionResolved) return;
+    const pos = currentPositionRef.current ?? pages[currentPageIndex]?.structuralId;
+    if (!pos) return;
+    const timer = setTimeout(() => jumpToStructuralId(pos), 50);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.pageTurnMode]);
+
   const handleFlip = useCallback((e: { data?: unknown }) => {
     const idx = Number(e?.data);
     if (!Number.isFinite(idx)) return;
     setCurrentPageIndex(idx);
+    if (idx > 0) setCoverOpened(true);
     const page = pagesRef.current[idx];
     if (page) handlePositionChange(page.structuralId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function handleOpenCover() {
+    setCoverOpened(true);
+    const nextIdx = pages.length > 1 ? 1 : 0;
+    setCurrentPageIndex(nextIdx);
+    setJumpNonce((n) => n + 1);
+    const nextPage = pages[nextIdx];
+    if (nextPage) handlePositionChange(nextPage.structuralId);
+  }
+
+  function handleScrollContainerScroll() {
+    if (scrollRafRef.current != null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const percent = scrollHeight > clientHeight ? (scrollTop / (scrollHeight - clientHeight)) * 100 : 0;
+      setScrollProgressPercent(Math.max(0, Math.min(100, percent)));
+
+      // "Current" section is whichever one's heading has scrolled past
+      // the top edge most recently — nearest-by-absolute-distance would
+      // (and did) pick a section the reader has already scrolled well
+      // past, whenever some other, not-yet-reached section happened to
+      // sit closer in raw pixel terms.
+      const containerTop = container.getBoundingClientRect().top;
+      let currentId: string | null = null;
+      let bestTop = -Infinity;
+      let earliestId: string | null = null;
+      let earliestTop = Infinity;
+      chapterSectionRefs.current.forEach((el, id) => {
+        const top = el.getBoundingClientRect().top - containerTop;
+        if (top <= 16 && top > bestTop) {
+          bestTop = top;
+          currentId = id;
+        }
+        if (top < earliestTop) {
+          earliestTop = top;
+          earliestId = id;
+        }
+      });
+      // Above every section (scrolled to the very top) — fall back to
+      // whichever section is nearest, i.e. the first one.
+      const targetId = currentId ?? earliestId;
+      if (targetId) handlePositionChange(targetId);
+    });
+  }
 
   async function handleClose() {
     if (!manifest.data) {
@@ -328,7 +493,7 @@ export function FlowReaderPage() {
     if (!text || text.length === 0) return;
     const range = selection?.getRangeAt(0);
     const rect = range?.getBoundingClientRect();
-    const position = pagesRef.current[currentPageIndex]?.structuralId ?? currentPositionRef.current ?? '';
+    const position = currentPositionRef.current ?? pagesRef.current[currentPageIndex]?.structuralId ?? '';
     if (!position) return;
     setActiveSelection({
       text,
@@ -368,7 +533,11 @@ export function FlowReaderPage() {
     saveReaderSettings(newSettings);
   }
 
-  const currentProgressPercent = pages.length > 1 ? (currentPageIndex / (pages.length - 1)) * 100 : 0;
+  const currentProgressPercent = isContinuous
+    ? scrollProgressPercent
+    : pages.length > 1
+      ? (currentPageIndex / (pages.length - 1)) * 100
+      : 0;
 
   const isLoading = manifest.isLoading || chapters.isLoading;
 
@@ -431,6 +600,8 @@ export function FlowReaderPage() {
       </div>
     );
   }
+
+  const sortedChapters = chapters.data.chapters.slice().sort((a, b) => a.order - b.order);
 
   return (
     <div style={{ backgroundColor: theme.bg }} className="flex h-screen flex-col">
@@ -641,82 +812,176 @@ export function FlowReaderPage() {
       {showChapterList && (
         <div className="max-h-60 overflow-y-auto border-b border-paper-200 bg-paper-50 p-2">
           <ul className="flex flex-col gap-0.5">
-            {chapters.data.chapters
-              .slice()
-              .sort((a, b) => a.order - b.order)
-              .map((chapter) => (
-                <li key={chapter.structuralId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      jumpToStructuralId(chapter.structuralId);
-                      setShowChapterList(false);
-                    }}
-                    className="focus-visible:focus-ring w-full rounded-md px-2 py-1.5 text-left text-sm text-paper-700 hover:bg-paper-100"
-                  >
-                    {chapter.label}
-                  </button>
-                </li>
-              ))}
+            {sortedChapters.map((chapter) => (
+              <li key={chapter.structuralId}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    jumpToStructuralId(chapter.structuralId);
+                    setShowChapterList(false);
+                  }}
+                  className="focus-visible:focus-ring w-full rounded-md px-2 py-1.5 text-left text-sm text-paper-700 hover:bg-paper-100"
+                >
+                  {chapter.label}
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
       )}
 
-      <div
-        ref={containerRef}
-        onMouseUp={handleMouseUp}
-        style={{ backgroundImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.06) 0%, transparent 70%)' }}
-        className="flex flex-1 items-center justify-center overflow-hidden p-2 sm:p-4"
-      >
-        <HTMLFlipBook
-          key={`${pages.length}-${bookWidth}-${bookHeight}-${jumpNonce}`}
-          ref={flipBookRef}
-          width={bookWidth}
-          height={bookHeight}
-          size="fixed"
-          startPage={currentPageIndex}
-          showCover
-          drawShadow
-          flippingTime={700}
-          maxShadowOpacity={0.5}
-          showPageCorners={false}
-          disableFlipByClick
-          className="rounded-sm shadow-[0_25px_60px_rgba(0,0,0,0.35)]"
-          style={{}}
-          onFlip={handleFlip}
+      <div ref={containerCallbackRef} className="flex flex-1 flex-col overflow-hidden">
+      {!positionResolved ? (
+        <div className="flex flex-1 items-center justify-center">
+          <PageSpinner />
+        </div>
+      ) : isContinuous ? (
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScrollContainerScroll}
+          onMouseUp={handleMouseUp}
+          style={{ backgroundColor: theme.bg, ...pageFilterStyle }}
+          className="flex-1 overflow-y-auto"
         >
-          {pages.map((page, i) =>
-            page.isCoverPlaceholder && coverImageUrl ? (
-              <div key={i} style={{ backgroundColor: theme.paperBg }} className="flex h-full w-full items-center justify-center overflow-hidden">
-                <img src={coverImageUrl} alt={page.chapterLabel} className="h-full w-full object-cover" />
-              </div>
-            ) : (
-              <div
-                key={i}
-                style={{ backgroundColor: theme.paperBg, color: theme.text }}
-                className="flex h-full w-full flex-col overflow-hidden p-[8%]"
-              >
-                {page.isChapterStart && (
-                  <h2 className="mb-4 font-display text-lg" style={{ color: theme.text }}>
-                    {page.chapterLabel}
-                  </h2>
-                )}
-                <p className="whitespace-pre-line overflow-hidden text-sm leading-relaxed" style={{ fontSize: `${0.95 * settings.fontScale}rem` }}>
-                  {page.text}
-                </p>
-              </div>
-            )
-          )}
-        </HTMLFlipBook>
+          <div className="mx-auto max-w-2xl px-6 py-12 sm:px-10" style={{ color: theme.text }}>
+            {sortedChapters.map((chapter, chapterIndex) => {
+              const isCoverPlaceholder = chapterIndex === 0 && chapter.text.trim().length === 0;
+              return (
+                <section
+                  key={chapter.structuralId}
+                  ref={(el) => {
+                    if (el) chapterSectionRefs.current.set(chapter.structuralId, el);
+                    else chapterSectionRefs.current.delete(chapter.structuralId);
+                  }}
+                  className="mb-16 scroll-mt-4"
+                >
+                  {isCoverPlaceholder && coverImageUrl ? (
+                    <img
+                      src={coverImageUrl}
+                      alt={chapter.label}
+                      className="mx-auto mb-4 max-h-[70vh] rounded-sm shadow-[0_25px_60px_rgba(0,0,0,0.35)]"
+                    />
+                  ) : (
+                    <>
+                      <h2
+                        className="mb-6 font-display text-xl"
+                        style={{ color: theme.text, fontFamily: FONT_FAMILY_STACK[settings.fontFamily] }}
+                      >
+                        {chapter.label}
+                      </h2>
+                      <p
+                        className="whitespace-pre-line text-base"
+                        style={{
+                          fontFamily: FONT_FAMILY_STACK[settings.fontFamily],
+                          lineHeight: settings.lineHeight,
+                          fontSize: `${1 * settings.fontScale}rem`,
+                        }}
+                      >
+                        {chapter.text}
+                      </p>
+                    </>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      ) : showCoverSplash ? (
+        <div
+          style={{ backgroundImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.08) 0%, transparent 70%)' }}
+          className="flex flex-1 items-center justify-center overflow-hidden p-2 sm:p-4"
+        >
+          <button
+            type="button"
+            onClick={handleOpenCover}
+            aria-label="Open book"
+            style={{ width: coverWidth, height: coverHeight, ...pageFilterStyle }}
+            className="group focus-visible:focus-ring relative overflow-hidden rounded-sm shadow-[0_35px_70px_rgba(0,0,0,0.45)] transition-transform hover:-translate-y-1"
+          >
+            <img src={coverImageUrl ?? ''} alt="Book cover — tap to open" className="h-full w-full object-cover" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/40 to-transparent" />
+            <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100">
+              <span className="mb-6 rounded-full bg-paper-50/90 px-4 py-1.5 text-xs font-semibold text-paper-900 shadow">Tap to open</span>
+            </div>
+          </button>
+        </div>
+      ) : (
+        <div
+          onMouseUp={handleMouseUp}
+          style={{ backgroundImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.06) 0%, transparent 70%)' }}
+          className="flex flex-1 items-center justify-center overflow-hidden p-2 sm:p-4"
+        >
+          <div style={pageFilterStyle}>
+            <HTMLFlipBook
+              key={`${pages.length}-${bookWidth}-${bookHeight}-${jumpNonce}`}
+              ref={flipBookRef}
+              width={bookWidth}
+              height={bookHeight}
+              size="fixed"
+              startPage={currentPageIndex}
+              showCover
+              drawShadow
+              flippingTime={settings.pageTurnMode === 'paginated' ? 150 : 700}
+              maxShadowOpacity={0.5}
+              showPageCorners={false}
+              disableFlipByClick
+              className="rounded-sm shadow-[0_25px_60px_rgba(0,0,0,0.35)]"
+              style={{}}
+              onFlip={handleFlip}
+            >
+              {pages.map((page, i) =>
+                page.isCoverPlaceholder && coverImageUrl ? (
+                  <div key={i} style={{ backgroundColor: theme.paperBg }} className="flex h-full w-full items-center justify-center overflow-hidden">
+                    <img src={coverImageUrl} alt={page.chapterLabel} className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <div
+                    key={i}
+                    style={{ backgroundColor: theme.paperBg, color: theme.text, padding: MARGIN_SIZE_PADDING[settings.marginSize] }}
+                    className="flex h-full w-full flex-col overflow-hidden"
+                  >
+                    {page.isChapterStart && (
+                      <h2
+                        className="mb-4 font-display text-lg"
+                        style={{ color: theme.text, fontFamily: FONT_FAMILY_STACK[settings.fontFamily] }}
+                      >
+                        {page.chapterLabel}
+                      </h2>
+                    )}
+                    <p
+                      className="whitespace-pre-line overflow-hidden text-sm"
+                      style={{
+                        fontSize: `${0.95 * settings.fontScale}rem`,
+                        fontFamily: FONT_FAMILY_STACK[settings.fontFamily],
+                        lineHeight: settings.lineHeight,
+                      }}
+                    >
+                      {page.text}
+                    </p>
+                  </div>
+                )
+              )}
+            </HTMLFlipBook>
+          </div>
+        </div>
+      )}
       </div>
 
       <ReaderProgressScrubber
         currentProgressPercent={currentProgressPercent}
-        locationLabel={pages[currentPageIndex]?.chapterLabel}
+        locationLabel={displayPositionLabel || pages[0]?.chapterLabel}
         totalChaptersOrPages={pages.length}
         onSeekPercent={(pct) => {
+          if (isContinuous) {
+            const container = scrollContainerRef.current;
+            if (!container) return;
+            const target = (pct / 100) * (container.scrollHeight - container.clientHeight);
+            container.scrollTo({ top: target, behavior: 'smooth' });
+            return;
+          }
           if (pages.length === 0) return;
           const targetIdx = Math.min(pages.length - 1, Math.max(0, Math.round((pct / 100) * (pages.length - 1))));
+          setCoverOpened(true);
           setCurrentPageIndex(targetIdx);
           setJumpNonce((n) => n + 1);
           const target = pages[targetIdx];
