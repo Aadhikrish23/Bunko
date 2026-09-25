@@ -23,7 +23,17 @@ export interface ChapterUnit {
 // carry this version, instead of treating "chapterGraph is non-null" as
 // "chapterGraph is up to date". A graph saved before this field existed has
 // `version === undefined`, which never matches, so it re-indexes too.
-export const CURRENT_CHAPTER_GRAPH_VERSION = 2;
+//
+// 3: the extraction algorithms themselves changed for the same input --
+// PDF text-layer joining now reconstructs real spacing/line-breaks
+// instead of blindly space-joining stream-order items (previously
+// produced things like "W 1 hat" for "What"), a garbled legacy-font
+// text layer (e.g. pre-Unicode Tamil fonts) is now detected and routed
+// through OCR instead of shipped as unreadable text, and EPUB3 books
+// with no NCX now get real chapter titles from nav.xhtml instead of
+// falling back to the raw manifest id. Editions already indexed under
+// version 2 have none of this until they're re-indexed.
+export const CURRENT_CHAPTER_GRAPH_VERSION = 3;
 
 export interface ChapterGraph {
   version: number;
