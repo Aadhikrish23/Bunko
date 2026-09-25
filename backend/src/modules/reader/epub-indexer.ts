@@ -62,6 +62,40 @@ function flattenNcxNavPoints(navPoints: XmlNode, baseDir: string): NavEntry[] {
   return entries;
 }
 
+// Recursively flattens an EPUB3 <nav epub:type="toc"><ol><li><a>...
+// structure into reading order — the standard's own TOC format, distinct
+// from (and not read by) the NCX parser above.
+function flattenNavListItems(listItems: XmlNode, baseDir: string): NavEntry[] {
+  const entries: NavEntry[] = [];
+  for (const li of asArray(listItems)) {
+    const anchor = li?.a;
+    const href = anchor?.['@_href'];
+    if (typeof href === 'string') {
+      const label = typeof anchor === 'object' ? (anchor?.['#text'] ?? '') : anchor;
+      entries.push({ label: String(label ?? '').trim() || href, href: resolvePath(baseDir, href) });
+    }
+    if (li?.ol?.li) {
+      entries.push(...flattenNavListItems(li.ol.li, baseDir));
+    }
+  }
+  return entries;
+}
+
+// Finds the <nav epub:type="toc"> element within an EPUB3 nav.xhtml
+// document (a nav document can also carry landmarks/page-list navs,
+// which aren't the table of contents) and flattens its entries. Falls
+// back to the first <nav> found if none is explicitly typed "toc" —
+// some real-world files omit the attribute despite the spec requiring
+// it, and a nav.xhtml with only one <nav> at all is almost always the
+// TOC anyway.
+function parseEpub3NavToc(xhtml: string, baseDir: string): NavEntry[] {
+  const doc = xmlParser.parse(xhtml);
+  const navs = asArray(doc?.html?.body?.nav);
+  const tocNav = navs.find((nav) => (nav?.['@_epub:type'] ?? '') === 'toc') ?? navs[0];
+  if (!tocNav?.ol?.li) return [];
+  return flattenNavListItems(tocNav.ol.li, baseDir);
+}
+
 export function indexEpub(buffer: Buffer): ChapterGraph {
   let zip: AdmZip;
   try {
@@ -104,9 +138,8 @@ export function indexEpub(buffer: Buffer): ChapterGraph {
     throw new AppError('UNSUPPORTED_FILE', 'EPUB spine has no reading-order items');
   }
 
-  // EPUB2: NCX referenced by manifest media-type. EPUB3 nav is not parsed
-  // separately for MVP — spine order plus NCX labels (when present) is
-  // sufficient; falls back to the manifest item id as the label otherwise.
+  // EPUB2: NCX referenced by manifest media-type. Tried first since it's
+  // the more explicit, purpose-built TOC format when present.
   let navEntries: NavEntry[] = [];
   const ncxItem = manifestItems.find((item) => item['@_media-type'] === 'application/x-dtbncx+xml');
   if (ncxItem) {
@@ -117,6 +150,24 @@ export function indexEpub(buffer: Buffer): ChapterGraph {
       navEntries = flattenNcxNavPoints(ncx?.ncx?.navMap?.navPoint, dirname(ncxPath));
     }
   }
+
+  // EPUB3: no NCX at all, or an NCX with no usable entries — fall back to
+  // the manifest item marked properties="nav" (the EPUB3-standard TOC,
+  // an ordinary XHTML document with a <nav epub:type="toc"> list of
+  // <a href="..."> entries). A book built EPUB3-only — no NCX shipped —
+  // used to fall through to labeling every chapter by its raw manifest
+  // id; this is the fallback that fixes it.
+  if (navEntries.length === 0) {
+    const navItem = manifestItems.find((item) => (item['@_properties'] ?? '').split(/\s+/).includes('nav'));
+    if (navItem) {
+      const navPath = resolvePath(opfDir, navItem['@_href']);
+      const navEntry = zip.getEntry(navPath);
+      if (navEntry) {
+        navEntries = parseEpub3NavToc(navEntry.getData().toString('utf8'), dirname(navPath));
+      }
+    }
+  }
+
   const labelByHref = new Map(navEntries.map((entry) => [entry.href, entry.label]));
 
   const units: ChapterUnit[] = spineItems.map((itemref, index) => {

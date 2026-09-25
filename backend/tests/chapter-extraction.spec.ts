@@ -10,6 +10,7 @@ import {
 } from '../src/modules/reader/pdf-indexer';
 import { resolveOcrLanguage } from '../src/modules/reader/ocr-language';
 import { generateSampleEpub } from './fixtures/generate-sample-epub';
+import { generateEpub3NavOnlyEpub } from './fixtures/generate-epub3-nav-epub';
 import { generateScannedPdf, generateScannedPdfWithOutline } from './fixtures/generate-scanned-pdf';
 
 // Builds a fake pdf.js TextItem — real coordinates matter here (they
@@ -48,6 +49,23 @@ test.describe('chapter text extraction (flow-reader foundation)', () => {
     // normalized copy — this is real readable text.
     expect(graph.units[0]!.text).not.toContain('<p>');
     expect(graph.units[0]!.text).not.toContain('<h1>');
+  });
+
+  test('indexEpub reads real chapter titles from an EPUB3 nav.xhtml table of contents', () => {
+    // A book with no NCX at all — only the EPUB3-standard nav.xhtml.
+    // Before parseEpub3NavToc existed, both chapters below would have
+    // come out labeled "ch1"/"ch2" (the raw manifest id) instead of
+    // their real titles, with no fallback available at all. (Two
+    // external library candidates were evaluated as a possible swap for
+    // this whole file — both turned out to only read the legacy NCX
+    // <spine toc="..."> reference too, so this fallback is native.)
+    const graph = indexEpub(generateEpub3NavOnlyEpub());
+
+    expect(graph.units).toHaveLength(2);
+    expect(graph.units[0]!.label).toBe('The Beginning');
+    expect(graph.units[1]!.label).toBe('The End');
+    expect(graph.units[0]!.text).toContain('Lorem ipsum dolor sit amet');
+    expect(graph.units[1]!.text).toContain('Ut enim ad minim veniam');
   });
 
   test('indexPdf without an OCR worker leaves a scanned PDF\'s text empty (T-026 baseline)', async () => {
