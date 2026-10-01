@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { ReaderSettings } from './reader-settings';
 import { THEME_STYLES, type ThemeColors } from './reader-settings';
+import { usePrefersReducedMotion } from '../../lib/use-reduced-motion';
 
 const FLIP_DURATION_MS = 700;
 
@@ -245,6 +246,7 @@ export function BookFlipWrapper({
   isCover = false,
 }: BookFlipWrapperProps) {
   const theme = THEME_STYLES[settings.theme];
+  const reducedMotion = usePrefersReducedMotion();
   const turning = isFlipping;
 
   const [windowWidth, setWindowWidth] = useState(() =>
@@ -290,10 +292,14 @@ export function BookFlipWrapper({
 
   const handlePointerDown = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
-      if (settings.pageTurnMode !== '3d-flip' || turning || drag) return;
+      // Reduced motion: the drag gesture's whole point is the curl
+      // following your finger — there's no reduced form of that, so it's
+      // off; the Prev/Next controls still flip pages, just without the
+      // spatial overlay (see showKeyframeLeaf below).
+      if (settings.pageTurnMode !== '3d-flip' || turning || drag || reducedMotion) return;
       dragStart.current = { x: e.clientX, y: e.clientY, direction: null };
     },
-    [settings.pageTurnMode, turning, drag]
+    [settings.pageTurnMode, turning, drag, reducedMotion]
   );
 
   const handlePointerMove = useCallback(
@@ -346,7 +352,11 @@ export function BookFlipWrapper({
   }, [finishDrag]);
 
   const showDragLeaf = drag !== null;
-  const showKeyframeLeaf = turning && !showDragLeaf && !suppressKeyframeLeaf.current;
+  // The page content underneath already swaps the instant a flip starts
+  // (see onFlipStart in EpubReader/PdfReader) — the leaf is a purely
+  // cosmetic overlay on top of that. Skipping it under reduced motion
+  // loses nothing: the real content change is still the feedback.
+  const showKeyframeLeaf = turning && !showDragLeaf && !suppressKeyframeLeaf.current && !reducedMotion;
   const activeDirection = showDragLeaf ? drag.direction : flipDirection;
 
   return (

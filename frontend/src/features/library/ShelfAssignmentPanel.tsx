@@ -68,7 +68,7 @@ export function ShelfAssignmentPanel({ workId, shelfIds }: { workId: string; she
         <button
           type="button"
           onClick={() => setIsCreating(true)}
-          className="focus-visible:focus-ring flex items-center gap-1 rounded-full border border-dashed border-paper-300 px-2.5 py-1 text-xs font-medium text-paper-500 hover:border-moss-300 hover:text-moss-600"
+          className="focus-visible:focus-ring flex items-center gap-1 rounded-full border border-dashed border-paper-300 px-2.5 py-1 text-xs font-medium text-paper-700 hover:border-moss-300 hover:text-moss-600"
         >
           <Plus className="h-3 w-3" /> New shelf
         </button>

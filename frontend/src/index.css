@@ -190,6 +190,32 @@
   }
 }
 
+/* Touch targets (SRS §31 / WCAG 2.5.5): icon-only controls (Close,
+   Bookmarks, chapter nav, etc.) are built compact for mouse precision —
+   fine on desktop, but under 44px on a touch screen. aria-label reliably
+   marks an icon-only control in this codebase (every one carries it for
+   screen readers); min-width/height are pure floors, so labeled buttons
+   that are already big enough are untouched. Scoped to coarse pointers
+   only, so desktop stays as compact as DESIGN.md's quiet/restrained
+   control sizing calls for. */
+@media (pointer: coarse) {
+  button[aria-label] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Reduced motion (SRS §31): drop the spatial hover-lift on shelved books
+   (BookSpine.tsx cover/spine modes) but keep the shadow deepening — the
+   darkening shadow alone still tells a mouse user "this is hoverable",
+   without the translateY a reduce-motion preference asks to avoid.
+   Targets Tailwind's literal group-hover output, not an app class. */
+@media (prefers-reduced-motion: reduce) {
+  .group:hover .group-hover\:-translate-y-2 {
+    transform: none;
+  }
+}
+
 /* PDF.js Text Layer Styling for Native Text Selection */
 .textLayer {
   position: absolute;

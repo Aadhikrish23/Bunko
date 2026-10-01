@@ -32,7 +32,7 @@ export function AnnotationsDrawer({
           type="button"
           onClick={onClose}
           aria-label="Close annotations drawer"
-          className="focus-visible:focus-ring rounded-md p-1.5 text-paper-500 hover:bg-paper-100 hover:text-paper-900"
+          className="focus-visible:focus-ring rounded-md p-1.5 text-paper-700 hover:bg-paper-100 hover:text-paper-900"
         >
           <X className="h-4 w-4" />
         </button>
@@ -65,7 +65,7 @@ export function AnnotationsDrawer({
       {/* Content List */}
       <div className="mt-4 flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
-          <div className="py-12 text-center text-xs text-paper-500">
+          <div className="py-12 text-center text-xs text-paper-700">
             {tab === 'quotes' ? 'No saved quotes yet.' : 'No highlights or notes yet. Select text while reading to add one.'}
           </div>
         ) : (
@@ -139,7 +139,7 @@ export function AnnotationsDrawer({
                         setEditingId(item.id);
                         setEditNoteText('');
                       }}
-                      className="mt-2 text-[11px] font-medium text-paper-500 hover:text-moss-700 flex items-center gap-1"
+                      className="mt-2 text-[11px] font-medium text-paper-700 hover:text-moss-700 flex items-center gap-1"
                     >
                       + Add margin note
                     </button>
@@ -158,7 +158,7 @@ export function AnnotationsDrawer({
                         <button
                           type="button"
                           onClick={() => setEditingId(null)}
-                          className="text-paper-500 hover:text-paper-700"
+                          className="text-paper-700 hover:text-paper-900"
                         >
                           Cancel
                         </button>

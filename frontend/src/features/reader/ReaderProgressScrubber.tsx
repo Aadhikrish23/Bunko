@@ -35,7 +35,7 @@ export function ReaderProgressScrubber({
         </span>
         <div className="flex items-center gap-3">
           {estimatedMinutesLeft !== null && (
-            <span className="flex items-center gap-1 text-paper-500 font-normal">
+            <span className="flex items-center gap-1 text-paper-700 font-normal">
               <Clock className="h-3 w-3 text-moss-600" />
               ~{estimatedMinutesLeft} min{estimatedMinutesLeft > 1 ? 's' : ''} left
             </span>

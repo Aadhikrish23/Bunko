@@ -73,7 +73,7 @@ export function BookDetailPage() {
           <div>
             <h1 className="font-display text-2xl text-paper-900">{data.title}</h1>
             <p className="mt-1 text-paper-600">{data.authors.join(', ') || 'Unknown author'}</p>
-            {data.seriesName && <p className="text-sm italic text-paper-500">{data.seriesName}</p>}
+            {data.seriesName && <p className="text-sm italic text-paper-700">{data.seriesName}</p>}
           </div>
 
           {data.description && <Synopsis text={data.description} />}
@@ -102,7 +102,7 @@ export function BookDetailPage() {
               await deleteWork.mutateAsync(data.id);
               navigate('/library');
             }}
-            className="focus-visible:focus-ring flex items-center gap-1.5 self-start text-sm text-paper-500 hover:text-ember-600"
+            className="focus-visible:focus-ring flex items-center gap-1.5 self-start text-sm text-paper-700 hover:text-ember-600"
           >
             <Trash2 className="h-3.5 w-3.5" /> Remove from library
           </button>
@@ -118,7 +118,7 @@ export function BookDetailPage() {
         </div>
 
         {data.editions.length === 0 ? (
-          <p className="text-sm text-paper-500">No editions yet — add a physical copy or import a digital file.</p>
+          <p className="text-sm text-paper-700">No editions yet — add a physical copy or import a digital file.</p>
         ) : (
           <ul className="flex flex-col gap-4">
             {data.editions.map((edition) => (
@@ -126,7 +126,7 @@ export function BookDetailPage() {
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-paper-400" />
                   <span className="text-sm font-medium text-paper-800">{FORMAT_LABELS[edition.format]}</span>
-                  {edition.publisher && <span className="text-xs text-paper-500">· {edition.publisher}</span>}
+                  {edition.publisher && <span className="text-xs text-paper-700">· {edition.publisher}</span>}
                 </div>
                 {edition.format === 'PHYSICAL' && edition.copyId && <PhysicalSessionPanel copyId={edition.copyId} />}
                 {edition.format !== 'PHYSICAL' && edition.copyId && (

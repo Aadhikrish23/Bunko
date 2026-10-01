@@ -61,7 +61,7 @@ export function RegisterPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <p className="-mt-2 text-xs text-paper-500">At least 10 characters.</p>
+        <p className="-mt-2 text-xs text-paper-700">At least 10 characters.</p>
         <Button type="submit" isLoading={isSubmitting} className="mt-2 w-full">
           Create account
         </Button>

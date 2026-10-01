@@ -103,7 +103,7 @@ export function LibraryPage() {
               />
               <div>
                 <p className="line-clamp-2 text-sm font-medium text-paper-900">{work.title}</p>
-                <p className="truncate text-xs text-paper-500">{work.authors.join(', ') || 'Unknown author'}</p>
+                <p className="truncate text-xs text-paper-700">{work.authors.join(', ') || 'Unknown author'}</p>
                 <div className="mt-1">
                   <StatusBadge status={work.status} />
                 </div>

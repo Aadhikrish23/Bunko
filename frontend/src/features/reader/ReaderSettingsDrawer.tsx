@@ -56,7 +56,7 @@ export function ReaderSettingsDrawer({ settings, onChange, onClose }: ReaderSett
           type="button"
           onClick={onClose}
           aria-label="Close reader settings"
-          className="focus-visible:focus-ring rounded-md p-1.5 text-paper-500 hover:bg-paper-100 hover:text-paper-900"
+          className="focus-visible:focus-ring rounded-md p-1.5 text-paper-700 hover:bg-paper-100 hover:text-paper-900"
         >
           <X className="h-4 w-4" />
         </button>
@@ -120,7 +120,7 @@ export function ReaderSettingsDrawer({ settings, onChange, onClose }: ReaderSett
               <Sun className="h-3.5 w-3.5 text-amber-500" />
               <span>Brightness</span>
             </label>
-            <span className="font-mono text-paper-500">{settings.brightness}%</span>
+            <span className="font-mono text-paper-700">{settings.brightness}%</span>
           </div>
           <input
             type="range"
@@ -140,7 +140,7 @@ export function ReaderSettingsDrawer({ settings, onChange, onClose }: ReaderSett
               <Thermometer className="h-3.5 w-3.5 text-orange-500" />
               <span>Color Warmth / Tint</span>
             </label>
-            <span className="font-mono text-paper-500">{settings.temperature}%</span>
+            <span className="font-mono text-paper-700">{settings.temperature}%</span>
           </div>
           <input
             type="range"
@@ -181,7 +181,7 @@ export function ReaderSettingsDrawer({ settings, onChange, onClose }: ReaderSett
         <div>
           <div className="mb-2 flex items-center justify-between">
             <label className="font-semibold text-paper-700">Font Scale</label>
-            <span className="font-mono text-paper-500">{Math.round(settings.fontScale * 100)}%</span>
+            <span className="font-mono text-paper-700">{Math.round(settings.fontScale * 100)}%</span>
           </div>
           <div className="flex items-center gap-3">
             <button

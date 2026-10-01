@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T17:50:38Z",
+  "title": "Design System: Bunko",
+  "extensions": {
+    "colorMeta": {
+      "paper-bg": { "role": "neutral", "displayName": "Warm Paper (lightest)", "canonical": "#FBF8F3", "tonalRamp": ["#FBF8F3", "#F4EEE3", "#E8DFCF", "#D8CBAF", "#B7A98A", "#93855F", "#5B5347", "#3D3830", "#26221D"] },
+      "paper-surface": { "role": "neutral", "displayName": "Warm Paper Surface", "canonical": "#F4EEE3", "tonalRamp": ["#FBF8F3", "#F4EEE3", "#E8DFCF", "#D8CBAF", "#B7A98A", "#93855F", "#5B5347", "#3D3830", "#26221D"] },
+      "paper-text": { "role": "neutral", "displayName": "Warm Paper Ink", "canonical": "#26221D", "tonalRamp": ["#FBF8F3", "#F4EEE3", "#E8DFCF", "#D8CBAF", "#B7A98A", "#93855F", "#5B5347", "#3D3830", "#26221D"] },
+      "moss-primary": { "role": "primary", "displayName": "Muted Forest Moss", "canonical": "#4F7A5C", "tonalRamp": ["#EEF3EE", "#D6E4D8", "#8FB08F", "#4F7A5C", "#3E6249", "#2F4B38", "#1B2B20"] },
+      "ember-accent": { "role": "secondary", "displayName": "Burnt Ember Clay", "canonical": "#B35F2E", "tonalRamp": ["#C97B4A", "#B35F2E", "#93481F"] },
+      "oak-mid": { "role": "tertiary", "displayName": "Aged Oak", "canonical": "#9C6B3E", "tonalRamp": ["#C9A877", "#9C6B3E", "#7A4E2B", "#5E3A20", "#3B2417"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Lora Display", "purpose": "Book titles, headings, section titles — anything that names something. Never on controls." },
+      "body": { "displayName": "Inter Body", "purpose": "All functional copy: forms, lists, nav, metadata, buttons." }
+    },
+    "shadows": [
+      { "name": "shadow-card", "value": "0 1px 2px rgba(38,34,29,0.06), 0 4px 12px rgba(38,34,29,0.05)", "purpose": "Default for every flat UI surface (cards, modals, dropdown panels)." },
+      { "name": "shadow-plank", "value": "0 3px 6px rgba(59,36,23,0.35)", "purpose": "Shelf plank edge only." },
+      { "name": "book-hover-rest", "value": "0 4px 6px -1px rgba(0,0,0,0.45), 0 2px 4px -2px rgba(0,0,0,0.35)", "purpose": "Shelved book cover/spine at rest." },
+      { "name": "book-hover-lift", "value": "0 10px 16px -3px rgba(0,0,0,0.6)", "purpose": "Shelved book cover/spine on hover, paired with -translate-y-2." }
+    ],
+    "motion": [
+      { "name": "flip-next-3d", "value": "rotateY(0→-180deg) + translateZ(0→50→0px) + scaleX(1→0.8→1), 4-keyframe perspective turn", "purpose": "Reader page-turn forward — real 3D perspective, not a crossfade." },
+      { "name": "flip-prev-3d", "value": "rotateY(0→180deg) + translateZ(0→50→0px) + scaleX(1→0.8→1), mirrored", "purpose": "Reader page-turn backward." },
+      { "name": "open-cover-3d", "value": "rotateY(0→-90→-180deg) with deepening box-shadow", "purpose": "Opening the book cover in the reader." },
+      { "name": "close-cover-3d", "value": "rotateY(-180→-90→0deg), mirrored open-cover", "purpose": "Closing the book cover in the reader." },
+      { "name": "book-hover-lift-transition", "value": "transform/shadow, 150ms ease-out", "purpose": "Shelved book hover response — quick, not springy." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default call-to-action button.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 6px; font-family: Inter, system-ui, sans-serif; font-weight: 500; font-size: 14px; padding: 8px 16px; transition: background-color 0.15s ease; border: none; cursor: pointer; } .ds-btn-primary { background-color: #3E6249; color: #FBF8F3; } .ds-btn-primary:hover { background-color: #2F4B38; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #FBF8F3, 0 0 0 4px #4F7A5C; } .ds-btn-primary:disabled { background-color: #8FB08F; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Lower-emphasis action alongside a primary button.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { background-color: #F4EEE3; color: #26221D; border: 1px solid #D8CBAF; } .ds-btn-secondary:hover { background-color: #E8DFCF; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive action — ember, never red.",
+      "html": "<button class=\"ds-btn ds-btn-danger\">Delete</button>",
+      "css": ".ds-btn-danger { background-color: transparent; color: #93481F; border: 1px solid rgba(179,95,46,0.4); } .ds-btn-danger:hover { background-color: rgba(179,95,46,0.1); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labeled text field with error state.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-label\">Email</label><input class=\"ds-input\" type=\"text\" placeholder=\"you@example.com\" /></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: Inter, system-ui, sans-serif; } .ds-label { font-size: 14px; font-weight: 500; color: #3D3830; } .ds-input { border-radius: 6px; border: 1px solid #D8CBAF; background-color: #FBF8F3; color: #26221D; padding: 8px 12px; font-size: 14px; } .ds-input::placeholder { color: #B7A98A; } .ds-input:focus-visible { outline: none; box-shadow: 0 0 0 2px #FBF8F3, 0 0 0 4px #4F7A5C; } .ds-input-error { border-color: #B35F2E; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Default flat content surface.",
+      "html": "<div class=\"ds-card\"><p>Card content</p></div>",
+      "css": ".ds-card { border-radius: 12px; border: 1px solid #E8DFCF; background-color: #FBF8F3; box-shadow: 0 1px 2px rgba(38,34,29,0.06), 0 4px 12px rgba(38,34,29,0.05); padding: 20px; font-family: Inter, system-ui, sans-serif; color: #26221D; }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Sidebar navigation link, default and active states.",
+      "html": "<a class=\"ds-nav-item\" href=\"#\"><svg class=\"ds-nav-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M3 10h18\"/></svg>Library</a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 12px; border-radius: 6px; padding: 8px 12px; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 500; color: #5B5347; text-decoration: none; transition: background-color 0.15s ease, color 0.15s ease; } .ds-nav-item:hover { background-color: rgba(232,223,207,0.7); } .ds-nav-item.ds-active { background-color: #D6E4D8; color: #2F4B38; } .ds-nav-icon { width: 18px; height: 18px; flex-shrink: 0; }"
+    },
+    {
+      "name": "Shelved Book (cover mode)",
+      "kind": "custom",
+      "refersTo": "bookcase",
+      "description": "Signature component: an upright book cover standing on the wood shelf plank, with real book-edge geometry and hover-lift. Represents the system's one deliberate region of physical/dimensional realism.",
+      "html": "<div class=\"ds-shelf\"><button class=\"ds-book-cover\"><span class=\"ds-book-fallback\">The Remains of the Day<em>Kazuo Ishiguro</em></span></button></div>",
+      "css": ".ds-shelf { background-color: #3f2a19; background-image: radial-gradient(ellipse at top, rgba(0,0,0,0) 0%, rgba(0,0,0,0.25) 100%); display: flex; align-items: flex-end; padding: 20px 16px 0; border-radius: 2px 2px 0 0; } .ds-book-cover { width: 92px; aspect-ratio: 2/3; border-radius: 0 3px 1px 0; overflow: hidden; border: none; cursor: pointer; background-color: #3E6249; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.45), 0 2px 4px -2px rgba(0,0,0,0.35); transition: transform 0.15s ease-out, box-shadow 0.15s ease-out; display: flex; align-items: center; justify-content: center; padding: 8px; } .ds-book-cover:hover { transform: translateY(-8px); box-shadow: 0 10px 16px -3px rgba(0,0,0,0.6); } .ds-book-fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; color: rgba(251,248,243,0.95); font-family: Lora, Georgia, serif; font-size: 10.5px; font-weight: 500; line-height: 1.3; border: 1px solid rgba(251,248,243,0.2); border-radius: 2px; padding: 8px; height: calc(100% - 8px); width: calc(100% - 8px); box-shadow: inset 0 0 10px rgba(0,0,0,0.2); } .ds-book-fallback em { font-family: Georgia, serif; font-size: 9px; font-style: italic; font-weight: 400; color: rgba(244,238,227,0.75); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Analog Library Realism",
+    "overview": "Bunko's interface is almost entirely a quiet, paper-toned room: flat surfaces, thin borders, restrained shadows, warm neutral tones standing in for stark white and gray (SRS §29.1 — calm, book-centric, not a tech-startup dashboard). Against that calm backdrop sits one deliberately different register — anything that represents an actual physical book (a spine on the Shelves bookcase, the 3D page-turn in the reader, the wood shelf itself) is rendered with real material conviction: spine hinge creases, gold foil bands, grain-textured wood, contact shadows, hover-lift. The split is the point. App chrome earns its calm by staying out of the way; book objects earn their realism because the book is the product. Nothing else in the system should borrow the bookcase's weight, and the bookcase should never flatten down to match the chrome around it. This is explicitly not a gamified tracker (SRS §2.3, §6) and explicitly not a generic SaaS dashboard — no glassy panels, gradient-mesh backgrounds, neon accent glows, or badge/streak/leaderboard furniture. Icons stay thin-line (Lucide, ~1.5–1.75 stroke), never filled or duotone, keeping the whole surface feeling drawn rather than branded.",
+    "keyCharacteristics": [
+      "Warm paper-neutral base, one muted forest-green accent (moss), a warm ember accent used sparingly for danger/attention, and an oak-wood family reserved for the Shelves bookcase only.",
+      "Flat-by-default UI chrome: subtle shadow-card, 1px borders, no heavy elevation anywhere except the bookcase.",
+      "The bookcase and the reader's 3D page-turn are the system's one deliberate region of physical, dimensional realism.",
+      "Lora (serif, display) for every heading and book title; Inter (sans, body) for everything else.",
+      "Thin-line Lucide iconography throughout; no filled icon sets."
+    ],
+    "rules": [
+      { "name": "The No True Red Rule", "body": "Danger and error states use ember, never a cold/saturated red. Mistakes stay inside the book-room's warm palette instead of injecting an alarm color that doesn't belong to the world.", "section": "colors" },
+      { "name": "The Oak Containment Rule", "body": "Oak/wood tones exist only inside the Shelves bookcase. Any other screen reaching for wood tones is reaching for the wrong rule — use moss or paper instead.", "section": "colors" },
+      { "name": "The Serif-Names-It Rule", "body": "Lora appears only on things that are titles or identify a specific book/person/heading — never on a button, a form label, or a metadata caption. If it's naming something, it's Lora; if it's operating something, it's Inter.", "section": "typography" },
+      { "name": "The Flat-Chrome, Dimensional-Books Rule", "body": "If it's a UI control or container, it stays flat (shadow-card or nothing). If it's a representation of a physical book or shelf, it's allowed real shadow, perspective, and hover-lift. Never move a UI panel toward book-level depth, and never flatten a book object down to chrome-level restraint.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep every UI control flat — shadow-card or nothing, never a bespoke heavier shadow on a button/input/card.",
+      "Do reserve Lora for things that name a book, person, or section; everything functional stays Inter.",
+      "Do use ember (never red) for every danger/error state.",
+      "Do let book-representing objects (spines, covers, the shelf, the reader's page-turn) be as physically dimensional as they want — that's the one place depth and motion are earned.",
+      "Do keep icons thin-line Lucide (~1.5–1.75 stroke); no filled or duotone icon sets."
+    ],
+    "donts": [
+      "Don't introduce glassy panels, gradient-mesh backgrounds, or neon glow accents — no generic SaaS-dashboard gloss.",
+      "Don't add streaks, badges, leaderboards, or other gamification furniture (SRS §2.3 — delightful, not gamified).",
+      "Don't let oak/wood tones leak outside the Shelves bookcase.",
+      "Don't give an ordinary UI panel bookcase-level shadow depth, or flatten the bookcase down to chrome-level restraint."
+    ]
+  }
+}

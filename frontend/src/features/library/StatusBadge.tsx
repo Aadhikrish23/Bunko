@@ -11,7 +11,7 @@ const STYLES: Record<ReadingStatus, string> = {
   WANT_TO_READ: 'bg-paper-200 text-paper-700',
   READING: 'bg-moss-100 text-moss-700',
   FINISHED: 'bg-ember-400/15 text-ember-600',
-  DID_NOT_FINISH: 'bg-paper-200 text-paper-500',
+  DID_NOT_FINISH: 'bg-paper-200 text-paper-700',
 };
 
 export function StatusBadge({ status }: { status: ReadingStatus }) {

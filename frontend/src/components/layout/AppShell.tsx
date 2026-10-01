@@ -60,7 +60,7 @@ export function AppShell() {
 
         <div className="mt-auto border-t border-paper-200 pt-4">
           <p className="truncate px-3 text-sm font-medium text-paper-800">{user?.displayName}</p>
-          <p className="truncate px-3 text-xs text-paper-500">{user?.email}</p>
+          <p className="truncate px-3 text-xs text-paper-700">{user?.email}</p>
           <button
             type="button"
             onClick={logout}

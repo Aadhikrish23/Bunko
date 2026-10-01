@@ -3,6 +3,14 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // Tailwind's default scale stops at 2xl (1536px) — AppShell's main
+      // container already authored a 3xl:max-w-[2200px] step for very
+      // wide/ultrawide monitors, but with no 3xl screen defined that
+      // class was a silent no-op. 1920px is the real-world "ultrawide"
+      // threshold the extra expansion was meant for.
+      screens: {
+        '3xl': '1920px',
+      },
       fontFamily: {
         display: ['Lora', 'Georgia', 'serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],

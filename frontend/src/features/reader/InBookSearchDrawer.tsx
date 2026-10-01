@@ -46,7 +46,7 @@ export function InBookSearchDrawer({ onSearch, onSelectResult, onClose }: InBook
           type="button"
           onClick={onClose}
           aria-label="Close search drawer"
-          className="focus-visible:focus-ring rounded-md p-1.5 text-paper-500 hover:bg-paper-100 hover:text-paper-900"
+          className="focus-visible:focus-ring rounded-md p-1.5 text-paper-700 hover:bg-paper-100 hover:text-paper-900"
         >
           <X className="h-4 w-4" />
         </button>
@@ -74,21 +74,21 @@ export function InBookSearchDrawer({ onSearch, onSelectResult, onClose }: InBook
 
       <div className="mt-4 flex-1 overflow-y-auto">
         {isSearching && (
-          <div className="flex flex-col items-center justify-center py-12 text-paper-500">
+          <div className="flex flex-col items-center justify-center py-12 text-paper-700">
             <Loader2 className="h-6 w-6 animate-spin text-moss-600 mb-2" />
             <span className="text-xs">Searching book contents...</span>
           </div>
         )}
 
         {!isSearching && hasSearched && results.length === 0 && (
-          <div className="py-12 text-center text-xs text-paper-500">
+          <div className="py-12 text-center text-xs text-paper-700">
             No occurrences found for &quot;<span className="font-semibold text-paper-700">{query}</span>&quot;.
           </div>
         )}
 
         {!isSearching && results.length > 0 && (
           <div className="flex flex-col gap-2">
-            <p className="px-1 text-xs font-medium text-paper-500">
+            <p className="px-1 text-xs font-medium text-paper-700">
               Found {results.length} result{results.length > 1 ? 's' : ''}:
             </p>
             <ul className="flex flex-col gap-2">

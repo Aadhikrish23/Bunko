@@ -32,6 +32,7 @@ import {
 } from '../../lib/annotations';
 import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
+import { usePrefersReducedMotion } from '../../lib/use-reduced-motion';
 import { AnnotationsDrawer } from './AnnotationsDrawer';
 import { CorrectPositionDialog } from './CorrectPositionDialog';
 import { InBookSearchDrawer, type SearchMatch } from './InBookSearchDrawer';
@@ -47,7 +48,7 @@ import {
   type ReaderFontFamily,
   type ReaderSettings,
 } from './reader-settings';
-import { estimateCharsPerPage, paginateText } from './paginate-text';
+import { estimateCharsPerPage, paginateChapterText } from './paginate-text';
 
 const PROGRESS_DEBOUNCE_MS = 4000;
 
@@ -68,6 +69,26 @@ const MARGIN_SIZE_PADDING: Record<MarginSize, string> = {
   standard: '8%',
   wide: '12%',
 };
+
+// Fractional form of MARGIN_SIZE_PADDING, fed to estimateCharsPerPage so
+// the pagination budget matches the padding actually rendered.
+const MARGIN_SIZE_FRACTION: Record<MarginSize, number> = {
+  compact: 0.06,
+  standard: 0.08,
+  wide: 0.12,
+};
+
+const FONT_FAMILY_CHAR_WIDTH_FACTOR: Record<ReaderFontFamily, number> = {
+  serif: 1.0,
+  sans: 0.97,
+  mono: 1.15,
+};
+
+// Approximate rendered height (px) of a chapter-start page's heading
+// (mb-4 + text-lg, see the isChapterStart branch below) — reserved out of
+// that page's character budget so it doesn't get a full page's worth of
+// body text packed in above where the heading already sits.
+const CHAPTER_HEADING_RESERVED_PX = 56;
 
 interface FlowPage {
   chapterOrder: number;
@@ -117,6 +138,11 @@ export function FlowReaderPage() {
   const [settings, setSettings] = useState<ReaderSettings>(settingsInitial);
   const theme = THEME_STYLES[settings.theme];
   const isContinuous = settings.pageTurnMode === 'continuous';
+  // SRS §31 — OS reduce-motion preference. Treated the same as Paginated
+  // mode everywhere a page turn would otherwise animate: instant index
+  // jump instead of react-pageflip's curl, drag-to-flip off.
+  const reducedMotion = usePrefersReducedMotion();
+  const useInstantPageTurns = isContinuous ? false : settings.pageTurnMode === 'paginated' || reducedMotion;
 
   const currentPositionRef = useRef<string | null>(null);
   const hasResolvedInitialPosition = useRef(false);
@@ -266,11 +292,20 @@ export function FlowReaderPage() {
   const pages = useMemo<FlowPage[]>(() => {
     const list = chapters.data?.chapters;
     if (!list || list.length === 0) return [];
-    const charsPerPage = estimateCharsPerPage(bookWidth, bookHeight, settings.fontScale);
+    const pageBoxOptions = {
+      lineHeightMultiplier: settings.lineHeight,
+      marginFraction: MARGIN_SIZE_FRACTION[settings.marginSize],
+      charWidthFactor: FONT_FAMILY_CHAR_WIDTH_FACTOR[settings.fontFamily],
+    };
+    const regularCharsPerPage = estimateCharsPerPage(bookWidth, bookHeight, settings.fontScale, pageBoxOptions);
+    const firstCharsPerPage = estimateCharsPerPage(bookWidth, bookHeight, settings.fontScale, {
+      ...pageBoxOptions,
+      reservedTopPx: CHAPTER_HEADING_RESERVED_PX,
+    });
     const result: FlowPage[] = [];
     const sorted = [...list].sort((a, b) => a.order - b.order);
     sorted.forEach((chapter, chapterIndex) => {
-      const chunks = paginateText(chapter.text, charsPerPage);
+      const chunks = paginateChapterText(chapter.text, firstCharsPerPage, regularCharsPerPage);
       chunks.forEach((chunk, i) => {
         result.push({
           chapterOrder: chapter.order,
@@ -283,7 +318,7 @@ export function FlowReaderPage() {
       });
     });
     return result;
-  }, [chapters.data, bookWidth, bookHeight, settings.fontScale]);
+  }, [chapters.data, bookWidth, bookHeight, settings.fontScale, settings.lineHeight, settings.marginSize, settings.fontFamily]);
 
   const pagesRef = useRef<FlowPage[]>([]);
   pagesRef.current = pages;
@@ -296,8 +331,14 @@ export function FlowReaderPage() {
     return map;
   }, [pages]);
 
+  // No longer gated on coverImageUrl being present — router state (where
+  // it comes from) is lost on a hard refresh/direct link, and some books
+  // simply have no cover art at all. Either way the book's first unit is
+  // still a textless placeholder chapter that needs a full-bleed screen,
+  // not the flipbook's half-blank two-page spread; the splash below
+  // renders a themed placeholder when there's no real image to show.
   const showCoverSplash =
-    positionResolved && !coverOpened && !isContinuous && Boolean(coverImageUrl) && pages[0]?.isCoverPlaceholder && currentPageIndex === 0;
+    positionResolved && !coverOpened && !isContinuous && Boolean(pages[0]?.isCoverPlaceholder) && currentPageIndex === 0;
 
   function scrollToChapter(structuralId: string) {
     const el = chapterSectionRefs.current.get(structuralId);
@@ -420,12 +461,36 @@ export function FlowReaderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // In "Paginated" mode, page turns are meant to be instant (no curl/flip
+  // animation) — react-pageflip's flipPrev()/flipNext() always play its
+  // animated turn regardless of flippingTime (that prop only changes the
+  // animation's *duration*, not whether one happens), so this bypasses
+  // that API entirely and jumps straight to the target index instead,
+  // the same remount-based mechanism used for TOC/bookmark/search jumps.
+  function goToAdjacentPage(delta: 1 | -1) {
+    const target = currentPageIndex + delta;
+    if (target < 0 || target >= pages.length) return;
+    setCurrentPageIndex(target);
+    setCoverOpened(true);
+    setJumpNonce((n) => n + 1);
+    const page = pages[target];
+    if (page) handlePositionChange(page.structuralId);
+  }
+
   function handlePrevPage() {
-    flipBookRef.current?.pageFlip()?.flipPrev();
+    if (useInstantPageTurns) {
+      goToAdjacentPage(-1);
+    } else {
+      flipBookRef.current?.pageFlip()?.flipPrev();
+    }
   }
 
   function handleNextPage() {
-    flipBookRef.current?.pageFlip()?.flipNext();
+    if (useInstantPageTurns) {
+      goToAdjacentPage(1);
+    } else {
+      flipBookRef.current?.pageFlip()?.flipNext();
+    }
   }
 
   function handleOpenCover() {
@@ -645,12 +710,15 @@ export function FlowReaderPage() {
 
   return (
     <div style={{ backgroundColor: theme.bg }} className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-paper-200 bg-paper-50 px-4 py-2">
+      <header
+        style={{ backgroundColor: theme.paperBg, borderColor: theme.border, color: theme.text }}
+        className="flex items-center justify-between border-b px-4 py-2"
+      >
         <button
           type="button"
           onClick={handleClose}
           aria-label="Close reader"
-          className="focus-visible:focus-ring flex items-center gap-1.5 rounded-md p-2 text-sm text-paper-600 hover:bg-paper-100"
+          className="focus-visible:focus-ring flex items-center gap-1.5 rounded-md p-2 text-sm hover:bg-paper-100"
         >
           <X className="h-4.5 w-4.5" />
         </button>
@@ -659,7 +727,7 @@ export function FlowReaderPage() {
           <button
             type="button"
             onClick={() => setShowChapterList((v) => !v)}
-            className="focus-visible:focus-ring flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+            className="focus-visible:focus-ring flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium hover:bg-paper-100"
           >
             <List className="h-4 w-4" /> <span className="hidden sm:inline">Chapters</span>
           </button>
@@ -675,9 +743,9 @@ export function FlowReaderPage() {
             }}
             aria-label="Highlights & Quotes"
             title="Highlights & Quotes"
-            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium hover:bg-paper-100"
           >
-            <Highlighter className="h-4 w-4 text-paper-600" />
+            <Highlighter className="h-4 w-4" />
             <span className="hidden sm:inline">Highlights</span>
           </button>
 
@@ -692,9 +760,9 @@ export function FlowReaderPage() {
             }}
             aria-label="Search in book"
             title="Search in book"
-            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium hover:bg-paper-100"
           >
-            <Search className="h-4 w-4 text-paper-600" />
+            <Search className="h-4 w-4" />
             <span className="hidden sm:inline">Search</span>
           </button>
 
@@ -709,9 +777,9 @@ export function FlowReaderPage() {
             }}
             aria-label="Reader appearance & settings"
             title="Appearance"
-            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium hover:bg-paper-100"
           >
-            <Sliders className="h-4 w-4 text-paper-600" />
+            <Sliders className="h-4 w-4" />
             <span className="hidden sm:inline">Appearance</span>
           </button>
 
@@ -721,7 +789,7 @@ export function FlowReaderPage() {
               onClick={() => setShowCorrection(true)}
               aria-label="Not where you left off?"
               title="Not where you left off?"
-              className="focus-visible:focus-ring rounded-md p-2 text-paper-600 hover:bg-paper-100"
+              className="focus-visible:focus-ring rounded-md p-2 hover:bg-paper-100"
             >
               <MapPinOff className="h-4 w-4" />
             </button>
@@ -732,9 +800,9 @@ export function FlowReaderPage() {
             onClick={() => navigate(`/read/${editionId}`, { state: { journeyId } })}
             aria-label="View original file"
             title="View original file (for textbooks or technical docs this reflowed view isn't built for)"
-            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium hover:bg-paper-100"
           >
-            <BookOpen className="h-4 w-4 text-paper-600" />
+            <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">View Original</span>
           </button>
 
@@ -750,7 +818,7 @@ export function FlowReaderPage() {
               }}
               aria-label="Bookmarks"
               title="Bookmarks"
-              className="focus-visible:focus-ring rounded-md p-2 text-paper-600 hover:bg-paper-100"
+              className="focus-visible:focus-ring rounded-md p-2 hover:bg-paper-100"
             >
               <BookmarkIcon className="h-4 w-4" />
             </button>
@@ -769,7 +837,7 @@ export function FlowReaderPage() {
                 </button>
 
                 {bookmarks.length === 0 ? (
-                  <p className="px-2 py-2 text-xs text-paper-500 text-center">No bookmarks yet.</p>
+                  <p className="px-2 py-2 text-xs text-paper-700 text-center">No bookmarks yet.</p>
                 ) : (
                   <ul className="flex flex-col gap-1 max-h-60 overflow-y-auto">
                     {bookmarks.map((bookmark) => (
@@ -935,10 +1003,23 @@ export function FlowReaderPage() {
             type="button"
             onClick={handleOpenCover}
             aria-label="Open book"
-            style={{ width: coverWidth, height: coverHeight, ...pageFilterStyle }}
+            style={{
+              width: coverWidth,
+              height: coverHeight,
+              backgroundColor: coverImageUrl ? undefined : theme.paperBg,
+              ...pageFilterStyle,
+            }}
             className="group focus-visible:focus-ring relative overflow-hidden rounded-sm shadow-[0_35px_70px_rgba(0,0,0,0.45)] transition-transform hover:-translate-y-1"
           >
-            <img src={coverImageUrl ?? ''} alt="Book cover — tap to open" className="h-full w-full object-cover" />
+            {coverImageUrl ? (
+              <img src={coverImageUrl} alt="Book cover — tap to open" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center p-8 text-center">
+                <span className="font-display text-xl" style={{ color: theme.text }}>
+                  {pages[0]?.chapterLabel}
+                </span>
+              </div>
+            )}
             <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/40 to-transparent" />
             <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100">
               <span className="mb-6 rounded-full bg-paper-50/90 px-4 py-1.5 text-xs font-semibold text-paper-900 shadow">Tap to open</span>
@@ -960,10 +1041,11 @@ export function FlowReaderPage() {
             startPage={currentPageIndex}
             showCover
             drawShadow
-            flippingTime={settings.pageTurnMode === 'paginated' ? 1 : 700}
+            flippingTime={useInstantPageTurns ? 1 : 700}
             maxShadowOpacity={0.5}
             showPageCorners={false}
             disableFlipByClick
+            useMouseEvents={!useInstantPageTurns}
             className="rounded-sm shadow-[0_25px_60px_rgba(0,0,0,0.35)]"
             style={{}}
             onFlip={handleFlip}
@@ -979,13 +1061,19 @@ export function FlowReaderPage() {
                 level deeper (never touched by the library) carries
                 background/padding/filter/theme instead. */}
             {pages.map((page, i) =>
-              page.isCoverPlaceholder && coverImageUrl ? (
+              page.isCoverPlaceholder ? (
                 <div key={i} className="h-full w-full overflow-hidden [backface-visibility:hidden]">
                   <div
                     style={{ backgroundColor: theme.paperBg, ...pageFilterStyle }}
-                    className="flex h-full w-full items-center justify-center overflow-hidden"
+                    className="flex h-full w-full items-center justify-center overflow-hidden p-6 text-center"
                   >
-                    <img src={coverImageUrl} alt={page.chapterLabel} className="h-full w-full object-cover" />
+                    {coverImageUrl ? (
+                      <img src={coverImageUrl} alt={page.chapterLabel} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="font-display text-lg" style={{ color: theme.text }}>
+                        {page.chapterLabel}
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -1027,7 +1115,10 @@ export function FlowReaderPage() {
       </div>
 
       {positionResolved && !isContinuous && !showCoverSplash && (
-        <div className="flex items-center justify-center gap-4 border-t border-paper-200 bg-paper-50 py-1.5 text-xs text-paper-700">
+        <div
+          style={{ backgroundColor: theme.paperBg, borderColor: theme.border, color: theme.text }}
+          className="flex items-center justify-center gap-4 border-t py-1.5 text-xs"
+        >
           <button
             type="button"
             onClick={handlePrevPage}
@@ -1037,7 +1128,7 @@ export function FlowReaderPage() {
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="font-semibold text-paper-800">
+          <span className="font-semibold">
             Page {currentPageIndex + 1} of {pages.length}
           </span>
           <button

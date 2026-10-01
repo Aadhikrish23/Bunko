@@ -189,7 +189,7 @@ export function AddBookDialog({ onClose, onAdded }: { onClose: () => void; onAdd
                 </div>
               )}
               {!search.isFetching && debouncedQuery && search.data?.length === 0 && (
-                <p className="py-6 text-center text-sm text-paper-500">No matches found. Try selecting another language or adding manually.</p>
+                <p className="py-6 text-center text-sm text-paper-700">No matches found. Try selecting another language or adding manually.</p>
               )}
               <ul className="flex flex-col gap-2.5">
                 {search.data?.map((candidate) => (
@@ -239,7 +239,7 @@ export function AddBookDialog({ onClose, onAdded }: { onClose: () => void; onAdd
                         </div>
 
                         {candidate.description && (
-                          <p className="mt-1.5 line-clamp-2 text-xs text-paper-500 leading-relaxed">
+                          <p className="mt-1.5 line-clamp-2 text-xs text-paper-700 leading-relaxed">
                             {candidate.description}
                           </p>
                         )}

@@ -21,7 +21,7 @@ export function SeriesPanel({ seriesName, siblings }: { seriesName: string; sibl
   return (
     <Card className="p-5">
       <h2 className="mb-1 font-display text-lg text-paper-900">More in {seriesName}</h2>
-      <p className="mb-4 text-sm text-paper-500">Other books from this collection.</p>
+      <p className="mb-4 text-sm text-paper-700">Other books from this collection.</p>
       <div className="flex flex-wrap gap-4">
         {siblings.map((sibling) => (
           <div key={sibling.workId} className="w-28 flex-shrink-0">

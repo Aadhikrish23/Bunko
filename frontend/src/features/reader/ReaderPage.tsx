@@ -275,7 +275,7 @@ export function ReaderPage() {
 
               {showToc && (
                 <div className="absolute left-0 sm:right-0 sm:left-auto top-full z-30 mt-1 max-h-80 w-64 overflow-y-auto rounded-md border border-paper-200 bg-paper-50 p-2 shadow-lg">
-                  <h4 className="px-2 py-1 text-xs font-bold uppercase tracking-wider text-paper-500 border-b border-paper-200 mb-1">
+                  <h4 className="px-2 py-1 text-xs font-bold uppercase tracking-wider text-paper-700 border-b border-paper-200 mb-1">
                     Chapters / TOC
                   </h4>
                   <ul className="flex flex-col gap-0.5">
@@ -393,7 +393,7 @@ export function ReaderPage() {
                 </button>
 
                 {bookmarks.length === 0 ? (
-                  <p className="px-2 py-2 text-xs text-paper-500 text-center">No bookmarks yet.</p>
+                  <p className="px-2 py-2 text-xs text-paper-700 text-center">No bookmarks yet.</p>
                 ) : (
                   <ul className="flex flex-col gap-1 max-h-60 overflow-y-auto">
                     {bookmarks.map((bookmark) => (

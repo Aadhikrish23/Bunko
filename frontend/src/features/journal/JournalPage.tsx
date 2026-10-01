@@ -36,14 +36,14 @@ export function JournalPage() {
         <ol className="flex flex-col gap-4">
           {journal.data.items.map((entry) => (
             <li key={entry.id} className="flex gap-4 border-b border-paper-200 pb-4 last:border-0">
-              <div className="w-20 flex-shrink-0 pt-0.5 text-xs font-medium text-paper-500">
+              <div className="w-20 flex-shrink-0 pt-0.5 text-xs font-medium text-paper-700">
                 {formatDate(entry.startTime)}
               </div>
               <div className="flex-1">
                 <p className="text-sm text-paper-800">
                   <span className="font-medium">{formatDuration(entry.durationSeconds)}</span>
                   {entry.startPosition && entry.endPosition && (
-                    <span className="text-paper-500"> · {entry.startPosition} → {entry.endPosition}</span>
+                    <span className="text-paper-700"> · {entry.startPosition} → {entry.endPosition}</span>
                   )}
                 </p>
                 {entry.reflection && <p className="mt-1 text-sm italic text-paper-600">“{entry.reflection}”</p>}
