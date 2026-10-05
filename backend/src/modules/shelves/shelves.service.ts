@@ -1,6 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
-import type { AssignWorkInput, CreateShelfInput } from './shelves.schema';
+import type { AssignWorkInput, CreateShelfInput, SaveArrangementInput } from './shelves.schema';
 
 export interface ShelfDto {
   id: string;
@@ -62,4 +62,37 @@ export async function removeWorkFromShelf(userId: string, shelfId: string, workI
   }
 
   await prisma.shelfWork.deleteMany({ where: { shelfId, userWorkId: userWork.id } });
+}
+
+export interface ArrangementDto {
+  tabKey: string;
+  workIds: string[];
+}
+
+// 'shelf:<uuid>' keys name a real Shelf the caller must own; 'all' and
+// 'status:*' keys are computed client-side views with nothing to own.
+async function assertTabKeyAccessible(userId: string, tabKey: string): Promise<void> {
+  if (tabKey.startsWith('shelf:')) {
+    await requireOwnShelf(userId, tabKey.slice('shelf:'.length));
+  }
+}
+
+export async function getShelfArrangement(userId: string, tabKey: string): Promise<ArrangementDto> {
+  await assertTabKeyAccessible(userId, tabKey);
+  const arrangement = await prisma.shelfArrangement.findUnique({ where: { userId_tabKey: { userId, tabKey } } });
+  return { tabKey, workIds: arrangement?.workIds ?? [] };
+}
+
+export async function saveShelfArrangement(
+  userId: string,
+  tabKey: string,
+  input: SaveArrangementInput,
+): Promise<ArrangementDto> {
+  await assertTabKeyAccessible(userId, tabKey);
+  await prisma.shelfArrangement.upsert({
+    where: { userId_tabKey: { userId, tabKey } },
+    create: { userId, tabKey, workIds: input.workIds },
+    update: { workIds: input.workIds },
+  });
+  return { tabKey, workIds: input.workIds };
 }

@@ -315,6 +315,48 @@ paths:
       responses:
         "204": { description: Removed }
 
+  /shelves/arrangement/{tabKey}:
+    get:
+      summary: Get the caller's saved drag-reorder for one Shelves view, so it follows the account across devices
+      description: >-
+        tabKey is the same opaque key the Shelves UI already uses for a view:
+        "all", "status:<READING_STATUS>", or "shelf:<uuid>". Not every key
+        maps to a stored Shelf row — the status-based views are computed
+        client-side. Returns an empty workIds array if nothing has been
+        saved yet.
+      parameters:
+        - $ref: "#/components/parameters/TabKey"
+      responses:
+        "200":
+          description: The saved arrangement (empty workIds if none saved yet)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShelfArrangementResponse" }
+        "404": { description: "tabKey is a shelf:<uuid> the caller does not own" }
+    put:
+      summary: Save the caller's drag-reorder for one Shelves view
+      parameters:
+        - $ref: "#/components/parameters/TabKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workIds]
+              properties:
+                workIds:
+                  type: array
+                  maxItems: 1000
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShelfArrangementResponse" }
+        "404": { description: "tabKey is a shelf:<uuid> the caller does not own" }
+
   /files/upload-url:
     post:
       summary: Request a signed URL to upload a digital book file
@@ -609,6 +651,15 @@ components:
       required: true
       schema: { type: string, format: uuid }
 
+    TabKey:
+      in: path
+      name: tabKey
+      required: true
+      description: 'One of: "all", "status:<READING_STATUS>", or "shelf:<uuid>"'
+      schema:
+        type: string
+        pattern: "^(all|status:[A-Z_]+|shelf:[0-9a-f-]{36})$"
+
   schemas:
     ShelfResponse:
       type: object
@@ -618,6 +669,17 @@ components:
           properties:
             id: { type: string, format: uuid }
             name: { type: string }
+
+    ShelfArrangementResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            tabKey: { type: string }
+            workIds:
+              type: array
+              items: { type: string, format: uuid }
 
     ReadingStatus:
       type: string

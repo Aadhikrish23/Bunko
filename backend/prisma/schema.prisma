@@ -23,11 +23,12 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  works           UserWork[]
-  shelves         Shelf[]
-  readingJourneys ReadingJourney[]
-  copies          Copy[]
-  sessions        ReadingSession[]
+  works             UserWork[]
+  shelves           Shelf[]
+  shelfArrangements ShelfArrangement[]
+  readingJourneys   ReadingJourney[]
+  copies            Copy[]
+  sessions          ReadingSession[]
 }
 
 model Author {
@@ -231,4 +232,21 @@ model ShelfWork {
   userWork   UserWork @relation(fields: [userWorkId], references: [id])
 
   @@id([shelfId, userWorkId])
+}
+
+// A reader's custom drag-reorder of one shelf view, so it follows the
+// account across devices instead of staying stuck in one browser's
+// localStorage. `tabKey` is the same opaque client-chosen key the
+// Shelves UI already uses for a view ("all", "status:READING",
+// "shelf:<uuid>") — not every key maps to a real Shelf row, since the
+// status-based views are computed client-side, not stored entities.
+model ShelfArrangement {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tabKey    String
+  workIds   String[]
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tabKey])
 }

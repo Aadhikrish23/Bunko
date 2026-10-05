@@ -237,6 +237,25 @@ model ShelfWork {
 
   @@id([shelfId, userWorkId])
 }
+
+// A reader's custom drag-reorder of one Shelves view, so it follows the
+// account across devices instead of staying stuck in one browser's
+// localStorage (SRS §15 UX expectation; added when the original
+// localStorage-only implementation was found to silently not sync).
+// tabKey is the same opaque client-chosen key the Shelves UI already
+// uses for a view ("all", "status:READING", "shelf:<uuid>") — not every
+// key maps to a real Shelf row, since the status-based views are
+// computed client-side, not stored entities.
+model ShelfArrangement {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tabKey    String
+  workIds   String[]
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tabKey])
+}
 ```
 
 ## 3. Key Relationships (matches `SRS.md` §27.2)
@@ -248,6 +267,7 @@ Edition 1 --- N Copy
 ReadingJourney 1 --- N ReadingSession
 User N --- N Work        (via UserWork)
 User N --- N Shelf        (via ShelfWork/UserWork)
+User 1 --- N ShelfArrangement
 Copy 1 --- 0..1 DigitalFile
 ReadingJourney 1 --- 0..1 ReadingPosition (canonical position)
 ```

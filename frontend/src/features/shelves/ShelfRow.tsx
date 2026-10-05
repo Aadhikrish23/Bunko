@@ -14,6 +14,8 @@ interface ShelfRowProps {
   onDropBook?: (targetWorkId: string, position: 'before' | 'after') => void;
   onDropEndZone?: () => void;
   onDragEndBook?: () => void;
+  onMoveBook: (workId: string, direction: 'left' | 'right') => void;
+  orderedWorkIds: string[];
   onOpen: (workId: string) => void;
   onRemove?: (workId: string) => void;
   onDeleteShelf?: () => void;
@@ -35,6 +37,8 @@ export function ShelfRow({
   onDropBook,
   onDropEndZone,
   onDragEndBook,
+  onMoveBook,
+  orderedWorkIds,
   onOpen,
   onRemove,
   onDeleteShelf,
@@ -75,7 +79,7 @@ export function ShelfRow({
       >
         {works.length === 0 ? (
           <div className="flex h-24 w-full items-center justify-center">
-            <p className="font-display italic text-xs text-wood-200/60">No books on this rack yet. Drag volumes here.</p>
+            <p className="font-display italic text-xs text-wood-200/85">No books on this rack yet. Drag volumes here.</p>
           </div>
         ) : (
           works.map((work) => (
@@ -111,6 +115,14 @@ export function ShelfRow({
                 onDropBook?.(work.id, dragOverTarget?.position ?? 'before');
               }}
               onDragEnd={() => onDragEndBook?.()}
+              onMoveLeft={
+                orderedWorkIds.indexOf(work.id) > 0 ? () => onMoveBook(work.id, 'left') : undefined
+              }
+              onMoveRight={
+                orderedWorkIds.indexOf(work.id) < orderedWorkIds.length - 1
+                  ? () => onMoveBook(work.id, 'right')
+                  : undefined
+              }
               onOpen={onOpen}
               onRemove={onRemove}
             />

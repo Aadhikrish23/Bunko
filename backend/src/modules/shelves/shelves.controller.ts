@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { requireUserId } from '../../lib/require-user';
 import { sendOk } from '../../lib/response';
 import * as shelvesService from './shelves.service';
-import type { AssignWorkInput, CreateShelfInput } from './shelves.schema';
+import type { AssignWorkInput, CreateShelfInput, SaveArrangementInput } from './shelves.schema';
 
 export async function listShelvesHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -58,6 +58,30 @@ export async function removeWorkHandler(
   try {
     await shelvesService.removeWorkFromShelf(requireUserId(req), req.params.shelfId, req.params.workId);
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getArrangementHandler(
+  req: Request<{ tabKey: string }>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    sendOk(res, await shelvesService.getShelfArrangement(requireUserId(req), req.params.tabKey));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function saveArrangementHandler(
+  req: Request<{ tabKey: string }, unknown, SaveArrangementInput>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    sendOk(res, await shelvesService.saveShelfArrangement(requireUserId(req), req.params.tabKey, req.body));
   } catch (err) {
     next(err);
   }

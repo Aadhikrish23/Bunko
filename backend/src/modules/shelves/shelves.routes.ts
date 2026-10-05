@@ -2,7 +2,14 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
 import * as controller from './shelves.controller';
-import { assignWorkSchema, createShelfSchema, shelfIdParamsSchema, shelfWorkParamsSchema } from './shelves.schema';
+import {
+  arrangementParamsSchema,
+  assignWorkSchema,
+  createShelfSchema,
+  saveArrangementSchema,
+  shelfIdParamsSchema,
+  shelfWorkParamsSchema,
+} from './shelves.schema';
 
 export const shelvesRouter = Router();
 
@@ -26,4 +33,17 @@ shelvesRouter.delete(
   authMiddleware,
   validate(shelfWorkParamsSchema, 'params'),
   controller.removeWorkHandler,
+);
+shelvesRouter.get(
+  '/arrangement/:tabKey',
+  authMiddleware,
+  validate(arrangementParamsSchema, 'params'),
+  controller.getArrangementHandler,
+);
+shelvesRouter.put(
+  '/arrangement/:tabKey',
+  authMiddleware,
+  validate(arrangementParamsSchema, 'params'),
+  validate(saveArrangementSchema),
+  controller.saveArrangementHandler,
 );

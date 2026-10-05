@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { getSpineStyle } from './spine-style';
 
 interface BookSpineProps {
@@ -19,8 +19,61 @@ interface BookSpineProps {
   onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
+  // Keyboard/touch equivalent of dragging this book one slot over.
+  // Undefined at a shelf boundary (nothing to swap with that side).
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
   onOpen: (workId: string) => void;
   onRemove?: (workId: string) => void;
+}
+
+// Small on-hover/on-focus move buttons — the keyboard- and touch-operable
+// path for reordering, since native HTML5 drag-and-drop (onDragStart etc.
+// above) has neither: Tab reaches them, Enter/Space activates them, and a
+// tap works where a drag gesture may not.
+function MoveButtons({
+  onMoveLeft,
+  onMoveRight,
+  title,
+  vertical,
+}: {
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
+  title: string;
+  vertical?: boolean;
+}) {
+  return (
+    <div
+      className={`pointer-events-none absolute z-10 hidden items-center gap-0.5 group-hover:flex group-focus-within:flex max-md:flex ${
+        vertical ? 'inset-x-0 top-1 justify-center' : 'inset-x-0 -top-7 justify-center'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onMoveLeft?.();
+        }}
+        disabled={!onMoveLeft}
+        aria-label={`Move "${title}" earlier on the shelf`}
+        className="focus-visible:focus-ring pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full bg-paper-900/90 text-paper-50 shadow-card hover:bg-paper-900 disabled:pointer-events-none disabled:opacity-0"
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onMoveRight?.();
+        }}
+        disabled={!onMoveRight}
+        aria-label={`Move "${title}" later on the shelf`}
+        className="focus-visible:focus-ring pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full bg-paper-900/90 text-paper-50 shadow-card hover:bg-paper-900 disabled:pointer-events-none disabled:opacity-0"
+      >
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
 }
 
 // Renders an upright book standing on the shelf plank.
@@ -46,6 +99,8 @@ export function BookSpine({
   onDragLeave,
   onDrop,
   onDragEnd,
+  onMoveLeft,
+  onMoveRight,
   onOpen,
   onRemove,
 }: BookSpineProps) {
@@ -111,6 +166,17 @@ export function BookSpine({
           )}
         </button>
 
+        {/* Move/Remove controls come AFTER the open button in DOM order so
+            forward Tab reaches "open" then "move"/"remove" in sequence —
+            they're display:none until :focus-within, so putting them
+            BEFORE the open button (as an earlier version did) meant a
+            forward-tabbing keyboard user skipped straight past them (not
+            yet focusable) to "open", and could only reach them by
+            Shift+Tab backward afterward. Visual position is set by CSS
+            (absolute), not DOM order, so this doesn't move anything on
+            screen. */}
+        <MoveButtons onMoveLeft={onMoveLeft} onMoveRight={onMoveRight} title={title} />
+
         {/* Insertion Guide Marker (Right) */}
         {dragOverPosition === 'after' && (
           <div className="pointer-events-none absolute -right-2 top-0 bottom-0 z-30 flex items-center justify-center">
@@ -126,7 +192,7 @@ export function BookSpine({
               onRemove(workId);
             }}
             aria-label={`Remove ${title} from this shelf`}
-            className="focus-visible:focus-ring absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-paper-900 text-paper-50 shadow-card group-hover:flex z-10"
+            className="focus-visible:focus-ring absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-paper-900 text-paper-50 shadow-card group-hover:flex group-focus-within:flex max-md:flex z-10"
           >
             <X className="h-3 w-3" />
           </button>
@@ -186,7 +252,7 @@ export function BookSpine({
         <div className="relative z-10 w-full flex flex-col items-center gap-0.5 border-y border-amber-300/40 bg-black/40 py-0.5 shadow-inner">
           <div className="h-[1px] w-full bg-amber-400/60" />
           {originalLanguage && (
-            <span className="text-[7.5px] font-bold uppercase tracking-wider text-amber-200/90 drop-shadow">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200/90 drop-shadow">
               {originalLanguage.slice(0, 3)}
             </span>
           )}
@@ -199,18 +265,18 @@ export function BookSpine({
             <span
               className={`font-serif font-bold leading-none tracking-wide text-amber-50 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] ${
                 title.length > 32
-                  ? 'text-[8.5px]'
-                  : title.length > 22
                   ? 'text-[9.5px]'
+                  : title.length > 22
+                  ? 'text-[10px]'
                   : title.length > 14
-                  ? 'text-[10.5px]'
-                  : 'text-[11.5px]'
+                  ? 'text-[11px]'
+                  : 'text-[12px]'
               }`}
             >
               {title}
             </span>
             {displayAuthor && (
-              <span className="font-serif text-[8.5px] font-medium italic text-amber-200/85 drop-shadow-sm whitespace-nowrap">
+              <span className="font-serif text-[10px] font-medium italic text-amber-200/85 drop-shadow-sm whitespace-nowrap">
                 {displayAuthor}
               </span>
             )}
@@ -221,20 +287,24 @@ export function BookSpine({
         <div className="relative z-10 w-full flex flex-col items-center gap-0.5 border-t border-amber-300/40 bg-black/40 pt-0.5 pb-0.5 shadow-inner">
           <div className="h-[1px] w-full bg-amber-400/60" />
           {partsCount ? (
-            <span className="text-[7.5px] font-extrabold uppercase tracking-tight text-emerald-200 drop-shadow">
+            <span className="text-[10px] font-extrabold uppercase tracking-tight text-emerald-200 drop-shadow">
               Pt {partsCount}
             </span>
           ) : chaptersCount ? (
-            <span className="text-[7.5px] font-extrabold uppercase tracking-tight text-purple-200 drop-shadow">
+            <span className="text-[10px] font-extrabold uppercase tracking-tight text-purple-200 drop-shadow">
               {chaptersCount} Ch
             </span>
           ) : (
-            <span className="text-[7.5px] font-semibold uppercase tracking-wider text-amber-200/80 drop-shadow">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/80 drop-shadow">
               Bunko
             </span>
           )}
         </div>
       </button>
+
+      {/* Move/Remove after the open button in DOM order — see the cover-mode
+          comment above for why. */}
+      <MoveButtons onMoveLeft={onMoveLeft} onMoveRight={onMoveRight} title={title} vertical />
 
       {/* Insertion Guide Marker (Right) */}
       {dragOverPosition === 'after' && (
@@ -251,7 +321,7 @@ export function BookSpine({
             onRemove(workId);
           }}
           aria-label={`Remove ${title} from this shelf`}
-          className="focus-visible:focus-ring absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-paper-900 text-paper-50 shadow-card group-hover:flex z-10"
+          className="focus-visible:focus-ring absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-paper-900 text-paper-50 shadow-card group-hover:flex group-focus-within:flex max-md:flex z-10"
         >
           <X className="h-3 w-3" />
         </button>

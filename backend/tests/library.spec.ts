@@ -146,6 +146,78 @@ test.describe('shelves (T-016)', () => {
   });
 });
 
+test.describe('shelf arrangement (cross-device drag order)', () => {
+  test('GET returns an empty order before anything has been saved', async ({ authedRequest }) => {
+    const response = await authedRequest.get('/api/v1/shelves/arrangement/all');
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body.data).toEqual({ tabKey: 'all', workIds: [] });
+  });
+
+  test('PUT saves an order and GET returns it back, scoped per user', async ({ authedRequest, request }) => {
+    const workA = await authedRequest.post('/api/v1/works', { data: { title: 'Arrangement Book A' } });
+    const workB = await authedRequest.post('/api/v1/works', { data: { title: 'Arrangement Book B' } });
+    const workIdA = (await workA.json()).data.id;
+    const workIdB = (await workB.json()).data.id;
+
+    const put = await authedRequest.put('/api/v1/shelves/arrangement/all', {
+      data: { workIds: [workIdB, workIdA] },
+    });
+    expect(put.status()).toBe(200);
+
+    const get = await authedRequest.get('/api/v1/shelves/arrangement/all');
+    const body = await get.json();
+    expect(body.data).toEqual({ tabKey: 'all', workIds: [workIdB, workIdA] });
+
+    // A different user's "all" arrangement is a separate row entirely.
+    const otherRegister = await request.post('/api/v1/auth/register', {
+      data: {
+        email: `arrangement-other-${randomUUID()}@example.com`,
+        password: 'correct-horse-battery-staple',
+        displayName: 'Other Reader',
+      },
+    });
+    const otherToken = (await otherRegister.json()).data.accessToken;
+    const otherGet = await request.get('/api/v1/shelves/arrangement/all', {
+      headers: { Authorization: `Bearer ${otherToken}` },
+    });
+    const otherBody = await otherGet.json();
+    expect(otherBody.data.workIds).toEqual([]);
+  });
+
+  test('accepts status:<STATUS> and shelf:<uuid> tab keys, rejects anything else', async ({ authedRequest }) => {
+    const statusKey = await authedRequest.get('/api/v1/shelves/arrangement/status:READING');
+    expect(statusKey.status()).toBe(200);
+
+    const shelf = await authedRequest.post('/api/v1/shelves', { data: { name: `Arrangement Shelf ${randomUUID()}` } });
+    const shelfId = (await shelf.json()).data.id;
+    const shelfKey = await authedRequest.get(`/api/v1/shelves/arrangement/shelf:${shelfId}`);
+    expect(shelfKey.status()).toBe(200);
+
+    const invalid = await authedRequest.get('/api/v1/shelves/arrangement/not-a-real-key');
+    expect(invalid.status()).toBe(400);
+  });
+
+  test('a shelf:<uuid> key for a shelf the user does not own is rejected', async ({ authedRequest, request }) => {
+    const otherRegister = await request.post('/api/v1/auth/register', {
+      data: {
+        email: `arrangement-owner-${randomUUID()}@example.com`,
+        password: 'correct-horse-battery-staple',
+        displayName: 'Shelf Owner',
+      },
+    });
+    const otherToken = (await otherRegister.json()).data.accessToken;
+    const othersShelf = await request.post('/api/v1/shelves', {
+      data: { name: `Not Yours ${randomUUID()}` },
+      headers: { Authorization: `Bearer ${otherToken}` },
+    });
+    const othersShelfId = (await othersShelf.json()).data.id;
+
+    const response = await authedRequest.get(`/api/v1/shelves/arrangement/shelf:${othersShelfId}`);
+    expect(response.status()).toBe(404);
+  });
+});
+
 test.describe('editions and copies (T-014, T-015)', () => {
   test('an edition can only be added to a work already in the library', async ({ authedRequest, request }) => {
     const otherRegister = await request.post('/api/v1/auth/register', {

@@ -42,3 +42,25 @@ export function useRemoveWorkFromShelf() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['works'] }),
   });
 }
+
+export interface ShelfArrangement {
+  tabKey: string;
+  workIds: string[];
+}
+
+// A reader's drag-reorder of one Shelves view, synced so it follows the
+// account across devices — localStorage (shelf-order.ts) stays as the
+// instant-write optimistic cache in front of this.
+export function useShelfArrangement(tabKey: string) {
+  return useQuery({
+    queryKey: ['shelf-arrangement', tabKey],
+    queryFn: () => api.get<ShelfArrangement>(`/shelves/arrangement/${encodeURIComponent(tabKey)}`),
+  });
+}
+
+export function useSaveShelfArrangement() {
+  return useMutation({
+    mutationFn: ({ tabKey, workIds }: ShelfArrangement) =>
+      api.put<ShelfArrangement>(`/shelves/arrangement/${encodeURIComponent(tabKey)}`, { workIds }),
+  });
+}

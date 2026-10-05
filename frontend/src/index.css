@@ -216,6 +216,28 @@
   }
 }
 
+/* Shelves' horizontally-scrolling rack-selector row: Tailwind 3 ships no
+   `scrollbar-thin` utility (that's a plugin, not installed here), so the
+   class the row used to carry was a no-op — it fell back to the browser's
+   unstyled default scrollbar, which matches no part of this palette.
+   `scrollbar-width` is real CSS (Firefox, Chromium 121+); `::-webkit-*`
+   covers older WebKit. Themed from the wood scale, not gray. */
+.scrollbar-wood {
+  scrollbar-width: thin;
+  scrollbar-color: #9c6b3e #25180f;
+}
+.scrollbar-wood::-webkit-scrollbar {
+  height: 6px;
+}
+.scrollbar-wood::-webkit-scrollbar-track {
+  background: #25180f;
+  border-radius: 9999px;
+}
+.scrollbar-wood::-webkit-scrollbar-thumb {
+  background-color: #9c6b3e;
+  border-radius: 9999px;
+}
+
 /* PDF.js Text Layer Styling for Native Text Selection */
 .textLayer {
   position: absolute;
