@@ -1,9 +1,10 @@
 # Bunko — MVP Task Backlog
 
-Tickets for Phases 1-5 (`SRS.md` §36.1). Work top-to-bottom within a
-phase; do not start a later phase until the current one's tickets are
-merged, unless a ticket's "Depends on" field says otherwise. See
-`AGENTS.md` for how to pick up a ticket.
+Tickets for Phases 1-6 (`SRS.md` §36.1; Phase 6 is the first
+fast-follow phase per `IMPLEMENTATION_PLAN.md` §5). Work top-to-bottom
+within a phase; do not start a later phase until the current one's
+tickets are merged, unless a ticket's "Depends on" field says
+otherwise. See `AGENTS.md` for how to pick up a ticket.
 
 Format: **ID — Title** · Depends on · SRS refs, then description and
 acceptance criteria.
@@ -428,6 +429,108 @@ flow diagram in SRS §12.10 exactly (skip must be one tap).
 
 ---
 
+## Phase 6 — Annotations (Fast-Follow v1.1)
+
+Scoped per `IMPLEMENTATION_PLAN.md` §5. The MVP reader already ships a
+localStorage-only highlight/quote UI (`lib/annotations.ts`,
+`AnnotationsDrawer.tsx`) as a stopgap — this phase gives it a real,
+cross-device backend (same class of fix as the Shelves drag-order
+bug) and adds the standalone-note and search capabilities SRS §13
+describes that the stopgap never built. Depends on Phase 4 (reader)
+and Phase 5 (location/structural-ID anchoring), both already shipped.
+
+### T-042 — Annotation & Note data model
+Depends on: T-011, T-032 · SRS: §13, §27
+
+Adds the Highlight/Quote storage (one `Annotation` table with a `kind`
+discriminator — the two share nearly every field per §13.2/§13.3) and
+a separate `Note` table for standalone notes not anchored to a text
+selection (book/chapter/section/page/passage/session-level per
+§13.1). Both were deferred from `DATA_MODEL.md` §5 until now.
+`position` follows the same "opaque string, format depends on medium"
+convention already established by `ReadingSession.startPosition`.
+
+- [ ] `Annotation` model: kind (HIGHLIGHT\|QUOTE), copyId, sessionId?, position, text, color?, note?, tags[]
+- [ ] `Note` model: workId, copyId?, sessionId?, scope enum (BOOK\|CHAPTER\|SECTION\|PAGE\|PASSAGE\|SESSION), position?, body
+- [ ] Prisma migration generated and applied
+- [ ] `DATA_MODEL.md` updated (models moved out of §5's deferred list)
+
+### T-043 — Annotation CRUD API (highlights & quotes)
+Depends on: T-042 · SRS: §13.2, §13.3, §13.4
+
+- [ ] `POST /editions/:editionId/annotations` — resolves the copy from editionId+userId, same ownership pattern as `reader.service.ts`
+- [ ] `GET /editions/:editionId/annotations`
+- [ ] `PATCH /annotations/:id` (note/tags/color)
+- [ ] `DELETE /annotations/:id`
+- [ ] Ownership checked server-side on every route
+- [ ] `openapi.yaml` updated
+- [ ] Integration tests: create, list, update, delete, cross-user isolation
+
+### T-044 — Standalone Note CRUD API
+Depends on: T-042 · SRS: §13.1
+
+- [ ] `POST /works/:workId/notes` — scope required; `position` required unless scope is BOOK or SESSION
+- [ ] `GET /works/:workId/notes`
+- [ ] `PATCH /notes/:id`
+- [ ] `DELETE /notes/:id`
+- [ ] `openapi.yaml` updated
+- [ ] Integration tests
+
+### T-045 — Annotation & note search
+Depends on: T-043, T-044 · SRS: §13 (notes/highlights are only useful if findable at scale)
+
+Postgres full-text search, scoped to the authenticated user's own
+content only. Semantic/pgvector search is explicitly Phase 10 (SRS
+§36.2) — not this ticket.
+
+- [ ] `GET /annotations/search?q=` across the user's highlights, quotes, and notes
+- [ ] `openapi.yaml` updated
+- [ ] Integration tests (correctness and cross-user isolation; relevance ranking is not a requirement here)
+
+### T-046 — Migrate reader highlight/quote UI off localStorage
+Depends on: T-043 · SRS: §13.2, §13.3, §13.4, §6.3 (manual override — edit/delete stays available)
+
+Replaces `lib/annotations.ts`'s localStorage implementation with
+T-043's API in both `FlowReaderPage.tsx` and `ReaderPage.tsx`, so
+highlights/quotes follow the account across devices.
+
+- [ ] `lib/api/annotations.ts` React Query hooks (list/create/update/delete)
+- [ ] `AnnotationsDrawer.tsx` and both readers' `handleSaveHighlight` wired to the API
+- [ ] `lib/annotations.ts` (localStorage) removed once nothing references it
+- [ ] Loading/error/empty states in the drawer
+- [ ] Frontend tests updated; no regression in the create/edit/delete flow
+
+### T-047 — Standalone note UI
+Depends on: T-044 · SRS: §13.1
+
+New UI surface — standalone notes aren't a highlight's margin note
+(T-046 already covers that); this is the book/chapter/session-level
+note §13.1 describes, with no required text selection.
+
+- [ ] "Add note" entry point in the reader (book-level, current-chapter-level) and in the physical session flow (session-level)
+- [ ] Notes list/edit/delete UI
+- [ ] Frontend tests
+
+### T-048 — Annotation search UI
+Depends on: T-045, T-046 · SRS: §13
+
+- [ ] Search box in `AnnotationsDrawer` hitting T-045's endpoint
+- [ ] Empty/no-results state
+- [ ] Frontend tests
+
+### T-049 — Journal integration
+Depends on: T-046, T-047 · SRS: §12.5, §13
+
+Annotations and notes made during a session appear inline in that
+session's journal entry, per the Phase 6 objective in
+`IMPLEMENTATION_PLAN.md` §5.
+
+- [ ] `journal.service.ts` includes each session's linked annotations/notes (via `sessionId`)
+- [ ] `JournalPage.tsx` renders them inline per entry
+- [ ] Backend + frontend tests
+
+---
+
 ## Ticket Count Summary
 
 | Phase | Tickets | Status |
@@ -439,9 +542,10 @@ flow diagram in SRS §12.10 exactly (skip must be one tap).
 | 5 — Unified Reading | T-032 – T-037 + T-037a (7) | **100% Complete** |
 | Cross-cutting Frontend | T-038 – T-041 (4) | **100% Complete** |
 | **Total (MVP)** | **45** | **100% Complete** |
+| 6 — Annotations | T-042 – T-049 (8) | **Not Started** |
 
-Phase 6+ tickets (Annotations, Reviews, Soundtrack, Offline/Sync, AI)
-are intentionally not written yet — see `AGENTS.md` §3. Do not
-pre-create them. When Phase 10 (AI Layer) begins, its tickets will
-scaffold a separate `ai-service/` (Python/FastAPI) per
-`ARCHITECTURE.md` §8 — not a module inside `backend/`.
+Phase 7+ tickets (Reviews, Soundtrack, Offline/Sync, AI) are
+intentionally not written yet — see `AGENTS.md` §3. Do not pre-create
+them. When Phase 10 (AI Layer) begins, its tickets will scaffold a
+separate `ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not
+a module inside `backend/`.
