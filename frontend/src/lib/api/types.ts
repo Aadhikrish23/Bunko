@@ -94,6 +94,11 @@ export interface ReadingSession {
   reflection: string | null;
 }
 
+export interface JournalEntry extends ReadingSession {
+  annotations: Annotation[];
+  notes: Note[];
+}
+
 export interface ReaderManifest {
   fileUrl: string;
   format: 'EPUB' | 'PDF';

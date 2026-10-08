@@ -1,6 +1,13 @@
 import { prisma } from '../../config/prisma';
+import { toAnnotationDto, type AnnotationDto } from '../annotations/annotations.service';
+import { toNoteDto, type NoteDto } from '../notes/notes.service';
 import type { SessionDto } from '../reading-sessions/reading-sessions.service';
 import type { ListJournalQuery } from './journal.schema';
+
+export interface JournalEntryDto extends SessionDto {
+  annotations: AnnotationDto[];
+  notes: NoteDto[];
+}
 
 function toSessionDto(session: {
   id: string;
@@ -28,10 +35,16 @@ function toSessionDto(session: {
 // sessions only; Active/Paused sessions aren't history yet. Multiple
 // sessions for the same book on the same day are kept as separate
 // entries, never merged (SRS §12.11) — this is simply never done here.
+//
+// T-049: each entry also carries the annotations/notes made *during*
+// that session (linked via sessionId at creation time — see
+// annotations.service.ts / notes.service.ts) so the journal reads as a
+// record of what was actually captured while reading, not just
+// start/end timestamps.
 export async function listJournal(
   userId: string,
   query: ListJournalQuery,
-): Promise<{ items: SessionDto[]; total: number }> {
+): Promise<{ items: JournalEntryDto[]; total: number }> {
   const where = {
     userId,
     status: 'ENDED' as const,
@@ -48,5 +61,21 @@ export async function listJournal(
     prisma.readingSession.count({ where }),
   ]);
 
-  return { items: rows.map(toSessionDto), total };
+  const sessionIds = rows.map((row) => row.id);
+  const [annotationRows, noteRows] = await Promise.all([
+    sessionIds.length
+      ? prisma.annotation.findMany({ where: { userId, sessionId: { in: sessionIds } } })
+      : Promise.resolve([]),
+    sessionIds.length
+      ? prisma.note.findMany({ where: { userId, sessionId: { in: sessionIds } } })
+      : Promise.resolve([]),
+  ]);
+
+  const items = rows.map((row) => ({
+    ...toSessionDto(row),
+    annotations: annotationRows.filter((a) => a.sessionId === row.id).map(toAnnotationDto),
+    notes: noteRows.filter((n) => n.sessionId === row.id).map(toNoteDto),
+  }));
+
+  return { items, total };
 }

@@ -15,7 +15,7 @@ export interface NoteDto {
   updatedAt: Date;
 }
 
-function toDto(note: Note): NoteDto {
+export function toNoteDto(note: Note): NoteDto {
   return {
     id: note.id,
     workId: note.workId,
@@ -49,7 +49,7 @@ async function requireOwnNote(userId: string, id: string): Promise<Note> {
 export async function listNotes(userId: string, workId: string): Promise<NoteDto[]> {
   await requireOwnWork(userId, workId);
   const rows = await prisma.note.findMany({ where: { workId, userId }, orderBy: { createdAt: 'desc' } });
-  return rows.map(toDto);
+  return rows.map(toNoteDto);
 }
 
 export async function createNote(userId: string, workId: string, input: CreateNoteInput): Promise<NoteDto> {
@@ -84,13 +84,13 @@ export async function createNote(userId: string, workId: string, input: CreateNo
       body: input.body,
     },
   });
-  return toDto(note);
+  return toNoteDto(note);
 }
 
 export async function updateNote(userId: string, id: string, input: UpdateNoteInput): Promise<NoteDto> {
   await requireOwnNote(userId, id);
   const updated = await prisma.note.update({ where: { id }, data: { body: input.body } });
-  return toDto(updated);
+  return toNoteDto(updated);
 }
 
 export async function deleteNote(userId: string, id: string): Promise<void> {

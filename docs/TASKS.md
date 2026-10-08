@@ -525,9 +525,9 @@ Annotations and notes made during a session appear inline in that
 session's journal entry, per the Phase 6 objective in
 `IMPLEMENTATION_PLAN.md` §5.
 
-- [ ] `journal.service.ts` includes each session's linked annotations/notes (via `sessionId`)
-- [ ] `JournalPage.tsx` renders them inline per entry
-- [ ] Backend + frontend tests
+- [x] `journal.service.ts` includes each session's linked annotations/notes (via `sessionId`)
+- [x] `JournalPage.tsx` renders them inline per entry
+- [x] Backend + frontend tests
 
 ---
 
@@ -542,7 +542,7 @@ session's journal entry, per the Phase 6 objective in
 | 5 — Unified Reading | T-032 – T-037 + T-037a (7) | **100% Complete** |
 | Cross-cutting Frontend | T-038 – T-041 (4) | **100% Complete** |
 | **Total (MVP)** | **45** | **100% Complete** |
-| 6 — Annotations | T-042 – T-049 (8) | **Not Started** |
+| 6 — Annotations | T-042 – T-049 (8) | **100% Complete** |
 
 Phase 7+ tickets (Reviews, Soundtrack, Offline/Sync, AI) are
 intentionally not written yet — see `AGENTS.md` §3. Do not pre-create

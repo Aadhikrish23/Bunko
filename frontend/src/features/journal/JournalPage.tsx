@@ -1,4 +1,4 @@
-import { NotebookPen } from 'lucide-react';
+import { Highlighter, NotebookPen, Quote, StickyNote } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
@@ -47,6 +47,34 @@ export function JournalPage() {
                   )}
                 </p>
                 {entry.reflection && <p className="mt-1 text-sm italic text-paper-600">“{entry.reflection}”</p>}
+
+                {(entry.annotations.length > 0 || entry.notes.length > 0) && (
+                  <ul className="mt-2 flex flex-col gap-1.5">
+                    {entry.annotations.map((annotation) => (
+                      <li
+                        key={annotation.id}
+                        className="flex items-start gap-1.5 rounded-md border border-paper-200 bg-paper-100/60 p-2 text-xs text-paper-800"
+                      >
+                        {annotation.kind === 'QUOTE' ? (
+                          <Quote className="mt-0.5 h-3 w-3 shrink-0 text-paper-500" />
+                        ) : (
+                          <Highlighter className="mt-0.5 h-3 w-3 shrink-0 text-paper-500" />
+                        )}
+                        <span className="italic">&quot;{annotation.text}&quot;</span>
+                        {annotation.note && <span className="text-paper-600"> — {annotation.note}</span>}
+                      </li>
+                    ))}
+                    {entry.notes.map((note) => (
+                      <li
+                        key={note.id}
+                        className="flex items-start gap-1.5 rounded-md border border-moss-200 bg-moss-50/60 p-2 text-xs text-paper-800"
+                      >
+                        <StickyNote className="mt-0.5 h-3 w-3 shrink-0 text-moss-600" />
+                        <span>{note.body}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </li>
           ))}

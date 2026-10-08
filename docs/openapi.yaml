@@ -809,7 +809,7 @@ paths:
                 properties:
                   data:
                     type: array
-                    items: { $ref: "#/components/schemas/ReadingSessionResponse" }
+                    items: { $ref: "#/components/schemas/JournalEntry" }
 
   /statistics:
     get:
@@ -1203,3 +1203,24 @@ components:
             startPosition: { type: string, nullable: true }
             endPosition: { type: string, nullable: true }
             reflection: { type: string, nullable: true }
+
+    # T-049: a journal entry is a session plus the annotations/notes
+    # made during it (linked via sessionId) — distinct from
+    # ReadingSessionResponse's bare session shape above.
+    JournalEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/SessionStatus" }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time, nullable: true }
+        durationSeconds: { type: integer, nullable: true }
+        startPosition: { type: string, nullable: true }
+        endPosition: { type: string, nullable: true }
+        reflection: { type: string, nullable: true }
+        annotations:
+          type: array
+          items: { $ref: "#/components/schemas/Annotation" }
+        notes:
+          type: array
+          items: { $ref: "#/components/schemas/Note" }

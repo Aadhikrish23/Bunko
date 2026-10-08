@@ -17,7 +17,7 @@ export interface AnnotationDto {
   updatedAt: Date;
 }
 
-function toDto(annotation: Annotation): AnnotationDto {
+export function toAnnotationDto(annotation: Annotation): AnnotationDto {
   return {
     id: annotation.id,
     copyId: annotation.copyId,
@@ -61,7 +61,7 @@ export async function listAnnotations(userId: string, editionId: string): Promis
     where: { copyId: copy.id, userId },
     orderBy: { createdAt: 'desc' },
   });
-  return rows.map(toDto);
+  return rows.map(toAnnotationDto);
 }
 
 export async function createAnnotation(
@@ -94,7 +94,7 @@ export async function createAnnotation(
       tags: input.tags ?? [],
     },
   });
-  return toDto(annotation);
+  return toAnnotationDto(annotation);
 }
 
 export async function updateAnnotation(
@@ -111,7 +111,7 @@ export async function updateAnnotation(
       ...(input.tags !== undefined ? { tags: input.tags } : {}),
     },
   });
-  return toDto(updated);
+  return toAnnotationDto(updated);
 }
 
 export async function deleteAnnotation(userId: string, id: string): Promise<void> {
