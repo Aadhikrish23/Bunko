@@ -593,6 +593,31 @@ paths:
                   data: { $ref: "#/components/schemas/Annotation" }
         "404": { description: No digital copy of this edition, or sessionId not owned by caller }
 
+  /annotations/search:
+    get:
+      summary: Full-text search across the caller's own highlights, quotes, and notes (SRS §13)
+      description: >-
+        Postgres full-text search (to_tsvector/plainto_tsquery), scoped
+        to the authenticated user only. Relevance ranking is not
+        guaranteed, results are newest-first. Semantic/pgvector search
+        is Phase 10, not this.
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        "200":
+          description: Matching annotations and notes, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/SearchResult" }
+
   /annotations/{id}:
     patch:
       summary: Update a highlight/quote's note, color, or tags
@@ -890,6 +915,16 @@ components:
         body: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    SearchResult:
+      type: object
+      properties:
+        type: { type: string, enum: [ANNOTATION, NOTE] }
+        id: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        editionId: { type: string, format: uuid, nullable: true }
+        excerpt: { type: string }
+        createdAt: { type: string, format: date-time }
 
     ShelfArrangementResponse:
       type: object

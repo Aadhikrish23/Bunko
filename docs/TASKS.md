@@ -483,9 +483,9 @@ Postgres full-text search, scoped to the authenticated user's own
 content only. Semantic/pgvector search is explicitly Phase 10 (SRS
 §36.2) — not this ticket.
 
-- [ ] `GET /annotations/search?q=` across the user's highlights, quotes, and notes
-- [ ] `openapi.yaml` updated
-- [ ] Integration tests (correctness and cross-user isolation; relevance ranking is not a requirement here)
+- [x] `GET /annotations/search?q=` across the user's highlights, quotes, and notes
+- [x] `openapi.yaml` updated
+- [x] Integration tests (correctness and cross-user isolation; relevance ranking is not a requirement here)
 
 ### T-046 — Migrate reader highlight/quote UI off localStorage
 Depends on: T-043 · SRS: §13.2, §13.3, §13.4, §6.3 (manual override — edit/delete stays available)

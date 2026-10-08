@@ -2,7 +2,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { requireUserId } from '../../lib/require-user';
 import { sendOk } from '../../lib/response';
 import * as annotationsService from './annotations.service';
-import type { CreateAnnotationInput, UpdateAnnotationInput } from './annotations.schema';
+import { searchAnnotationsAndNotes } from './search.service';
+import type { CreateAnnotationInput, SearchAnnotationsQuery, UpdateAnnotationInput } from './annotations.schema';
 
 export async function listAnnotationsHandler(
   req: Request<{ editionId: string }>,
@@ -35,6 +36,18 @@ export async function updateAnnotationHandler(
 ): Promise<void> {
   try {
     sendOk(res, await annotationsService.updateAnnotation(requireUserId(req), req.params.id, req.body));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function searchAnnotationsHandler(
+  req: Request<unknown, unknown, unknown, SearchAnnotationsQuery>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    sendOk(res, await searchAnnotationsAndNotes(requireUserId(req), req.query.q));
   } catch (err) {
     next(err);
   }

@@ -35,5 +35,12 @@ export const updateAnnotationSchema = z
   })
   .strict();
 
+export const searchAnnotationsSchema = z
+  .object({
+    q: z.string().min(1).max(200),
+  })
+  .strict();
+
 export type CreateAnnotationInput = z.infer<typeof createAnnotationSchema>;
 export type UpdateAnnotationInput = z.infer<typeof updateAnnotationSchema>;
+export type SearchAnnotationsQuery = z.infer<typeof searchAnnotationsSchema>;
