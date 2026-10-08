@@ -469,12 +469,12 @@ Depends on: T-042 · SRS: §13.2, §13.3, §13.4
 ### T-044 — Standalone Note CRUD API
 Depends on: T-042 · SRS: §13.1
 
-- [ ] `POST /works/:workId/notes` — scope required; `position` required unless scope is BOOK or SESSION
-- [ ] `GET /works/:workId/notes`
-- [ ] `PATCH /notes/:id`
-- [ ] `DELETE /notes/:id`
-- [ ] `openapi.yaml` updated
-- [ ] Integration tests
+- [x] `POST /works/:workId/notes` — scope required; `position` required unless scope is BOOK or SESSION
+- [x] `GET /works/:workId/notes`
+- [x] `PATCH /notes/:id`
+- [x] `DELETE /notes/:id`
+- [x] `openapi.yaml` updated
+- [x] Integration tests
 
 ### T-045 — Annotation & note search
 Depends on: T-043, T-044 · SRS: §13 (notes/highlights are only useful if findable at scale)

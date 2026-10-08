@@ -445,6 +445,101 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ChaptersResponse" }
 
+  /works/{workId}/notes:
+    get:
+      summary: List the caller's standalone notes for a work (SRS §13.1)
+      description: >-
+        Not a highlight's margin note (see /annotations) — a note with
+        no required text selection: book-level, chapter/section/page/
+        passage-level (edition-specific, carries copyId), or
+        session-level.
+      parameters:
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The caller's notes for this work
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Note" }
+        "404": { description: Work not found in the caller's library }
+    post:
+      summary: Create a standalone note
+      parameters:
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope, body]
+              properties:
+                scope: { type: string, enum: [BOOK, CHAPTER, SECTION, PAGE, PASSAGE, SESSION] }
+                position:
+                  type: string
+                  nullable: true
+                  description: Required for CHAPTER/SECTION/PAGE/PASSAGE; omit for BOOK/SESSION.
+                copyId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Required for CHAPTER/SECTION/PAGE/PASSAGE (the anchor is edition-specific).
+                sessionId: { type: string, format: uuid, nullable: true }
+                body: { type: string, maxLength: 10000 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Note" }
+        "404": { description: Work, copy, or session not found/owned by caller }
+
+  /notes/{id}:
+    patch:
+      summary: Update a note's body
+      parameters:
+        - $ref: "#/components/parameters/NoteId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, maxLength: 10000 }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Note" }
+        "404": { description: Not found or not owned by caller }
+    delete:
+      summary: Delete a note
+      parameters:
+        - $ref: "#/components/parameters/NoteId"
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not found or not owned by caller }
+
   /editions/{editionId}/annotations:
     get:
       summary: List the caller's highlights and quotes for an edition (SRS §13.2, §13.3)
@@ -743,6 +838,12 @@ components:
       required: true
       schema: { type: string, format: uuid }
 
+    NoteId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+
     TabKey:
       in: path
       name: tabKey
@@ -774,6 +875,19 @@ components:
         color: { type: string, nullable: true }
         note: { type: string, nullable: true }
         tags: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Note:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        copyId: { type: string, format: uuid, nullable: true }
+        sessionId: { type: string, format: uuid, nullable: true }
+        scope: { type: string, enum: [BOOK, CHAPTER, SECTION, PAGE, PASSAGE, SESSION] }
+        position: { type: string, nullable: true }
+        body: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
