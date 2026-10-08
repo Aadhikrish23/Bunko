@@ -19,6 +19,7 @@ import { statisticsRouter } from './modules/statistics/statistics.routes';
 import { filesRouter } from './modules/files/files.routes';
 import { readerRouter } from './modules/reader/reader.routes';
 import { continuityRouter } from './modules/continuity/continuity.routes';
+import { annotationsForEditionRouter, annotationsRouter } from './modules/annotations/annotations.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -59,6 +60,8 @@ export function createApp(): Express {
   app.use('/api/v1/metadata', metadataRouter);
   app.use('/api/v1/editions', editionsRouter);
   app.use('/api/v1/editions', readerRouter);
+  app.use('/api/v1/editions', annotationsForEditionRouter);
+  app.use('/api/v1/annotations', annotationsRouter);
   app.use('/api/v1/copies', copiesRouter);
   app.use('/api/v1/shelves', shelvesRouter);
   app.use('/api/v1/reading-sessions', readingSessionsRouter);

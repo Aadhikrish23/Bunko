@@ -458,13 +458,13 @@ convention already established by `ReadingSession.startPosition`.
 ### T-043 — Annotation CRUD API (highlights & quotes)
 Depends on: T-042 · SRS: §13.2, §13.3, §13.4
 
-- [ ] `POST /editions/:editionId/annotations` — resolves the copy from editionId+userId, same ownership pattern as `reader.service.ts`
-- [ ] `GET /editions/:editionId/annotations`
-- [ ] `PATCH /annotations/:id` (note/tags/color)
-- [ ] `DELETE /annotations/:id`
-- [ ] Ownership checked server-side on every route
-- [ ] `openapi.yaml` updated
-- [ ] Integration tests: create, list, update, delete, cross-user isolation
+- [x] `POST /editions/:editionId/annotations` — resolves the copy from editionId+userId, same ownership pattern as `reader.service.ts`
+- [x] `GET /editions/:editionId/annotations`
+- [x] `PATCH /annotations/:id` (note/tags/color)
+- [x] `DELETE /annotations/:id`
+- [x] Ownership checked server-side on every route
+- [x] `openapi.yaml` updated
+- [x] Integration tests: create, list, update, delete, cross-user isolation
 
 ### T-044 — Standalone Note CRUD API
 Depends on: T-042 · SRS: §13.1

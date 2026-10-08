@@ -445,6 +445,92 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ChaptersResponse" }
 
+  /editions/{editionId}/annotations:
+    get:
+      summary: List the caller's highlights and quotes for an edition (SRS §13.2, §13.3)
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The caller's annotations for their copy of this edition
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Annotation" }
+        "404": { description: No digital copy of this edition in the caller's library }
+    post:
+      summary: Create a highlight or quote
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, position, text]
+              properties:
+                kind: { type: string, enum: [HIGHLIGHT, QUOTE] }
+                position: { type: string, description: "structuralId/CFI/page — format depends on medium" }
+                text: { type: string, maxLength: 10000 }
+                color: { type: string, nullable: true }
+                note: { type: string, maxLength: 5000, nullable: true }
+                tags: { type: array, items: { type: string }, maxItems: 20 }
+                sessionId: { type: string, format: uuid, nullable: true }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Annotation" }
+        "404": { description: No digital copy of this edition, or sessionId not owned by caller }
+
+  /annotations/{id}:
+    patch:
+      summary: Update a highlight/quote's note, color, or tags
+      parameters:
+        - $ref: "#/components/parameters/AnnotationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string, maxLength: 5000, nullable: true }
+                color: { type: string, nullable: true }
+                tags: { type: array, items: { type: string }, maxItems: 20 }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Annotation" }
+        "404": { description: Not found or not owned by caller }
+    delete:
+      summary: Delete a highlight/quote
+      parameters:
+        - $ref: "#/components/parameters/AnnotationId"
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not found or not owned by caller }
+
   /reading-journeys/{journeyId}/resolve-position:
     post:
       summary: Resolve the canonical position into a target edition's location
@@ -651,6 +737,12 @@ components:
       required: true
       schema: { type: string, format: uuid }
 
+    AnnotationId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+
     TabKey:
       in: path
       name: tabKey
@@ -669,6 +761,21 @@ components:
           properties:
             id: { type: string, format: uuid }
             name: { type: string }
+
+    Annotation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        copyId: { type: string, format: uuid }
+        sessionId: { type: string, format: uuid, nullable: true }
+        kind: { type: string, enum: [HIGHLIGHT, QUOTE] }
+        position: { type: string }
+        text: { type: string }
+        color: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        tags: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
 
     ShelfArrangementResponse:
       type: object
