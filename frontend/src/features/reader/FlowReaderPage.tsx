@@ -928,6 +928,7 @@ export function FlowReaderPage() {
 
       {showAnnotationsDrawer && (
         <AnnotationsDrawer
+          editionId={editionId}
           annotations={annotations}
           isLoading={annotationsQuery.isLoading}
           isError={annotationsQuery.isError}

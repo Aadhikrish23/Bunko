@@ -1,9 +1,12 @@
-import { Highlighter, Quote, Trash2, X, MessageSquare } from 'lucide-react';
+import { Highlighter, Quote, Search, StickyNote, Trash2, X, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
+import { useSearchAnnotations } from '../../lib/api/annotations';
 import type { Annotation } from '../../lib/api/types';
 import { COLOR_HEX_MAP, type HighlightColor } from '../../lib/annotation-colors';
+import { useDebouncedCallback } from '../../lib/use-debounced-callback';
 
 interface AnnotationsDrawerProps {
+  editionId: string;
   annotations: Annotation[];
   isLoading?: boolean;
   isError?: boolean;
@@ -14,6 +17,7 @@ interface AnnotationsDrawerProps {
 }
 
 export function AnnotationsDrawer({
+  editionId,
   annotations,
   isLoading = false,
   isError = false,
@@ -25,6 +29,11 @@ export function AnnotationsDrawer({
   const [tab, setTab] = useState<'all' | 'quotes'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNoteText, setEditNoteText] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSetSearchQuery = useDebouncedCallback(setSearchQuery, 300);
+  const isSearching = searchQuery.trim().length > 0;
+  const searchResults = useSearchAnnotations(searchQuery);
 
   const filtered = tab === 'quotes' ? annotations.filter((a) => a.kind === 'QUOTE') : annotations;
 
@@ -42,33 +51,97 @@ export function AnnotationsDrawer({
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="mt-3 flex rounded-lg border border-paper-200 bg-paper-100 p-1 text-xs">
-        <button
-          type="button"
-          onClick={() => setTab('all')}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 font-semibold transition-all ${
-            tab === 'all' ? 'bg-paper-50 font-bold text-paper-900 shadow-sm' : 'text-paper-600 hover:text-paper-900'
-          }`}
-        >
-          <Highlighter className="h-3.5 w-3.5" />
-          <span>All Highlights ({annotations.length})</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('quotes')}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 font-semibold transition-all ${
-            tab === 'quotes' ? 'bg-paper-50 font-bold text-paper-900 shadow-sm' : 'text-paper-600 hover:text-paper-900'
-          }`}
-        >
-          <Quote className="h-3.5 w-3.5" />
-          <span>Saved Quotes ({annotations.filter((a) => a.kind === 'QUOTE').length})</span>
-        </button>
+      {/* Search */}
+      <div className="relative mt-3">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-paper-400" />
+        <input
+          type="search"
+          value={searchInput}
+          onChange={(e) => {
+            setSearchInput(e.target.value);
+            debouncedSetSearchQuery(e.target.value);
+          }}
+          placeholder="Search your highlights, quotes & notes…"
+          className="w-full rounded-lg border border-paper-200 bg-paper-100 py-1.5 pl-8 pr-2 text-xs text-paper-900 focus:border-moss-600 focus:outline-none"
+        />
       </div>
+
+      {/* Tabs */}
+      {!isSearching && (
+        <div className="mt-3 flex rounded-lg border border-paper-200 bg-paper-100 p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setTab('all')}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 font-semibold transition-all ${
+              tab === 'all' ? 'bg-paper-50 font-bold text-paper-900 shadow-sm' : 'text-paper-600 hover:text-paper-900'
+            }`}
+          >
+            <Highlighter className="h-3.5 w-3.5" />
+            <span>All Highlights ({annotations.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('quotes')}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 font-semibold transition-all ${
+              tab === 'quotes' ? 'bg-paper-50 font-bold text-paper-900 shadow-sm' : 'text-paper-600 hover:text-paper-900'
+            }`}
+          >
+            <Quote className="h-3.5 w-3.5" />
+            <span>Saved Quotes ({annotations.filter((a) => a.kind === 'QUOTE').length})</span>
+          </button>
+        </div>
+      )}
 
       {/* Content List */}
       <div className="mt-4 flex-1 overflow-y-auto">
-        {isLoading ? (
+        {isSearching ? (
+          searchResults.isLoading ? (
+            <div className="py-12 text-center text-xs text-paper-700">Searching…</div>
+          ) : searchResults.isError ? (
+            <div className="py-12 text-center text-xs text-red-700">Search failed. Please try again.</div>
+          ) : !searchResults.data || searchResults.data.length === 0 ? (
+            <div className="py-12 text-center text-xs text-paper-700">
+              No results for &quot;{searchQuery}&quot;.
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {searchResults.data.map((result) => {
+                const localMatch =
+                  result.editionId === editionId ? annotations.find((a) => a.id === result.id) : undefined;
+                return (
+                  <li
+                    key={`${result.type}-${result.id}`}
+                    className="rounded-lg border border-paper-200 bg-paper-100/70 p-3"
+                  >
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1 rounded bg-paper-200 px-1.5 py-0.5 text-[10px] font-bold text-paper-700">
+                        {result.type === 'NOTE' ? (
+                          <StickyNote className="h-2.5 w-2.5" />
+                        ) : (
+                          <Highlighter className="h-2.5 w-2.5" />
+                        )}
+                        {result.type === 'NOTE' ? 'Note' : 'Highlight'}
+                      </span>
+                      {localMatch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectAnnotation(localMatch.position);
+                            onClose();
+                          }}
+                          className="text-[11px] font-medium text-moss-700 hover:underline"
+                        >
+                          Jump to spot
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-paper-900 leading-relaxed">{result.excerpt}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        ) : isLoading ? (
           <div className="py-12 text-center text-xs text-paper-700">Loading your highlights…</div>
         ) : isError ? (
           <div className="py-12 text-center text-xs text-red-700">

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { Annotation, AnnotationKind } from './types';
+import type { Annotation, AnnotationKind, SearchResult } from './types';
 
 export interface CreateAnnotationInput {
   kind: AnnotationKind;
@@ -46,5 +46,13 @@ export function useDeleteAnnotation(editionId: string | undefined) {
   return useMutation({
     mutationFn: (id: string) => api.delete(`/annotations/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['annotations', editionId] }),
+  });
+}
+
+export function useSearchAnnotations(q: string) {
+  return useQuery({
+    queryKey: ['annotations-search', q],
+    queryFn: () => api.get<SearchResult[]>('/annotations/search', { q }),
+    enabled: q.trim().length > 0,
   });
 }

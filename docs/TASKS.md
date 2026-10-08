@@ -514,9 +514,9 @@ note §13.1 describes, with no required text selection.
 ### T-048 — Annotation search UI
 Depends on: T-045, T-046 · SRS: §13
 
-- [ ] Search box in `AnnotationsDrawer` hitting T-045's endpoint
-- [ ] Empty/no-results state
-- [ ] Frontend tests
+- [x] Search box in `AnnotationsDrawer` hitting T-045's endpoint
+- [x] Empty/no-results state
+- [x] Frontend tests
 
 ### T-049 — Journal integration
 Depends on: T-046, T-047 · SRS: §12.5, §13
