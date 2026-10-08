@@ -217,6 +217,76 @@ enum SessionStatus {
   ENDED
 }
 
+// SRS §13.2/§13.3 — a Highlight and a Quote share nearly every field
+// (selected text, location, chapter/position, creation time); `kind`
+// is the one thing that actually differs in how they're used, so one
+// table with a discriminator avoids duplicating the other nine. Not a
+// standalone Note (below) — always anchored to a text selection
+// inside one specific copy.
+model Annotation {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  copyId    String
+  copy      Copy            @relation(fields: [copyId], references: [id])
+  sessionId String?
+  session   ReadingSession? @relation(fields: [sessionId], references: [id])
+
+  kind     AnnotationKind
+  position String // structuralId/CFI/page — format depends on medium, same convention as ReadingSession.startPosition
+  text     String // exact selected source text (SRS §13.4)
+  color    String? // highlight colour/category (§13.2); quotes may omit
+  note     String? // margin note (highlight) / comment (quote) — §13.2/§13.3 name these differently, same field
+  tags     String[] // quote tags (§13.3); empty for highlights
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, copyId])
+  @@index([sessionId])
+}
+
+enum AnnotationKind {
+  HIGHLIGHT
+  QUOTE
+}
+
+// SRS §13.1 — a standalone note, NOT anchored to a text selection
+// (that's Annotation above). Scope decides what's required: BOOK and
+// SESSION notes have no position; CHAPTER/SECTION/PAGE/PASSAGE do.
+// workId is always set (even a SESSION-scoped note is about a work),
+// so "my notes on this book" works regardless of edition.
+model Note {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  workId    String
+  work      Work            @relation(fields: [workId], references: [id])
+  copyId    String? // set for CHAPTER/SECTION/PAGE/PASSAGE; null for BOOK/SESSION
+  copy      Copy?           @relation(fields: [copyId], references: [id])
+  sessionId String?
+  session   ReadingSession? @relation(fields: [sessionId], references: [id])
+
+  scope    NoteScope
+  position String? // null for BOOK/SESSION scope; structuralId/page for the others
+  body     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, workId])
+  @@index([sessionId])
+}
+
+enum NoteScope {
+  BOOK
+  CHAPTER
+  SECTION
+  PAGE
+  PASSAGE
+  SESSION
+}
+
 // SRS §15 — Shelves/collections
 model Shelf {
   id     String @id @default(uuid())
@@ -269,6 +339,11 @@ User N --- N Work        (via UserWork)
 User N --- N Shelf        (via ShelfWork/UserWork)
 User 1 --- N ShelfArrangement
 Copy 1 --- 0..1 DigitalFile
+Copy 1 --- N Annotation
+Copy 1 --- N Note
+Work 1 --- N Note
+ReadingSession 1 --- N Annotation
+ReadingSession 1 --- N Note
 ReadingJourney 1 --- 0..1 ReadingPosition (canonical position)
 ```
 
@@ -291,11 +366,15 @@ is deliberately nullable and non-unique-alone:
   `Edition` rows from user input without cross-referencing the
   provider's own edition data.
 
-## 5. Deferred to Phase 6+ (do not create yet)
+## 5. Deferred to Phase 7+ (do not create yet)
 
-- `Highlight`, `Quote`, standalone `Note` with location anchoring
+`Annotation` (Highlight/Quote) and `Note` shipped in Phase 6 — see §2
+above.
+
 - `Review`, `Rating`
-- `Tag`, `BookTag` (MVP uses `Shelf` only; tags are Phase 6/7 polish)
+- `Tag`, `BookTag` (MVP uses `Shelf` only; tags are Phase 6/7 polish —
+  `Annotation.tags` on quotes is the one Phase 6 exception, scoped to
+  quotes specifically per SRS §13.3, not a general tagging system)
 - `Soundtrack`, `SoundtrackMapping`
 - `DeviceSession`, `SyncEvent` (offline/sync, Phase 9)
 

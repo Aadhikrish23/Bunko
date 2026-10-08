@@ -450,10 +450,10 @@ selection (book/chapter/section/page/passage/session-level per
 `position` follows the same "opaque string, format depends on medium"
 convention already established by `ReadingSession.startPosition`.
 
-- [ ] `Annotation` model: kind (HIGHLIGHT\|QUOTE), copyId, sessionId?, position, text, color?, note?, tags[]
-- [ ] `Note` model: workId, copyId?, sessionId?, scope enum (BOOK\|CHAPTER\|SECTION\|PAGE\|PASSAGE\|SESSION), position?, body
-- [ ] Prisma migration generated and applied
-- [ ] `DATA_MODEL.md` updated (models moved out of §5's deferred list)
+- [x] `Annotation` model: kind (HIGHLIGHT\|QUOTE), copyId, sessionId?, position, text, color?, note?, tags[]
+- [x] `Note` model: workId, copyId?, sessionId?, scope enum (BOOK\|CHAPTER\|SECTION\|PAGE\|PASSAGE\|SESSION), position?, body
+- [x] Prisma migration generated and applied
+- [x] `DATA_MODEL.md` updated (models moved out of §5's deferred list)
 
 ### T-043 — Annotation CRUD API (highlights & quotes)
 Depends on: T-042 · SRS: §13.2, §13.3, §13.4

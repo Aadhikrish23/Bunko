@@ -29,6 +29,8 @@ model User {
   readingJourneys   ReadingJourney[]
   copies            Copy[]
   sessions          ReadingSession[]
+  annotations       Annotation[]
+  notes             Note[]
 }
 
 model Author {
@@ -63,6 +65,7 @@ model Work {
   authors  WorkAuthor[]
   editions Edition[]
   users    UserWork[]
+  notes    Note[]
 
   @@unique([externalSource, externalId])
 }
@@ -138,7 +141,9 @@ model Copy {
   digitalFile   DigitalFile? @relation(fields: [digitalFileId], references: [id])
   acquiredAt    DateTime     @default(now())
 
-  sessions ReadingSession[]
+  sessions    ReadingSession[]
+  annotations Annotation[]
+  notes       Note[]
 }
 
 model DigitalFile {
@@ -204,6 +209,9 @@ model ReadingSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  annotations Annotation[]
+  notes       Note[]
+
   @@index([userId, startTime])
 }
 
@@ -211,6 +219,76 @@ enum SessionStatus {
   ACTIVE
   PAUSED
   ENDED
+}
+
+// SRS §13.2/§13.3 — a Highlight and a Quote share nearly every field
+// (selected text, location, chapter/position, creation time); `kind`
+// is the one thing that actually differs in how they're used, so one
+// table with a discriminator avoids duplicating the other nine. Not a
+// standalone Note (see below) — always anchored to a text selection
+// inside one specific copy.
+model Annotation {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  copyId    String
+  copy      Copy            @relation(fields: [copyId], references: [id])
+  sessionId String?
+  session   ReadingSession? @relation(fields: [sessionId], references: [id])
+
+  kind     AnnotationKind
+  position String // structuralId/CFI/page — format depends on medium, same convention as ReadingSession.startPosition
+  text     String // exact selected source text (SRS §13.4 — kept visually distinct from user content in the UI)
+  color    String? // highlight colour/category (§13.2); quotes may omit
+  note     String? // margin note (highlight) / comment (quote) — §13.2/§13.3 name these differently, same field
+  tags     String[] // quote tags (§13.3); empty for highlights
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, copyId])
+  @@index([sessionId])
+}
+
+enum AnnotationKind {
+  HIGHLIGHT
+  QUOTE
+}
+
+// SRS §13.1 — a standalone note, NOT anchored to a text selection
+// (that's Annotation above). Scope decides what's required: BOOK and
+// SESSION notes have no position; CHAPTER/SECTION/PAGE/PASSAGE do.
+// workId is always set (even a SESSION-scoped note is about a work),
+// so "my notes on this book" works regardless of edition.
+model Note {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  workId    String
+  work      Work            @relation(fields: [workId], references: [id])
+  copyId    String? // set for CHAPTER/SECTION/PAGE/PASSAGE (edition-specific anchors); null for BOOK/SESSION
+  copy      Copy?           @relation(fields: [copyId], references: [id])
+  sessionId String?
+  session   ReadingSession? @relation(fields: [sessionId], references: [id])
+
+  scope    NoteScope
+  position String? // null for BOOK/SESSION scope; structuralId/page for the others
+  body     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, workId])
+  @@index([sessionId])
+}
+
+enum NoteScope {
+  BOOK
+  CHAPTER
+  SECTION
+  PAGE
+  PASSAGE
+  SESSION
 }
 
 // SRS §15 — Shelves/collections
