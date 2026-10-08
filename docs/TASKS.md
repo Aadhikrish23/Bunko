@@ -494,11 +494,11 @@ Replaces `lib/annotations.ts`'s localStorage implementation with
 T-043's API in both `FlowReaderPage.tsx` and `ReaderPage.tsx`, so
 highlights/quotes follow the account across devices.
 
-- [ ] `lib/api/annotations.ts` React Query hooks (list/create/update/delete)
-- [ ] `AnnotationsDrawer.tsx` and both readers' `handleSaveHighlight` wired to the API
-- [ ] `lib/annotations.ts` (localStorage) removed once nothing references it
-- [ ] Loading/error/empty states in the drawer
-- [ ] Frontend tests updated; no regression in the create/edit/delete flow
+- [x] `lib/api/annotations.ts` React Query hooks (list/create/update/delete)
+- [x] `AnnotationsDrawer.tsx` and both readers' `handleSaveHighlight` wired to the API
+- [x] `lib/annotations.ts` (localStorage) removed once nothing references it
+- [x] Loading/error/empty states in the drawer
+- [x] Frontend tests updated; no regression in the create/edit/delete flow
 
 ### T-047 — Standalone note UI
 Depends on: T-044 · SRS: §13.1

@@ -1,10 +1,12 @@
 import { Highlighter, Quote, Trash2, X, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
-import type { HighlightAnnotation } from '../../lib/annotations';
-import { COLOR_HEX_MAP } from '../../lib/annotations';
+import type { Annotation } from '../../lib/api/types';
+import { COLOR_HEX_MAP, type HighlightColor } from '../../lib/annotation-colors';
 
 interface AnnotationsDrawerProps {
-  annotations: HighlightAnnotation[];
+  annotations: Annotation[];
+  isLoading?: boolean;
+  isError?: boolean;
   onSelectAnnotation: (position: string) => void;
   onRemoveAnnotation: (id: string) => void;
   onUpdateNote: (id: string, note: string) => void;
@@ -13,6 +15,8 @@ interface AnnotationsDrawerProps {
 
 export function AnnotationsDrawer({
   annotations,
+  isLoading = false,
+  isError = false,
   onSelectAnnotation,
   onRemoveAnnotation,
   onUpdateNote,
@@ -22,7 +26,7 @@ export function AnnotationsDrawer({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNoteText, setEditNoteText] = useState('');
 
-  const filtered = tab === 'quotes' ? annotations.filter((a) => a.isQuote) : annotations;
+  const filtered = tab === 'quotes' ? annotations.filter((a) => a.kind === 'QUOTE') : annotations;
 
   return (
     <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-paper-300 bg-paper-50 p-4 shadow-2xl transition-all sm:rounded-l-2xl">
@@ -58,20 +62,28 @@ export function AnnotationsDrawer({
           }`}
         >
           <Quote className="h-3.5 w-3.5" />
-          <span>Saved Quotes ({annotations.filter((a) => a.isQuote).length})</span>
+          <span>Saved Quotes ({annotations.filter((a) => a.kind === 'QUOTE').length})</span>
         </button>
       </div>
 
       {/* Content List */}
       <div className="mt-4 flex-1 overflow-y-auto">
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="py-12 text-center text-xs text-paper-700">Loading your highlights…</div>
+        ) : isError ? (
+          <div className="py-12 text-center text-xs text-red-700">
+            Couldn&apos;t load highlights. Please try again.
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="py-12 text-center text-xs text-paper-700">
             {tab === 'quotes' ? 'No saved quotes yet.' : 'No highlights or notes yet. Select text while reading to add one.'}
           </div>
         ) : (
           <ul className="flex flex-col gap-3">
             {filtered.map((item) => {
-              const colorInfo = COLOR_HEX_MAP[item.color] || COLOR_HEX_MAP.yellow;
+              const colorKey = (item.color ?? 'yellow') as HighlightColor;
+              const colorInfo = COLOR_HEX_MAP[colorKey] || COLOR_HEX_MAP.yellow;
+              const isQuote = item.kind === 'QUOTE';
               const isEditing = editingId === item.id;
 
               return (
@@ -82,8 +94,8 @@ export function AnnotationsDrawer({
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold border ${colorInfo.badge}`}>
-                      {item.isQuote ? <Quote className="h-2.5 w-2.5" /> : <Highlighter className="h-2.5 w-2.5" />}
-                      {item.isQuote ? 'Quote' : item.color}
+                      {isQuote ? <Quote className="h-2.5 w-2.5" /> : <Highlighter className="h-2.5 w-2.5" />}
+                      {isQuote ? 'Quote' : colorKey}
                     </span>
                     <div className="flex items-center gap-1">
                       <button

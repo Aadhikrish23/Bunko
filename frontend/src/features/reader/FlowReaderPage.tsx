@@ -21,15 +21,14 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { ApiError } from '../../lib/api/client';
 import { useChapters, useReaderManifest } from '../../lib/api/reader';
 import { useEndSession, usePauseActiveSession, useReportProgress } from '../../lib/api/sessions';
-import { addBookmark, getBookmarks, removeBookmark, type Bookmark } from '../../lib/bookmarks';
 import {
-  addAnnotation,
-  getAnnotations,
-  removeAnnotation,
-  updateAnnotationNote,
-  type HighlightAnnotation,
-  type HighlightColor,
-} from '../../lib/annotations';
+  useAnnotations,
+  useCreateAnnotation,
+  useDeleteAnnotation,
+  useUpdateAnnotation,
+} from '../../lib/api/annotations';
+import { addBookmark, getBookmarks, removeBookmark, type Bookmark } from '../../lib/bookmarks';
+import type { HighlightColor } from '../../lib/annotation-colors';
 import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
 import { usePrefersReducedMotion } from '../../lib/use-reduced-motion';
@@ -155,7 +154,11 @@ export function FlowReaderPage() {
   const [showChapterList, setShowChapterList] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
-  const [annotations, setAnnotations] = useState<HighlightAnnotation[]>([]);
+  const annotationsQuery = useAnnotations(editionId);
+  const annotations = annotationsQuery.data ?? [];
+  const createAnnotation = useCreateAnnotation(editionId);
+  const updateAnnotation = useUpdateAnnotation(editionId);
+  const deleteAnnotation = useDeleteAnnotation(editionId);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [activeSelection, setActiveSelection] = useState<{ text: string; x: number; y: number; position: string } | null>(
     null
@@ -198,7 +201,6 @@ export function FlowReaderPage() {
   useEffect(() => {
     if (editionId) {
       setBookmarks(getBookmarks(editionId));
-      setAnnotations(getAnnotations(editionId));
     }
   }, [editionId]);
 
@@ -581,15 +583,14 @@ export function FlowReaderPage() {
 
   function handleSaveHighlight(color: HighlightColor, note?: string, isQuote?: boolean) {
     if (!editionId || !activeSelection) return;
-    const updated = addAnnotation(editionId, {
-      editionId,
+    createAnnotation.mutate({
+      kind: isQuote ? 'QUOTE' : 'HIGHLIGHT',
       position: activeSelection.position,
       text: activeSelection.text,
       color,
       note,
-      isQuote,
+      sessionId: manifest.data?.sessionId,
     });
-    setAnnotations(updated);
   }
 
   function handleMouseUp() {
@@ -896,13 +897,11 @@ export function FlowReaderPage() {
       {showAnnotationsDrawer && (
         <AnnotationsDrawer
           annotations={annotations}
+          isLoading={annotationsQuery.isLoading}
+          isError={annotationsQuery.isError}
           onSelectAnnotation={(target) => jumpToStructuralId(target)}
-          onRemoveAnnotation={(id) => {
-            if (editionId) setAnnotations(removeAnnotation(editionId, id));
-          }}
-          onUpdateNote={(id, note) => {
-            if (editionId) setAnnotations(updateAnnotationNote(editionId, id, note));
-          }}
+          onRemoveAnnotation={(id) => deleteAnnotation.mutate(id)}
+          onUpdateNote={(id, note) => updateAnnotation.mutate({ id, note })}
           onClose={() => setShowAnnotationsDrawer(false)}
         />
       )}

@@ -135,3 +135,42 @@ export interface DigitalFile {
   sizeBytes: number;
   checksum: string;
 }
+
+export type AnnotationKind = 'HIGHLIGHT' | 'QUOTE';
+
+export interface Annotation {
+  id: string;
+  copyId: string;
+  sessionId: string | null;
+  kind: AnnotationKind;
+  position: string;
+  text: string;
+  color: string | null;
+  note: string | null;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NoteScope = 'BOOK' | 'CHAPTER' | 'SECTION' | 'PAGE' | 'PASSAGE' | 'SESSION';
+
+export interface Note {
+  id: string;
+  workId: string;
+  copyId: string | null;
+  sessionId: string | null;
+  scope: NoteScope;
+  position: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchResult {
+  type: 'ANNOTATION' | 'NOTE';
+  id: string;
+  workId: string;
+  editionId: string | null;
+  excerpt: string;
+  createdAt: string;
+}

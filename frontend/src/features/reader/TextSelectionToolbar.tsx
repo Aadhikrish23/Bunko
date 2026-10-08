@@ -1,7 +1,7 @@
 import { FileText, Quote, X, Check } from 'lucide-react';
 import { useState } from 'react';
-import type { HighlightColor } from '../../lib/annotations';
-import { COLOR_HEX_MAP } from '../../lib/annotations';
+import type { HighlightColor } from '../../lib/annotation-colors';
+import { COLOR_HEX_MAP } from '../../lib/annotation-colors';
 
 interface TextSelectionToolbarProps {
   selectedText: string;
