@@ -1156,6 +1156,8 @@ components:
             startPosition: { type: string, nullable: true }
             confidence: { type: number, nullable: true }
             sessionId: { type: string, format: uuid }
+            workId: { type: string, format: uuid }
+            copyId: { type: string, format: uuid }
 
     ChaptersResponse:
       type: object

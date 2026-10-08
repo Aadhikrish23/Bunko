@@ -507,9 +507,9 @@ New UI surface — standalone notes aren't a highlight's margin note
 (T-046 already covers that); this is the book/chapter/session-level
 note §13.1 describes, with no required text selection.
 
-- [ ] "Add note" entry point in the reader (book-level, current-chapter-level) and in the physical session flow (session-level)
-- [ ] Notes list/edit/delete UI
-- [ ] Frontend tests
+- [x] "Add note" entry point in the reader (book-level, current-chapter-level) and in the physical session flow (session-level)
+- [x] Notes list/edit/delete UI
+- [x] Frontend tests
 
 ### T-048 — Annotation search UI
 Depends on: T-045, T-046 · SRS: §13

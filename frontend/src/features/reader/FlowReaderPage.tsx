@@ -6,6 +6,7 @@ import {
   Highlighter,
   List,
   MapPinOff,
+  NotebookPen,
   Search,
   Sliders,
   Trash2,
@@ -27,11 +28,14 @@ import {
   useDeleteAnnotation,
   useUpdateAnnotation,
 } from '../../lib/api/annotations';
+import { useCreateNote } from '../../lib/api/notes';
+import type { NoteScope } from '../../lib/api/types';
 import { addBookmark, getBookmarks, removeBookmark, type Bookmark } from '../../lib/bookmarks';
 import type { HighlightColor } from '../../lib/annotation-colors';
 import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
 import { usePrefersReducedMotion } from '../../lib/use-reduced-motion';
+import { NoteComposerModal } from '../notes/NoteComposerModal';
 import { AnnotationsDrawer } from './AnnotationsDrawer';
 import { CorrectPositionDialog } from './CorrectPositionDialog';
 import { InBookSearchDrawer, type SearchMatch } from './InBookSearchDrawer';
@@ -154,11 +158,13 @@ export function FlowReaderPage() {
   const [showChapterList, setShowChapterList] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
+  const [showNoteComposer, setShowNoteComposer] = useState(false);
   const annotationsQuery = useAnnotations(editionId);
   const annotations = annotationsQuery.data ?? [];
   const createAnnotation = useCreateAnnotation(editionId);
   const updateAnnotation = useUpdateAnnotation(editionId);
   const deleteAnnotation = useDeleteAnnotation(editionId);
+  const createNote = useCreateNote(manifest.data?.workId);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [activeSelection, setActiveSelection] = useState<{ text: string; x: number; y: number; position: string } | null>(
     null
@@ -593,6 +599,21 @@ export function FlowReaderPage() {
     });
   }
 
+  function handleSaveNote(body: string, scope: NoteScope) {
+    if (!manifest.data) return;
+    const position = currentPositionRef.current ?? pagesRef.current[currentPageIndex]?.structuralId;
+    createNote.mutate(
+      {
+        scope,
+        body,
+        position: scope === 'CHAPTER' ? position ?? undefined : undefined,
+        copyId: scope === 'CHAPTER' ? manifest.data.copyId : undefined,
+        sessionId: manifest.data.sessionId,
+      },
+      { onSuccess: () => setShowNoteComposer(false) },
+    );
+  }
+
   function handleMouseUp() {
     const selection = window.getSelection();
     const text = selection?.toString()?.trim();
@@ -748,6 +769,17 @@ export function FlowReaderPage() {
           >
             <Highlighter className="h-4 w-4" />
             <span className="hidden sm:inline">Highlights</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowNoteComposer(true)}
+            aria-label="Add a note"
+            title="Add a note"
+            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium hover:bg-paper-100"
+          >
+            <NotebookPen className="h-4 w-4" />
+            <span className="hidden sm:inline">Note</span>
           </button>
 
           <button
@@ -913,6 +945,19 @@ export function FlowReaderPage() {
           y={activeSelection.y}
           onSaveHighlight={handleSaveHighlight}
           onClose={() => setActiveSelection(null)}
+        />
+      )}
+
+      {showNoteComposer && (
+        <NoteComposerModal
+          title="Add a note"
+          scopeOptions={[
+            { value: 'CHAPTER', label: 'This chapter' },
+            { value: 'BOOK', label: 'Whole book' },
+          ]}
+          isSaving={createNote.isPending}
+          onSave={handleSaveNote}
+          onClose={() => setShowNoteComposer(false)}
         />
       )}
 

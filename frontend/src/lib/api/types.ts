@@ -100,6 +100,8 @@ export interface ReaderManifest {
   startPosition: string | null;
   confidence: number | null;
   sessionId: string;
+  workId: string;
+  copyId: string;
 }
 
 export interface Chapter {

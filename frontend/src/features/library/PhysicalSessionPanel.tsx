@@ -1,24 +1,28 @@
-import { BookOpen, Check } from 'lucide-react';
+import { BookOpen, Check, NotebookPen } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { Input } from '../../components/ui/Input';
+import { useCreateNote } from '../../lib/api/notes';
 import { useEndSession, useStartSession } from '../../lib/api/sessions';
 import { errorMessage } from '../../lib/error-message';
+import { NoteComposerModal } from '../notes/NoteComposerModal';
 
 // Manual start/end flow for a physical copy (SRS §12.9, T-039) — Bunko
 // can't detect physical page-turns, so the user drives the whole
 // lifecycle explicitly.
-export function PhysicalSessionPanel({ copyId }: { copyId: string }) {
+export function PhysicalSessionPanel({ copyId, workId }: { copyId: string; workId: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isEnding, setIsEnding] = useState(false);
   const [endPosition, setEndPosition] = useState('');
   const [reflection, setReflection] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<{ durationSeconds: number | null } | null>(null);
+  const [showNoteComposer, setShowNoteComposer] = useState(false);
 
   const startSession = useStartSession();
   const endSession = useEndSession();
+  const createNote = useCreateNote(workId);
 
   async function handleStart() {
     setError(null);
@@ -75,9 +79,25 @@ export function PhysicalSessionPanel({ copyId }: { copyId: string }) {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-paper-600">Session in progress…</p>
-        <Button variant="secondary" onClick={() => setIsEnding(true)}>
-          End Session
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setIsEnding(true)}>
+            End Session
+          </Button>
+          <Button variant="ghost" onClick={() => setShowNoteComposer(true)}>
+            <NotebookPen className="h-4 w-4" /> Add a note
+          </Button>
+        </div>
+        {showNoteComposer && (
+          <NoteComposerModal
+            title="Add a session note"
+            scopeOptions={[{ value: 'SESSION', label: 'Session' }]}
+            isSaving={createNote.isPending}
+            onSave={(body, scope) => {
+              createNote.mutate({ scope, body, sessionId }, { onSuccess: () => setShowNoteComposer(false) });
+            }}
+            onClose={() => setShowNoteComposer(false)}
+          />
+        )}
       </div>
     );
   }

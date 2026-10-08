@@ -19,6 +19,8 @@ export interface ReaderManifestDto {
   startPosition: string | null;
   confidence: number | null;
   sessionId: string;
+  workId: string;
+  copyId: string;
 }
 
 export interface ChapterDto {
@@ -149,6 +151,8 @@ export async function getReaderManifest(userId: string, editionId: string): Prom
     startPosition,
     confidence,
     sessionId: session.id,
+    workId: copy.edition.workId,
+    copyId: copy.id,
   };
 }
 

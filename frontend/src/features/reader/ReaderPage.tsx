@@ -1,4 +1,4 @@
-import { Bookmark as BookmarkIcon, Highlighter, List, MapPinOff, Search, Sliders, Trash2, X } from 'lucide-react';
+import { Bookmark as BookmarkIcon, Highlighter, List, MapPinOff, NotebookPen, Search, Sliders, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
@@ -14,9 +14,12 @@ import {
   useDeleteAnnotation,
   useUpdateAnnotation,
 } from '../../lib/api/annotations';
+import { useCreateNote } from '../../lib/api/notes';
+import type { NoteScope } from '../../lib/api/types';
 import type { HighlightColor } from '../../lib/annotation-colors';
 import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
+import { NoteComposerModal } from '../notes/NoteComposerModal';
 import { CorrectPositionDialog } from './CorrectPositionDialog';
 import { EpubReader, type EpubTocItem } from './EpubReader';
 import { PdfReader } from './PdfReader';
@@ -49,11 +52,13 @@ export function ReaderPage() {
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
   const [showAnnotationsDrawer, setShowAnnotationsDrawer] = useState(false);
+  const [showNoteComposer, setShowNoteComposer] = useState(false);
   const annotationsQuery = useAnnotations(editionId);
   const annotations = annotationsQuery.data ?? [];
   const createAnnotation = useCreateAnnotation(editionId);
   const updateAnnotation = useUpdateAnnotation(editionId);
   const deleteAnnotation = useDeleteAnnotation(editionId);
+  const createNote = useCreateNote(manifest.data?.workId);
   const [activeSelection, setActiveSelection] = useState<{
     text: string;
     x: number;
@@ -111,6 +116,20 @@ export function ReaderPage() {
       note,
       sessionId: manifest.data?.sessionId,
     });
+  }
+
+  function handleSaveNote(body: string, scope: NoteScope) {
+    if (!manifest.data) return;
+    createNote.mutate(
+      {
+        scope,
+        body,
+        position: scope === 'CHAPTER' ? currentPositionRef.current ?? undefined : undefined,
+        copyId: scope === 'CHAPTER' ? manifest.data.copyId : undefined,
+        sessionId: manifest.data.sessionId,
+      },
+      { onSuccess: () => setShowNoteComposer(false) },
+    );
   }
 
   function handleSettingsChange(newSettings: ReaderSettings) {
@@ -319,6 +338,17 @@ export function ReaderPage() {
 
           <button
             type="button"
+            onClick={() => setShowNoteComposer(true)}
+            aria-label="Add a note"
+            title="Add a note"
+            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+          >
+            <NotebookPen className="h-4 w-4 text-paper-600" />
+            <span className="hidden sm:inline">Note</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               setShowSearchDrawer((v) => !v);
               setShowAnnotationsDrawer(false);
@@ -478,6 +508,19 @@ export function ReaderPage() {
           y={activeSelection.y}
           onSaveHighlight={handleSaveHighlight}
           onClose={() => setActiveSelection(null)}
+        />
+      )}
+
+      {showNoteComposer && (
+        <NoteComposerModal
+          title="Add a note"
+          scopeOptions={[
+            { value: 'CHAPTER', label: 'This chapter' },
+            { value: 'BOOK', label: 'Whole book' },
+          ]}
+          isSaving={createNote.isPending}
+          onSave={handleSaveNote}
+          onClose={() => setShowNoteComposer(false)}
         />
       )}
 

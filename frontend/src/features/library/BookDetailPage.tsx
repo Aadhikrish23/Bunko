@@ -7,6 +7,7 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { useDeleteWork, useUpdateWorkStatus, useWork } from '../../lib/api/works';
 import { errorMessage } from '../../lib/error-message';
+import { NotesPanel } from '../notes/NotesPanel';
 import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
@@ -128,7 +129,9 @@ export function BookDetailPage() {
                   <span className="text-sm font-medium text-paper-800">{FORMAT_LABELS[edition.format]}</span>
                   {edition.publisher && <span className="text-xs text-paper-700">· {edition.publisher}</span>}
                 </div>
-                {edition.format === 'PHYSICAL' && edition.copyId && <PhysicalSessionPanel copyId={edition.copyId} />}
+                {edition.format === 'PHYSICAL' && edition.copyId && (
+                  <PhysicalSessionPanel copyId={edition.copyId} workId={data.id} />
+                )}
                 {edition.format !== 'PHYSICAL' && edition.copyId && (
                   <div className="flex flex-wrap items-center gap-3">
                     <ContinueReadingButton journeyId={data.journeyId} edition={edition} coverImageUrl={data.coverImageUrl} />
@@ -143,6 +146,11 @@ export function BookDetailPage() {
       <Card className="p-5">
         <h2 className="mb-3 font-display text-lg text-paper-900">Shelves</h2>
         <ShelfAssignmentPanel workId={data.id} shelfIds={data.shelfIds} />
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="mb-3 font-display text-lg text-paper-900">Notes</h2>
+        <NotesPanel workId={data.id} />
       </Card>
 
       {data.seriesName && <SeriesPanel seriesName={data.seriesName} siblings={data.seriesWorks} />}
