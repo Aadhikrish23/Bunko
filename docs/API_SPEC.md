@@ -117,3 +117,7 @@ sections and backend modules (`ARCHITECTURE.md` §2):
 | Reviews (Phase 7) | `/works/:id/review` (one per user per work) | §14 |
 | Statistics & trends (Phase 7) | `/statistics?tz=`, `/statistics/trends?range=&tz=` | §19.1–19.3 |
 | Soundtrack (Phase 8) | `/soundtracks`, `/soundtrack-mappings`, `/works/:id/soundtrack` | §17 |
+| Bookmarks (Phase 9) | `/editions/:id/bookmarks`, `/bookmarks` | §21.1 |
+| Preferences (Phase 9) | `/preferences` (last-write-wins per key) | §21.1–21.2 |
+| Sync (Phase 9) | `/sync/devices`, `/sync/events`, `/sync/conflicts` — send `X-Device-Id` | §21 |
+| Offline download (Phase 9) | `/editions/:id/download` | §21.3 |

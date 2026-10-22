@@ -6,7 +6,9 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { useWorks } from '../../lib/api/works';
 import type { ReadingStatus } from '../../lib/api/types';
+import { NetworkError } from '../../lib/api/client';
 import { errorMessage } from '../../lib/error-message';
+import { OfflineBooksList } from '../sync/OfflineBooksList';
 import { AddBookDialog } from './AddBookDialog';
 import { BookCover } from './BookCover';
 import { BookQuickActionModal } from './BookQuickActionModal';
@@ -66,7 +68,19 @@ export function LibraryPage() {
       </div>
 
       {works.isLoading && <PageSpinner />}
-      {works.isError && <ErrorBanner message={errorMessage(works.error, 'Could not load your library.')} />}
+      {works.isError &&
+        (works.error instanceof NetworkError ? (
+          <section className="flex flex-col gap-3 rounded-xl border border-paper-200 bg-paper-50 p-5">
+            <h2 className="font-display text-lg text-paper-900">You’re offline</h2>
+            <p className="text-sm text-paper-600">
+              Your library will be back when you reconnect. Downloaded books still open, and anything you do in them
+              syncs later.
+            </p>
+            <OfflineBooksList />
+          </section>
+        ) : (
+          <ErrorBanner message={errorMessage(works.error, 'Could not load your library.')} />
+        ))}
 
       {works.data && works.data.items.length === 0 && (
         <EmptyState

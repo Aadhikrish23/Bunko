@@ -11,6 +11,7 @@ import { ReaderPage } from './features/reader/ReaderPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { ShelvesPage } from './features/shelves/ShelvesPage';
 import { SoundtracksPage } from './features/soundtrack/SoundtracksPage';
+import { SyncLayer } from './features/sync/SyncLayer';
 import { StatisticsPage } from './features/statistics/StatisticsPage';
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route path="*" element={<Navigate to="/library" replace />} />
       </Routes>
+      <SyncLayer />
     </BrowserRouter>
   );
 }

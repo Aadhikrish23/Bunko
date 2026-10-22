@@ -156,6 +156,48 @@ export async function getReaderManifest(userId: string, editionId: string): Prom
   };
 }
 
+export interface DownloadManifestDto {
+  fileUrl: string;
+  format: 'EPUB' | 'PDF';
+  workId: string;
+  copyId: string;
+  sizeBytes: number;
+}
+
+// For "Download for offline" (Phase 9, T-073): the same signed file URL as
+// the reader manifest, but without auto-starting a reading session —
+// downloading a book isn't reading it. Only the caller's own copy (§25).
+export async function getDownloadManifest(userId: string, editionId: string): Promise<DownloadManifestDto> {
+  const copy = await prisma.copy.findFirst({
+    where: { editionId, userId },
+    include: { edition: true, digitalFile: true },
+    orderBy: { acquiredAt: 'desc' },
+  });
+  if (!copy || !copy.digitalFile) {
+    throw new AppError('NOT_FOUND', 'No digital copy of this edition in your library');
+  }
+  if (copy.edition.format === 'PHYSICAL') {
+    throw new AppError('VALIDATION_ERROR', 'A physical edition has nothing to download');
+  }
+
+  // Index now so the chapters the offline reader needs exist to be saved
+  // alongside the file.
+  await ensureIndexed(copy.edition, copy.digitalFile);
+
+  const fileUrl = await getSignedUrl(
+    s3Client,
+    new GetObjectCommand({ Bucket: S3_BUCKET, Key: copy.digitalFile.storageKey }),
+    { expiresIn: FILE_URL_EXPIRY_SECONDS },
+  );
+  return {
+    fileUrl,
+    format: copy.edition.format as 'EPUB' | 'PDF',
+    workId: copy.edition.workId,
+    copyId: copy.id,
+    sizeBytes: copy.digitalFile.sizeBytes,
+  };
+}
+
 // Chapter text for the flow-reader UI and future chapter-level AI
 // features — reuses the same chapterGraph the continuity engine indexes
 // at import time (SRS §11.6) rather than a separate extraction path.

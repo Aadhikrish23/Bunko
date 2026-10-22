@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -18,7 +18,7 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { ApiError } from '../../lib/api/client';
 import { useReaderManifest } from '../../lib/api/reader';
 import { useEndSession, usePauseActiveSession, useReportProgress } from '../../lib/api/sessions';
-import { addBookmark, getBookmarks, removeBookmark, type Bookmark } from '../../lib/bookmarks';
+import { useAddBookmark, useBookmarks, useRemoveBookmark } from '../../lib/api/bookmarks';
 import {
   useAnnotations,
   useCreateAnnotation,
@@ -90,7 +90,9 @@ export function ReaderPage() {
   const [toc, setToc] = useState<EpubTocItem[]>([]);
   const [pdfPageCount, setPdfPageCount] = useState(0);
   const [showToc, setShowToc] = useState(false);
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const bookmarks = useBookmarks(editionId).data ?? [];
+  const addBookmark = useAddBookmark(editionId);
+  const removeBookmark = useRemoveBookmark(editionId);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
   const [endedSession, setEndedSession] = useState<{ durationSeconds: number | null } | null>(null);
@@ -112,12 +114,6 @@ export function ReaderPage() {
     const timer = setTimeout(() => setIsFlipping(false), 700);
     return () => clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    if (editionId) {
-      setBookmarks(getBookmarks(editionId));
-    }
-  }, [editionId]);
 
   function handleSaveHighlight(color: HighlightColor, note?: string, isQuote?: boolean) {
     if (!editionId || !activeSelection) return;
@@ -153,10 +149,6 @@ export function ReaderPage() {
   const handleRegisterSearch = useCallback((fn: (query: string) => Promise<SearchMatch[]>) => {
     searchFnRef.current = fn;
   }, []);
-
-  useEffect(() => {
-    if (editionId) setBookmarks(getBookmarks(editionId));
-  }, [editionId]);
 
   const debouncedReportProgress = useDebouncedCallback((sessionId: string, position: string) => {
     reportProgress.mutate({ sessionId, position });
@@ -218,12 +210,11 @@ export function ReaderPage() {
   function handleAddBookmark() {
     if (!editionId || !currentPositionRef.current) return;
     const label = manifest.data?.format === 'PDF' ? `Page ${currentPositionRef.current}` : 'Bookmark';
-    setBookmarks(addBookmark(editionId, currentPositionRef.current, label));
+    addBookmark.mutate({ position: currentPositionRef.current, label });
   }
 
   function handleRemoveBookmark(bookmarkId: string) {
-    if (!editionId) return;
-    setBookmarks(removeBookmark(editionId, bookmarkId));
+    removeBookmark.mutate(bookmarkId);
   }
 
   if (manifest.isLoading) return <PageSpinner />;

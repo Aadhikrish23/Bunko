@@ -1,4 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getDownload, readSnapshot, saveSnapshot } from '../offline/downloads';
+import { isOfflineSessionId, OFFLINE_SESSION_PREFIX } from '../offline/local-sessions';
+import { enqueue, pendingEvents } from '../offline/outbox';
+import { applyPendingAnnotations } from '../offline/outbox-logic';
+import { onlineOr } from '../offline/online-or';
 import { api } from './client';
 import type { Annotation, AnnotationKind, SearchResult } from './types';
 
@@ -16,10 +21,31 @@ export interface UpdateAnnotationInput {
   color?: string | null;
 }
 
+// An offline session's id is "offline:<uuid>"; the server knows it by the
+// bare uuid once it syncs.
+function serverSessionId(sessionId: string | null | undefined): string | null {
+  if (!sessionId) return null;
+  return isOfflineSessionId(sessionId) ? sessionId.slice(OFFLINE_SESSION_PREFIX.length) : sessionId;
+}
+
 export function useAnnotations(editionId: string | undefined) {
   return useQuery({
     queryKey: ['annotations', editionId],
-    queryFn: () => api.get<Annotation[]>(`/editions/${editionId}/annotations`),
+    queryFn: () =>
+      onlineOr(
+        async () => {
+          const annotations = await api.get<Annotation[]>(`/editions/${editionId}/annotations`);
+          // Keep a downloaded book's offline copy current.
+          if (await getDownload(editionId!)) await saveSnapshot(`annotations:${editionId}`, annotations);
+          return annotations;
+        },
+        async () =>
+          applyPendingAnnotations(
+            (await readSnapshot<Annotation[]>(`annotations:${editionId}`)) ?? [],
+            await pendingEvents(),
+            editionId!,
+          ),
+      ),
     enabled: !!editionId,
   });
 }
@@ -27,7 +53,26 @@ export function useAnnotations(editionId: string | undefined) {
 export function useCreateAnnotation(editionId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateAnnotationInput) => api.post<Annotation>(`/editions/${editionId}/annotations`, input),
+    mutationFn: (input: CreateAnnotationInput) => {
+      const queue = async () => {
+        await enqueue('ANNOTATION_CREATED', {
+          annotationId: crypto.randomUUID(),
+          editionId,
+          kind: input.kind,
+          position: input.position,
+          text: input.text,
+          ...(input.color !== undefined ? { color: input.color } : {}),
+          ...(input.note !== undefined ? { note: input.note } : {}),
+          sessionId: serverSessionId(input.sessionId),
+        });
+        return null;
+      };
+      // Made during a session that only exists on this device (even if the
+      // network is back): queue it, so it reaches the server after that
+      // session does.
+      if (input.sessionId && isOfflineSessionId(input.sessionId)) return queue();
+      return onlineOr(() => api.post<Annotation>(`/editions/${editionId}/annotations`, input), queue);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['annotations', editionId] }),
   });
 }
@@ -36,7 +81,13 @@ export function useUpdateAnnotation(editionId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...input }: UpdateAnnotationInput & { id: string }) =>
-      api.patch<Annotation>(`/annotations/${id}`, input),
+      onlineOr(
+        () => api.patch<Annotation>(`/annotations/${id}`, input),
+        async () => {
+          await enqueue('ANNOTATION_UPDATED', { annotationId: id, ...input });
+          return null;
+        },
+      ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['annotations', editionId] }),
   });
 }
@@ -44,7 +95,11 @@ export function useUpdateAnnotation(editionId: string | undefined) {
 export function useDeleteAnnotation(editionId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.delete(`/annotations/${id}`),
+    mutationFn: (id: string) =>
+      onlineOr(
+        () => api.delete(`/annotations/${id}`),
+        () => enqueue('ANNOTATION_DELETED', { annotationId: id }),
+      ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['annotations', editionId] }),
   });
 }

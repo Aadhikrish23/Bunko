@@ -399,6 +399,98 @@ enum SoundtrackTargetType {
   MOOD
   SITUATION
 }
+
+// SRS §21 — a browser/device the user reads on (Phase 9, T-066).
+// `deviceId` is generated once by the client and sent as X-Device-Id.
+model DeviceSession {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  deviceId   String
+  label      String
+  lastSeenAt DateTime  @default(now())
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, deviceId])
+}
+
+// One replayed offline write (T-069). `clientEventId` makes replay
+// idempotent. CONFLICT rows double as the pending reading-position
+// conflicts the reader resolves (T-070) — `detail` holds both sides.
+model SyncEvent {
+  id              String                  @id @default(uuid())
+  userId          String
+  user            User                    @relation(fields: [userId], references: [id])
+  deviceId        String
+  clientEventId   String
+  type            SyncEventType
+  payload         Json
+  clientCreatedAt DateTime
+  receivedAt      DateTime                @default(now())
+  status          SyncEventStatus
+  detail          Json?
+  resolvedAt      DateTime?
+  resolution      SyncConflictResolution?
+
+  @@unique([userId, clientEventId])
+  @@index([userId, status])
+}
+
+enum SyncEventType {
+  SESSION_RECORDED
+  ANNOTATION_CREATED
+  ANNOTATION_UPDATED
+  ANNOTATION_DELETED
+  NOTE_CREATED
+  NOTE_UPDATED
+  NOTE_DELETED
+  BOOKMARK_CREATED
+  BOOKMARK_DELETED
+  PREFERENCE_SET
+}
+
+enum SyncEventStatus {
+  APPLIED
+  SKIPPED
+  CONFLICT
+  REJECTED
+}
+
+enum SyncConflictResolution {
+  SERVER
+  DEVICE
+}
+
+// SRS §21.1 — bookmarks follow the account (Phase 9, T-067; they were
+// per-browser localStorage before). Anchored to the reader's copy, like
+// Annotation.
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  copyId    String
+  copy      Copy     @relation(fields: [copyId], references: [id])
+  position  String
+  label     String
+  createdAt DateTime @default(now())
+
+  @@index([userId, copyId])
+}
+
+// SRS §21.2 "last-write-wins for simple preferences" (T-068).
+// `updatedAt` is the client's timestamp of the change, so an older
+// offline edit replayed late can't overwrite a newer one.
+model UserPreference {
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  key               String
+  value             Json
+  updatedAt         DateTime
+  updatedByDeviceId String?
+
+  @@id([userId, key])
+}
 ```
 
 ## 3. Key Relationships (matches `SRS.md` §27.2)
@@ -422,6 +514,10 @@ User 1 --- N Review
 Work 1 --- N Review          (@@unique([userId, workId]) caps it at one per user)
 User 1 --- N Soundtrack
 Soundtrack 1 --- N SoundtrackMapping   (cascade delete; one mapping per user+target)
+User 1 --- N DeviceSession   (one per user+deviceId)
+User 1 --- N SyncEvent       (one per user+clientEventId)
+Copy 1 --- N Bookmark
+User 1 --- N UserPreference  (one per user+key)
 ```
 
 ## 4. External Metadata Source (SRS §16)
@@ -443,16 +539,16 @@ is deliberately nullable and non-unique-alone:
   `Edition` rows from user input without cross-referencing the
   provider's own edition data.
 
-## 5. Deferred to Phase 9+ (do not create yet)
+## 5. Deferred (do not create yet)
 
 `Annotation` (Highlight/Quote) and `Note` shipped in Phase 6; `Review`
-in Phase 7; `Soundtrack` and `SoundtrackMapping` in Phase 8 — see §2
-above.
+in Phase 7; `Soundtrack` and `SoundtrackMapping` in Phase 8;
+`DeviceSession`, `SyncEvent`, `Bookmark`, and `UserPreference` in Phase 9 —
+see §2 above.
 
 - `Tag`, `BookTag` (MVP uses `Shelf` only; tags are Phase 6/7 polish —
   `Annotation.tags` on quotes is the one Phase 6 exception, scoped to
   quotes specifically per SRS §13.3, not a general tagging system)
-- `DeviceSession`, `SyncEvent` (offline/sync, Phase 9)
 
 Adding these tables before their phase begins is scope creep — see
 `AGENTS.md` §3.

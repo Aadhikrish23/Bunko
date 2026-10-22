@@ -2,6 +2,8 @@ import { Music, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSoundtracks, useWorkSoundtrack } from '../../lib/api/soundtracks';
+import { sharedSoundtrackPrefs } from '../../lib/preference-registry';
+import { pushPreference } from '../../lib/preferences-sync';
 import type { Soundtrack } from '../../lib/api/types';
 import { SoundtrackEmbed } from './SoundtrackEmbed';
 import {
@@ -52,11 +54,14 @@ export function ReaderSoundtrack({ workId, open, onOpen, onClose }: ReaderSoundt
   const playing = prefs.enabled && current !== null;
 
   function updatePrefs(patch: Partial<SoundtrackPrefs>) {
-    setPrefs((previous) => {
-      const next = { ...previous, ...patch };
-      savePrefs(next);
-      return next;
-    });
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    savePrefs(next);
+    // Mode, volume, and manual choice follow the account (T-068); whether
+    // music is playing on this device does not.
+    if ('mode' in patch || 'volume' in patch || 'manualChoiceId' in patch) {
+      pushPreference('soundtrack', sharedSoundtrackPrefs(next));
+    }
   }
 
   function sendVolume(volume: number) {

@@ -31,7 +31,7 @@ import {
 } from '../../lib/api/annotations';
 import { useCreateNote } from '../../lib/api/notes';
 import type { NoteScope } from '../../lib/api/types';
-import { addBookmark, getBookmarks, removeBookmark, type Bookmark } from '../../lib/bookmarks';
+import { useAddBookmark, useBookmarks, useRemoveBookmark } from '../../lib/api/bookmarks';
 import type { HighlightColor } from '../../lib/annotation-colors';
 import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
@@ -168,7 +168,9 @@ export function FlowReaderPage() {
   const updateAnnotation = useUpdateAnnotation(editionId);
   const deleteAnnotation = useDeleteAnnotation(editionId);
   const createNote = useCreateNote(manifest.data?.workId);
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const bookmarks = useBookmarks(editionId).data ?? [];
+  const addBookmark = useAddBookmark(editionId);
+  const removeBookmark = useRemoveBookmark(editionId);
   const [activeSelection, setActiveSelection] = useState<{ text: string; x: number; y: number; position: string } | null>(
     null
   );
@@ -207,11 +209,6 @@ export function FlowReaderPage() {
   const scrollRafRef = useRef<number | null>(null);
   const [scrollProgressPercent, setScrollProgressPercent] = useState(0);
 
-  useEffect(() => {
-    if (editionId) {
-      setBookmarks(getBookmarks(editionId));
-    }
-  }, [editionId]);
 
   const debouncedReportProgress = useDebouncedCallback((sessionId: string, position: string) => {
     reportProgress.mutate({ sessionId, position });
@@ -582,12 +579,11 @@ export function FlowReaderPage() {
   function handleAddBookmark() {
     if (!editionId || !currentPositionRef.current) return;
     const chapter = chapters.data?.chapters.find((c) => c.structuralId === currentPositionRef.current);
-    setBookmarks(addBookmark(editionId, currentPositionRef.current, chapter?.label ?? 'Bookmark'));
+    addBookmark.mutate({ position: currentPositionRef.current, label: chapter?.label ?? 'Bookmark' });
   }
 
   function handleRemoveBookmark(bookmarkId: string) {
-    if (!editionId) return;
-    setBookmarks(removeBookmark(editionId, bookmarkId));
+    removeBookmark.mutate(bookmarkId);
   }
 
   function handleSaveHighlight(color: HighlightColor, note?: string, isQuote?: boolean) {

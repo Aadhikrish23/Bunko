@@ -1,5 +1,8 @@
 import { BookOpen, LibraryBig, LogOut, NotebookPen, Rows3, Settings as SettingsIcon, TrendingUp } from 'lucide-react';
+import { useState, useSyncExternalStore } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { getSyncStatus, subscribeSyncStatus } from '../../lib/offline/outbox';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useAuth } from '../../lib/auth-context';
 
 const NAV_ITEMS = [
@@ -12,6 +15,15 @@ const NAV_ITEMS = [
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const pending = useSyncExternalStore(subscribeSyncStatus, () => getSyncStatus().pending);
+
+  // Signing out deletes this device's offline data, including changes not
+  // yet synced — warn first when there are any (T-072).
+  function requestSignOut() {
+    if (pending > 0) setConfirmSignOut(true);
+    else logout();
+  }
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row bg-paper-50">
@@ -25,7 +37,7 @@ export function AppShell() {
           <span className="max-w-[120px] truncate text-xs font-medium text-paper-700">{user?.displayName}</span>
           <button
             type="button"
-            onClick={logout}
+            onClick={requestSignOut}
             title="Sign out"
             className="focus-visible:focus-ring rounded-md p-1.5 text-paper-600 hover:bg-paper-200/70"
           >
@@ -63,7 +75,7 @@ export function AppShell() {
           <p className="truncate px-3 text-xs text-paper-700">{user?.email}</p>
           <button
             type="button"
-            onClick={logout}
+            onClick={requestSignOut}
             className="focus-visible:focus-ring mt-3 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-paper-600 hover:bg-paper-200/70"
           >
             <LogOut className="h-4 w-4" strokeWidth={1.75} />
@@ -96,6 +108,19 @@ export function AppShell() {
           </NavLink>
         ))}
       </nav>
+
+      {confirmSignOut && (
+        <ConfirmDialog
+          title="Sign out with unsynced changes?"
+          message={`${pending} ${pending === 1 ? 'change hasn’t' : 'changes haven’t'} reached your account yet. Signing out removes them, and any downloaded books, from this device.`}
+          confirmLabel="Sign out anyway"
+          onConfirm={() => {
+            setConfirmSignOut(false);
+            logout();
+          }}
+          onClose={() => setConfirmSignOut(false)}
+        />
+      )}
     </div>
   );
 }

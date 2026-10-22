@@ -104,9 +104,10 @@ export interface ReaderManifest {
   format: 'EPUB' | 'PDF';
   startPosition: string | null;
   confidence: number | null;
-  sessionId: string;
+  sessionId: string; // "offline:<uuid>" when opened from a download with no network
   workId: string;
   copyId: string;
+  offline?: boolean;
 }
 
 export interface Chapter {
@@ -253,6 +254,40 @@ export interface SoundtrackResolution {
     soundtrack: Soundtrack;
     via: { mappingId: string; targetType: 'WORK' | 'SHELF' | 'GENRE'; targetKey: string; label: string | null };
   } | null;
+}
+
+export interface Bookmark {
+  id: string;
+  copyId: string;
+  position: string;
+  label: string;
+  createdAt: string;
+}
+
+export interface SyncConflictPosition {
+  structuralId: string | null;
+  chapterLabel: string | null;
+  pageNumber: number | null;
+  deviceId: string | null;
+  deviceLabel: string | null;
+  at: string;
+}
+
+export interface SyncConflict {
+  id: string;
+  workId: string;
+  title: string | null;
+  createdAt: string;
+  server: SyncConflictPosition;
+  device: SyncConflictPosition;
+}
+
+export interface SyncDevice {
+  deviceId: string;
+  label: string;
+  lastSeenAt: string;
+  lastSyncAt: string | null;
+  current: boolean;
 }
 
 export interface SearchResult {

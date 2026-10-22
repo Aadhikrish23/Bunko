@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { requestDeviceId } from '../../lib/device-id';
 import { requireUserId } from '../../lib/require-user';
 import { sendOk } from '../../lib/response';
 import * as continuityService from './continuity.service';
@@ -27,7 +28,7 @@ export async function correctPositionHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    await continuityService.correctPosition(requireUserId(req), req.params.journeyId, req.body);
+    await continuityService.correctPosition(requireUserId(req), req.params.journeyId, req.body, requestDeviceId(req));
     res.status(204).send();
   } catch (err) {
     next(err);

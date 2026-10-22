@@ -767,6 +767,237 @@ paths:
                   data: { $ref: "#/components/schemas/SoundtrackResolution" }
         "404": { description: Work not found in the caller's library }
 
+  /editions/{editionId}/download:
+    get:
+      summary: "Signed file URL for Download for offline (T-073)"
+      description: "Like the reader manifest, but does not start a reading session. Only the caller's own digital copy."
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: "Download manifest"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      fileUrl: { type: string }
+                      format: { type: string, enum: [EPUB, PDF] }
+                      workId: { type: string, format: uuid }
+                      copyId: { type: string, format: uuid }
+                      sizeBytes: { type: integer }
+        "404": { description: "No digital copy of this edition in the caller's library" }
+
+  /editions/{editionId}/bookmarks:
+    get:
+      summary: "The caller's bookmarks in an edition (SRS §21.1, T-067)"
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: "Bookmarks, oldest first"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Bookmark" } }
+        "404": { description: "No copy of this edition in the caller's library" }
+    post:
+      summary: "Add a bookmark"
+      description: "An optional client-generated id makes the request idempotent: re-sending it returns the existing bookmark with 200."
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [position, label]
+              properties:
+                id: { type: string, format: uuid }
+                position: { type: string, maxLength: 500 }
+                label: { type: string, maxLength: 120 }
+      responses:
+        "201": { description: "Created" }
+        "200": { description: "Already existed (same client id)" }
+        "404": { description: "No copy of this edition in the caller's library" }
+
+  /bookmarks/{id}:
+    delete:
+      summary: "Delete a bookmark"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: "Deleted" }
+        "404": { description: "Not found or not owned by caller" }
+
+  /preferences:
+    get:
+      summary: "The caller's synced preferences (T-068)"
+      responses:
+        "200":
+          description: "Preferences by key"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Preference" } }
+
+  /preferences/{key}:
+    put:
+      summary: "Set a preference, last-write-wins by client timestamp"
+      description: "Applies only if updatedAt is newer than the stored value (capped at server time). Always 200; applied=false means a newer value already exists."
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema: { type: string, enum: [reader-settings, soundtrack] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value, updatedAt]
+              properties:
+                value: { type: object, additionalProperties: true, description: "At most 4 KB as JSON" }
+                updatedAt: { type: string, format: date-time }
+      responses:
+        "200":
+          description: "The stored preference, with applied"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/Preference"
+                      - type: object
+                        properties:
+                          applied: { type: boolean }
+
+  /sync/devices:
+    get:
+      summary: "The caller's devices (T-071)"
+      responses:
+        "200":
+          description: "Devices, most recently seen first; current marks the one sending X-Device-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Device" } }
+    post:
+      summary: "Register this device"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, label]
+              properties:
+                deviceId: { type: string, format: uuid }
+                label: { type: string, maxLength: 80 }
+      responses:
+        "200": { description: "Registered or refreshed" }
+
+  /sync/events:
+    post:
+      summary: "Replay offline writes (T-069)"
+      description: "Requires X-Device-Id. Events apply in order; each is recorded once per client event id, so a retried batch returns the original results (duplicate=true). Sessions are append-only; annotations, notes, and bookmarks merge; preferences are last-write-wins; a reading position moved by another device during an offline session becomes a CONFLICT (ARCHITECTURE.md §13)."
+      parameters:
+        - in: header
+          name: X-Device-Id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [id, type, createdAt, payload]
+                    properties:
+                      id: { type: string, format: uuid }
+                      type:
+                        type: string
+                        enum: [SESSION_RECORDED, ANNOTATION_CREATED, ANNOTATION_UPDATED, ANNOTATION_DELETED, NOTE_CREATED, NOTE_UPDATED, NOTE_DELETED, BOOKMARK_CREATED, BOOKMARK_DELETED, PREFERENCE_SET]
+                      createdAt: { type: string, format: date-time, description: "When the write happened on the device" }
+                      payload: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: "One result per event, in order"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/SyncEventResult" } }
+        "400": { description: "Malformed batch or missing X-Device-Id" }
+
+  /sync/conflicts:
+    get:
+      summary: "Unresolved reading-position conflicts (T-070)"
+      responses:
+        "200":
+          description: "Oldest first"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/SyncConflict" } }
+
+  /sync/conflicts/{id}/resolve:
+    post:
+      summary: "Choose which reading position to continue from"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keep]
+              properties:
+                keep: { type: string, enum: [SERVER, DEVICE] }
+      responses:
+        "204": { description: "Resolved; repeating it is a no-op" }
+        "404": { description: "Conflict not found" }
+
   /editions/{editionId}/annotations:
     get:
       summary: List the caller's highlights and quotes for an edition (SRS §13.2, §13.3)
@@ -1298,6 +1529,59 @@ components:
                 targetType: { type: string, enum: [WORK, SHELF, GENRE] }
                 targetKey: { type: string }
                 label: { type: string, nullable: true }
+
+    Bookmark:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        copyId: { type: string, format: uuid }
+        position: { type: string }
+        label: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    Preference:
+      type: object
+      properties:
+        key: { type: string, enum: [reader-settings, soundtrack] }
+        value: { type: object, additionalProperties: true }
+        updatedAt: { type: string, format: date-time }
+
+    Device:
+      type: object
+      properties:
+        deviceId: { type: string, format: uuid }
+        label: { type: string }
+        lastSeenAt: { type: string, format: date-time }
+        lastSyncAt: { type: string, format: date-time, nullable: true }
+        current: { type: boolean }
+
+    SyncEventResult:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [APPLIED, SKIPPED, CONFLICT, REJECTED] }
+        duplicate: { type: boolean, description: "True when this event had already been received" }
+        detail: { type: object, additionalProperties: true, description: "Skip or reject reason, or conflict details" }
+
+    PositionSnapshot:
+      type: object
+      properties:
+        structuralId: { type: string, nullable: true }
+        chapterLabel: { type: string, nullable: true }
+        pageNumber: { type: integer, nullable: true }
+        deviceId: { type: string, nullable: true }
+        deviceLabel: { type: string, nullable: true }
+        at: { type: string, format: date-time }
+
+    SyncConflict:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        title: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        server: { $ref: "#/components/schemas/PositionSnapshot" }
+        device: { $ref: "#/components/schemas/PositionSnapshot" }
 
     SearchResult:
       type: object

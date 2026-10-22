@@ -9,6 +9,8 @@ import type { Profile } from '../../lib/api/types';
 import { useAuth } from '../../lib/auth-context';
 import { errorMessage } from '../../lib/error-message';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DevicesList } from '../sync/DevicesList';
+import { OfflineBooksList } from '../sync/OfflineBooksList';
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -52,6 +54,20 @@ export function SettingsPage() {
             {saved ? 'Saved' : 'Save changes'}
           </Button>
         </div>
+      </Card>
+
+      <Card className="max-w-md p-5">
+        <h2 className="mb-1 font-display text-lg text-paper-900">Offline books</h2>
+        <p className="mb-3 text-sm text-paper-600">
+          Downloaded to this device only. Reading, highlights, notes, and bookmarks made offline sync when you
+          reconnect.
+        </p>
+        <OfflineBooksList showStorage />
+      </Card>
+
+      <Card className="max-w-md p-5">
+        <h2 className="mb-3 font-display text-lg text-paper-900">Your devices</h2>
+        <DevicesList />
       </Card>
 
       <Card className="max-w-md p-5">

@@ -90,17 +90,26 @@ export async function resolvePosition(
 // telling Bunko the definitive canonical position now. Scoped to the
 // caller's own journey — a correction never affects another user's
 // mapping for the same editions (T-037).
-export async function correctPosition(userId: string, journeyId: string, input: CorrectPositionInput): Promise<void> {
+export async function correctPosition(
+  userId: string,
+  journeyId: string,
+  input: CorrectPositionInput,
+  deviceId: string | null = null,
+): Promise<void> {
   const journey = await prisma.readingJourney.findFirst({ where: { id: journeyId, userId } });
   if (!journey) {
     throw new AppError('NOT_FOUND', 'Reading journey not found');
   }
 
-  await upsertCanonicalPosition(journeyId, {
-    structuralId: input.structuralId ?? null,
-    chapterLabel: input.chapterLabel ?? null,
-    textAnchor: null,
-    pageNumber: input.pageNumber ?? null,
-    confidence: 1.0, // user-confirmed/corrected positions are treated as ground truth
-  });
+  await upsertCanonicalPosition(
+    journeyId,
+    {
+      structuralId: input.structuralId ?? null,
+      chapterLabel: input.chapterLabel ?? null,
+      textAnchor: null,
+      pageNumber: input.pageNumber ?? null,
+      confidence: 1.0, // user-confirmed/corrected positions are treated as ground truth
+    },
+    deviceId,
+  );
 }

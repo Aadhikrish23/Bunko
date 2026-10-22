@@ -2,7 +2,7 @@ import type { ReadingSession } from '@prisma/client';
 import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
-import { upsertCanonicalPosition } from '../continuity/canonical-position';
+import { upsertCanonicalPosition, type CanonicalPositionData } from '../continuity/canonical-position';
 import { findUnitByClosestPage, findUnitByStructuralId, type ChapterGraph } from '../reader/chapter-graph';
 import type { EndSessionInput, ReportProgressInput, StartSessionInput } from './reading-sessions.schema';
 
@@ -131,6 +131,7 @@ export async function endSession(
   sessionId: string,
   input: EndSessionInput,
   now = new Date(),
+  deviceId: string | null = null,
 ): Promise<SessionDto> {
   const session = await requireOwnSession(userId, sessionId);
 
@@ -166,30 +167,33 @@ export async function endSession(
     },
   });
 
-  await updateCanonicalPositionFromSession(updated);
+  const position = await canonicalPositionForSession(updated);
+  if (position) await upsertCanonicalPosition(updated.journeyId, position, deviceId);
 
   return toSessionDto(updated);
 }
 
-// Keeps the journey's canonical position current automatically as the
-// user reads (SRS §6.2 "Automatic Where Possible") — without this, cross-
-// edition continuity (Phase 5) would only ever work via the manual
-// correction endpoint (T-037), which defeats the point.
-async function updateCanonicalPositionFromSession(session: ReadingSession): Promise<void> {
-  if (!session.endPosition) return;
+// The canonical position a finished session implies — which endSession
+// writes automatically as the user reads (SRS §6.2 "Automatic Where
+// Possible"; without it, cross-edition continuity would only ever work
+// via the manual correction endpoint, T-037), and which offline sync
+// compares against the current one before writing (T-070).
+export async function canonicalPositionForSession(
+  session: Pick<ReadingSession, 'endPosition' | 'medium' | 'copyId'>,
+): Promise<CanonicalPositionData | null> {
+  if (!session.endPosition) return null;
 
   if (session.medium === 'PHYSICAL') {
     // Physical positions are entered as free-text chapter labels
     // (T-039's chapter/page picker) — directly portable as a title-match
     // signal for a digital edition (SRS §11.9 worked example).
-    await upsertCanonicalPosition(session.journeyId, {
+    return {
       structuralId: null,
       chapterLabel: session.endPosition,
       textAnchor: null,
       pageNumber: null,
       confidence: null,
-    });
-    return;
+    };
   }
 
   // Digital endPosition is that edition's own local structuralId — look
@@ -208,11 +212,11 @@ async function updateCanonicalPositionFromSession(session: ReadingSession): Prom
     unit = findUnitByClosestPage(chapterGraph, Number(session.endPosition));
   }
 
-  await upsertCanonicalPosition(session.journeyId, {
+  return {
     structuralId: session.endPosition,
     chapterLabel: unit?.label ?? null,
     textAnchor: unit?.textAnchors[0]?.hash ?? null,
     pageNumber: unit?.pageNumber ?? (session.medium === 'PDF' ? Number(session.endPosition) || null : null),
     confidence: null,
-  });
+  };
 }

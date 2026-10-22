@@ -69,6 +69,9 @@ backend/src/modules/
 ├── notes/             # standalone book/chapter/session notes (SRS §13.1 — Phase 6)
 ├── reviews/           # ratings & reviews (SRS §14 — Phase 7)
 ├── soundtrack/        # playlists & associations, provider embeds (SRS §17 — Phase 8, see §12)
+├── bookmarks/         # server-synced bookmarks (SRS §21.1 — Phase 9)
+├── preferences/       # last-write-wins user preferences (SRS §21.2 — Phase 9)
+├── sync/              # devices, offline event replay, position conflicts (SRS §21 — Phase 9, see §13)
 └── shelves/           # shelves, tags, collections (SRS §15)
 ```
 
@@ -77,8 +80,8 @@ Each module folder follows the same internal shape (see
 controller → service → Prisma, with a Zod schema file shared between
 validation and OpenAPI generation intent.
 
-Modules not yet implemented (later phases, per `SRS.md` §36.4): `sync`
-(Phase 9), `notifications`, `ai` (Phase 10, a separate service — §8).
+Modules not yet implemented (later phases, per `SRS.md` §36.4):
+`notifications`, `ai` (Phase 10, a separate service — §8).
 Do not create these directories until their phase begins.
 
 ## 4. Request Flow (example: opening a digital book)
@@ -263,3 +266,71 @@ copyrighted music.
 - Privacy: no third-party player loads until the reader turns the
   soundtrack on or explicitly previews a playlist, and YouTube embeds
   use `youtube-nocookie.com`.
+
+## 13. Offline & Sync (SRS §21, Phase 9)
+
+**Decision: online-first with an event outbox for offline writes (T-065).**
+
+The server stays the single source of truth. Online, every write goes
+straight to the existing REST endpoints exactly as before — there is no
+background replication layer to keep consistent. Devices can only
+diverge while offline, so sync is a question of how to replay offline
+writes deterministically (§21.2).
+
+**Mechanics**
+
+- **Device identity.** Each browser generates a device id once and sends
+  it as `X-Device-Id` on every request; `POST /sync/devices` registers it
+  as a `DeviceSession`. Writes that need attribution — moving the
+  canonical reading position — record the device.
+- **Outbox.** Offline writes are stored as events in IndexedDB, each
+  with a client-generated id and timestamp, and replayed in order via
+  `POST /sync/events` when connectivity returns. Each event is recorded
+  in `SyncEvent`, unique per `(userId, clientEventId)`, so a batch
+  retried after a dropped response never applies twice. Entities
+  created offline use client-generated UUIDs as their real ids, so a
+  later offline edit or delete can reference them before the server has
+  ever seen them.
+- **Ordering.** Annotations made during an offline reading session are
+  held back until that session has been queued, so the session exists
+  server-side before anything links to it.
+
+**Deterministic rules per data type (§21.2)**
+
+| Data | Rule |
+|---|---|
+| Reading sessions | Append-only. An offline session uploads as a finished session; sessions never conflict with each other. |
+| Annotations (highlights, quotes), notes, bookmarks | Explicit merge. Creates from different devices are unioned. An edit applies field-by-field only if the server row hasn't changed since the edit was made (otherwise the newer server value stands). Deletes win over concurrent edits; an edit to something already deleted is skipped. |
+| Simple preferences (reader settings; soundtrack mode, volume, manual choice) | Last-write-wins per key, by client timestamp. |
+| Canonical reading position | If another device moved it while this one was offline *and* the positions differ, nothing is overwritten: both are kept as a conflict for the reader to resolve (§30 copy). Otherwise the offline session's end position applies normally. Concurrent divergent progress is the "low confidence" case §21.2 means — Bunko can't know which device reflects where the reader really is. |
+
+**SRS §21.1 coverage**
+
+| §21.1 item | How it syncs |
+|---|---|
+| library, books, editions, reading status, shelves, reviews | Server-native: online-only writes, already shared by every device. |
+| reading position | Append-only sessions + conflict resolution above. |
+| sessions | Append-only offline session events. |
+| notes, highlights, quotes | Merged offline events. |
+| bookmarks | Server-side `Bookmark` (was per-browser `localStorage` before Phase 9) + merged offline events. |
+| soundtrack preferences | Playlists and associations are server-native (Phase 8); mode, volume, and manual choice are LWW preferences. Whether music is *playing* on a device stays device-local — that's device state, not a preference. |
+| tags | Not applicable: no tagging feature exists (`DATA_MODEL.md` §5). |
+| (FR-021) supported preferences | Reader settings as an LWW preference. |
+
+**Offline reading (§21.3, FR-022)**
+
+- A service worker (production builds only) serves the app shell and
+  built assets offline. It never caches API responses or book files.
+- A reader explicitly downloads a book they own ("Download for
+  offline"): the file, its manifest, its chapter text, and an annotation
+  snapshot go into a per-user IndexedDB database. Nothing is downloaded
+  implicitly, and only the reader's own copies are eligible (§25).
+- Starting offline: if the session refresh fails because there's no
+  network (as opposed to a 401), the last signed-in user is kept for
+  this device's offline data, and the refresh is retried when the
+  network returns. Signing out deletes that user's offline data from the
+  device (with a warning first if changes are still waiting to sync).
+- Offline, the readers run from the local store with a local session
+  whose id becomes the server session's id when it syncs. Annotations,
+  notes, and bookmarks made offline appear immediately and queue in the
+  outbox.

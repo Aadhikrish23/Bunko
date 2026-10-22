@@ -1,4 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { endAllLocalSessions, endLocalSession, isOfflineSessionId, recordLocalProgress } from '../offline/local-sessions';
+import { onlineOr } from '../offline/online-or';
 import { api } from './client';
 import type { ReadingSession } from './types';
 
@@ -9,10 +11,14 @@ export function useStartSession() {
   });
 }
 
+// An "offline:" session (T-074) never touches the server until it ends;
+// its progress is kept on the device.
 export function useReportProgress() {
   return useMutation({
     mutationFn: ({ sessionId, position }: { sessionId: string; position: string }) =>
-      api.patch(`/reading-sessions/${sessionId}/progress`, { position }),
+      isOfflineSessionId(sessionId)
+        ? recordLocalProgress(sessionId, position)
+        : api.patch(`/reading-sessions/${sessionId}/progress`, { position }),
   });
 }
 
@@ -25,7 +31,17 @@ export function usePauseSession() {
 export function usePauseActiveSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<ReadingSession | null>('/reading-sessions/pause-active'),
+    mutationFn: () =>
+      onlineOr(
+        async () => {
+          await endAllLocalSessions();
+          return api.post<ReadingSession | null>('/reading-sessions/pause-active');
+        },
+        async () => {
+          await endAllLocalSessions();
+          return null;
+        },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['journal'] });
     },
@@ -35,7 +51,7 @@ export function usePauseActiveSession() {
 export function useEndSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       sessionId,
       endPosition,
       reflection,
@@ -43,7 +59,13 @@ export function useEndSession() {
       sessionId: string;
       endPosition?: string;
       reflection?: string | null;
-    }) => api.post<ReadingSession>(`/reading-sessions/${sessionId}/end`, { endPosition, reflection }),
+    }): Promise<Pick<ReadingSession, 'durationSeconds'>> => {
+      if (isOfflineSessionId(sessionId)) {
+        const ended = await endLocalSession(sessionId, { endPosition, reflection });
+        return { durationSeconds: ended?.durationSeconds ?? null };
+      }
+      return api.post<ReadingSession>(`/reading-sessions/${sessionId}/end`, { endPosition, reflection });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['journal'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });

@@ -756,6 +756,132 @@ Depends on: T-061 · SRS: §17.7
 
 ---
 
+## Phase 9 — Offline & Sync (Future v2+)
+
+Scoped per `IMPLEMENTATION_PLAN.md` §8 and SRS §21 (plus FR-021/022,
+E2E-007/008, and §30's sync-conflict copy). T-065 is the design ticket
+the plan requires before the rest; everything after it implements that
+decision.
+
+### T-065 — Sync & conflict-resolution design
+Depends on: none · SRS: §21.1, §21.2, §21.3
+
+Decision (full rationale in `ARCHITECTURE.md` §13):
+
+- **The server stays the source of truth.** Devices only diverge while
+  offline; online writes keep going straight to the existing REST API.
+- **Devices** get a client-generated id (`X-Device-Id` on every request)
+  registered as a `DeviceSession`, so writes can be attributed to a device.
+- **Offline writes become events** in a client outbox (IndexedDB), each
+  with a client-generated id and timestamp, replayed in order through
+  `POST /sync/events`. Every event is recorded in `SyncEvent`, unique per
+  user + client event id, so a retried batch never applies twice.
+  Entities created offline use client-generated UUIDs as their real ids,
+  so later offline edits/deletes can reference them.
+- **Per-type rules (§21.2):** sessions are **append-only** (an offline
+  session uploads as a finished session and never conflicts);
+  annotations, notes, and bookmarks **merge** (creates are unioned, edits
+  apply field-by-field only if the server copy hasn't changed since the
+  edit was made, deletes win over concurrent edits); preferences are
+  **last-write-wins per key** by client timestamp; the canonical reading
+  position goes to **user resolution** when it was moved by a different
+  device while this one was offline and the two positions differ — both
+  are kept and the reader chooses (§30: "This book was updated on another
+  device. Choose which reading position to continue from.").
+- **Offline reading:** a service worker serves the app shell offline; a
+  reader explicitly downloads a book they own, which stores the file, its
+  manifest, and its chapters in IndexedDB. Offline, the reader runs from
+  that store with a local session, and its writes go to the outbox.
+- **Not synced, by design:** whether music is playing on a device (the
+  soundtrack on/off switch — device state, not a preference); `Tag`s
+  (§21.1 lists them, but no tagging feature exists to sync).
+
+- [x] Decision recorded in `ARCHITECTURE.md` §13
+- [x] Every §21.1 item mapped to a mechanism (server-native, merged event, LWW preference, or out of scope with reason)
+
+### T-066 — Sync schema
+Depends on: T-065 · SRS: §21, §27.1
+
+`DeviceSession`, `SyncEvent` (with conflict status/resolution), `Bookmark`
+(server-side, replacing per-browser `localStorage`), `UserPreference`
+(per-key LWW), and `ReadingPosition.updatedByDeviceId` (who last moved the
+canonical position — what conflict detection needs).
+
+- [x] Models + migration; `DATA_MODEL.md` updated
+- [x] `SyncEvent` unique per `(userId, clientEventId)`
+
+### T-067 — Server-synced bookmarks
+Depends on: T-066 · SRS: §21.1 (bookmarks)
+
+- [x] `GET/POST /editions/:editionId/bookmarks`, `DELETE /bookmarks/:id` (owner-scoped like annotations)
+- [x] Both readers use it instead of `lib/bookmarks.ts`'s `localStorage`; existing local bookmarks are imported once rather than dropped
+- [ ] `openapi.yaml` updated; integration tests — *written (`backend/tests/bookmarks-preferences.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-068 — Synced preferences
+Depends on: T-066 · SRS: §21.1, §21.2 (LWW for simple preferences), FR-021
+
+- [x] `GET /preferences`, `PUT /preferences/:key` — applies only if the incoming client timestamp is newer than the stored one
+- [x] Reader settings and soundtrack mode/volume/manual choice sync through it; the soundtrack on/off switch stays per-device (T-065)
+- [ ] `openapi.yaml` updated; integration tests for the LWW rule — *written (`backend/tests/bookmarks-preferences.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-069 — Sync event ingestion
+Depends on: T-066, T-067, T-068 · SRS: §21.2, §21.3
+
+- [x] `POST /sync/events`: ordered batch, per-event result (`APPLIED`/`SKIPPED`/`CONFLICT`/`REJECTED`/`DUPLICATE`), idempotent replay
+- [x] Handlers: offline session (append-only), annotation/note/bookmark create/update/delete (merge rules), preference set (LWW)
+- [x] All ownership checks the online endpoints make, made here too
+- [ ] `openapi.yaml` updated; integration tests (idempotency, each merge rule, cross-user isolation) — *written (`backend/tests/sync.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-070 — Reading-position conflicts
+Depends on: T-069 · SRS: §21.2, §30, E2E-008
+
+- [x] An offline session whose end position would overwrite a canonical position another device moved during that session is recorded as a conflict instead — nothing overwritten
+- [x] `GET /sync/conflicts`, `POST /sync/conflicts/:id/resolve` (`SERVER` or `DEVICE`)
+- [ ] Integration tests for conflict / no-conflict / same-position / resolution — *written (`backend/tests/sync.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-071 — Device identity
+Depends on: T-066 · SRS: §21
+
+- [x] Client device id + `X-Device-Id` header on every request; `POST /sync/devices` registers it on sign-in
+- [x] Canonical position writes record the device; `GET /sync/devices` lists the account's devices (Settings)
+
+### T-072 — Offline app shell & sign-in
+Depends on: none · SRS: §21.3, FR-022
+
+- [x] Service worker (production builds) serving the app shell and built assets offline; API calls are never cached
+- [x] Offline start: a failed session refresh due to *no network* (not a 401) keeps the last signed-in user, scoped to this device's offline data, and retries when the network returns
+- [x] Signing out clears that user's offline data on this device (warning first if changes are still waiting to sync)
+
+### T-073 — Offline book downloads
+Depends on: T-072 · SRS: §21.3, FR-022, §25
+
+- [x] `GET /editions/:id/download` (file URL without starting a reading session, unlike the reader manifest)
+- [x] "Download for offline" / "Remove download" per digital edition; stores file, manifest, chapters, and an annotation snapshot in a per-user IndexedDB database
+- [x] Shows device storage use; only the reader's own copies can be downloaded
+
+### T-074 — Offline reader
+Depends on: T-073, T-075 · SRS: §21.3
+
+- [x] Both readers open a downloaded book with no network (file from the local store), resuming from the last local position
+- [x] An offline reading session is recorded locally and queued as one event when it ends; a session left open (tab closed) is closed and queued on next start
+- [x] Annotations, notes, and bookmarks made offline appear immediately and queue for sync
+
+### T-075 — Client sync outbox
+Depends on: T-069, T-071 · SRS: §21.3
+
+- [x] IndexedDB outbox; flushes on reconnect, on start, and periodically while non-empty; holds back events tied to a still-open offline session
+- [x] Visible status: offline / "N changes waiting to sync" / syncing
+- [x] Refreshes affected data after a flush
+
+### T-076 — Conflict resolution UI
+Depends on: T-070, T-075 · SRS: §21.2, §30
+
+- [x] After a sync, unresolved position conflicts prompt the reader with §30's copy and both positions (chapter, device, time)
+- [x] Choosing one resolves it; dismissing keeps it pending for later
+- [x] Frontend tests for the client-side pieces (outbox ordering/hold-back, device label, offline detection)
+
+---
+
 ## Ticket Count Summary
 
 | Phase | Tickets | Status |
@@ -770,9 +896,10 @@ Depends on: T-061 · SRS: §17.7
 | 6 — Annotations | T-042 – T-049 (8) | **100% Complete** |
 | 7 — Reviews & Reading Insights | T-050 – T-057 (8) | **Implemented — backend integration tests written, not yet run** |
 | 8 — Soundtrack | T-058 – T-064 (7) | **Implemented — backend integration tests written, not yet run** |
+| 9 — Offline & Sync | T-065 – T-076 (12) | **Implemented — backend integration tests written, not yet run** |
 
-Phase 9+ tickets (Offline/Sync, AI) are intentionally not written yet
-— see `AGENTS.md` §3. Do not pre-create them. When Phase 10 (AI Layer)
+Phase 10 (AI) tickets are intentionally not written yet — see
+`AGENTS.md` §3. Do not pre-create them. When Phase 10 (AI Layer)
 begins, its tickets will scaffold a separate `ai-service/`
 (Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module inside
 `backend/`.

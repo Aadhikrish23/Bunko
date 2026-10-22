@@ -1,3 +1,4 @@
+import { getDeviceId } from '../device';
 import { getAccessToken, setAccessToken } from './token-store';
 
 const API_BASE_URL =
@@ -23,6 +24,16 @@ export class ApiError extends Error {
     this.code = code;
     this.status = status;
     this.details = details;
+  }
+}
+
+// The request never reached the server (offline, DNS, server down) —
+// distinct from an ApiError, which is the server answering. Offline-aware
+// hooks (Phase 9) fall back to local data or the sync outbox on this.
+export class NetworkError extends Error {
+  constructor() {
+    super('You appear to be offline.');
+    this.name = 'NetworkError';
   }
 }
 
@@ -73,15 +84,21 @@ async function tryRefresh(): Promise<boolean> {
 
 async function request<T>(path: string, options: RequestOptions, retryOn401 = true): Promise<Envelope<T>> {
   const token = getAccessToken();
-  const response = await fetch(buildUrl(path, options.query), {
-    method: options.method ?? 'GET',
-    credentials: 'include',
-    headers: {
-      ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, options.query), {
+      method: options.method ?? 'GET',
+      credentials: 'include',
+      headers: {
+        'X-Device-Id': getDeviceId(),
+        ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new NetworkError();
+  }
 
   if (response.status === 401 && retryOn401 && token) {
     const refreshed = await tryRefresh();

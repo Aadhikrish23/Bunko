@@ -52,7 +52,14 @@ export async function listNotes(userId: string, workId: string): Promise<NoteDto
   return rows.map(toNoteDto);
 }
 
-export async function createNote(userId: string, workId: string, input: CreateNoteInput): Promise<NoteDto> {
+// `options` is only used by offline sync replay (T-069) — see
+// createAnnotation.
+export async function createNote(
+  userId: string,
+  workId: string,
+  input: CreateNoteInput,
+  options: { id?: string; createdAt?: Date } = {},
+): Promise<NoteDto> {
   await requireOwnWork(userId, workId);
 
   // An edition-scoped note's copyId must actually be the caller's own
@@ -75,6 +82,9 @@ export async function createNote(userId: string, workId: string, input: CreateNo
 
   const note = await prisma.note.create({
     data: {
+      ...(options.id ? { id: options.id } : {}),
+      // See createAnnotation: replayed creates keep their client time.
+      ...(options.createdAt ? { createdAt: options.createdAt, updatedAt: options.createdAt } : {}),
       userId,
       workId,
       copyId: input.copyId ?? null,

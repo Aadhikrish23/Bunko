@@ -1,3 +1,4 @@
+import { pushPreference } from '../../lib/preferences-sync';
 export type PageTurnMode = '3d-flip' | 'paginated' | 'continuous';
 export type ReaderTheme = 'paper' | 'sepia' | 'charcoal' | 'dark';
 export type MarginSize = 'compact' | 'standard' | 'wide';
@@ -41,12 +42,19 @@ export function loadReaderSettings(): ReaderSettings {
   }
 }
 
-export function saveReaderSettings(settings: ReaderSettings): void {
+export function writeReaderSettingsLocally(settings: ReaderSettings): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   } catch {
     // Ignore storage write failure
   }
+}
+
+// A reader's own change: kept locally and synced to their other devices
+// (Phase 9, T-068).
+export function saveReaderSettings(settings: ReaderSettings): void {
+  writeReaderSettingsLocally(settings);
+  pushPreference('reader-settings', settings as unknown as Record<string, unknown>);
 }
 
 export interface ThemeColors {

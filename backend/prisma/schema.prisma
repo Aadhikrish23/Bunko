@@ -34,6 +34,10 @@ model User {
   reviews           Review[]
   soundtracks       Soundtrack[]
   soundtrackMappings SoundtrackMapping[]
+  devices           DeviceSession[]
+  syncEvents        SyncEvent[]
+  bookmarks         Bookmark[]
+  preferences       UserPreference[]
 }
 
 model Author {
@@ -173,6 +177,7 @@ model Copy {
   sessions    ReadingSession[]
   annotations Annotation[]
   notes       Note[]
+  bookmarks   Bookmark[]
 }
 
 model DigitalFile {
@@ -211,6 +216,10 @@ model ReadingPosition {
   pageNumber   Int? // fallback only
   confidence   Float? // 0.0-1.0, per SRS §11.8
   updatedAt    DateTime @updatedAt
+  // The X-Device-Id that last moved this position (Phase 9, T-066) —
+  // what tells an offline device's late upload apart from its own
+  // earlier progress when detecting conflicts (T-070).
+  updatedByDeviceId String?
 
   journey ReadingJourney?
 }
@@ -409,4 +418,96 @@ enum SoundtrackTargetType {
   GENRE
   MOOD
   SITUATION
+}
+
+// SRS §21 — a browser/device the user reads on (Phase 9, T-066).
+// `deviceId` is generated once by the client and sent as X-Device-Id.
+model DeviceSession {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  deviceId   String
+  label      String
+  lastSeenAt DateTime  @default(now())
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, deviceId])
+}
+
+// One replayed offline write (T-069). `clientEventId` makes replay
+// idempotent. CONFLICT rows double as the pending reading-position
+// conflicts the reader resolves (T-070) — `detail` holds both sides.
+model SyncEvent {
+  id              String                  @id @default(uuid())
+  userId          String
+  user            User                    @relation(fields: [userId], references: [id])
+  deviceId        String
+  clientEventId   String
+  type            SyncEventType
+  payload         Json
+  clientCreatedAt DateTime
+  receivedAt      DateTime                @default(now())
+  status          SyncEventStatus
+  detail          Json?
+  resolvedAt      DateTime?
+  resolution      SyncConflictResolution?
+
+  @@unique([userId, clientEventId])
+  @@index([userId, status])
+}
+
+enum SyncEventType {
+  SESSION_RECORDED
+  ANNOTATION_CREATED
+  ANNOTATION_UPDATED
+  ANNOTATION_DELETED
+  NOTE_CREATED
+  NOTE_UPDATED
+  NOTE_DELETED
+  BOOKMARK_CREATED
+  BOOKMARK_DELETED
+  PREFERENCE_SET
+}
+
+enum SyncEventStatus {
+  APPLIED
+  SKIPPED
+  CONFLICT
+  REJECTED
+}
+
+enum SyncConflictResolution {
+  SERVER
+  DEVICE
+}
+
+// SRS §21.1 — bookmarks follow the account (Phase 9, T-067; they were
+// per-browser localStorage before). Anchored to the reader's copy, like
+// Annotation.
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  copyId    String
+  copy      Copy     @relation(fields: [copyId], references: [id])
+  position  String
+  label     String
+  createdAt DateTime @default(now())
+
+  @@index([userId, copyId])
+}
+
+// SRS §21.2 "last-write-wins for simple preferences" (T-068).
+// `updatedAt` is the client's timestamp of the change, so an older
+// offline edit replayed late can't overwrite a newer one.
+model UserPreference {
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  key               String
+  value             Json
+  updatedAt         DateTime
+  updatedByDeviceId String?
+
+  @@id([userId, key])
 }

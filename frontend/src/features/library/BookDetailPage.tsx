@@ -10,6 +10,7 @@ import { errorMessage } from '../../lib/error-message';
 import { NotesPanel } from '../notes/NotesPanel';
 import { ReviewPanel } from '../reviews/ReviewPanel';
 import { BookSoundtrackPanel } from '../soundtrack/BookSoundtrackPanel';
+import { OfflineDownloadButton } from '../sync/OfflineDownloadButton';
 import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
@@ -137,6 +138,7 @@ export function BookDetailPage() {
                 {edition.format !== 'PHYSICAL' && edition.copyId && (
                   <div className="flex flex-wrap items-center gap-3">
                     <ContinueReadingButton journeyId={data.journeyId} edition={edition} coverImageUrl={data.coverImageUrl} />
+                    <OfflineDownloadButton editionId={edition.id} title={data.title} />
                   </div>
                 )}
               </li>

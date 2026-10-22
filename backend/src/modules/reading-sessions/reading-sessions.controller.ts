@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { requestDeviceId } from '../../lib/device-id';
 import { requireUserId } from '../../lib/require-user';
 import { sendOk } from '../../lib/response';
 import * as sessionsService from './reading-sessions.service';
@@ -62,7 +63,13 @@ export async function endSessionHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const dto = await sessionsService.endSession(requireUserId(req), req.params.sessionId, req.body);
+    const dto = await sessionsService.endSession(
+      requireUserId(req),
+      req.params.sessionId,
+      req.body,
+      new Date(),
+      requestDeviceId(req),
+    );
     sendOk(res, dto);
   } catch (err) {
     next(err);

@@ -64,10 +64,14 @@ export async function listAnnotations(userId: string, editionId: string): Promis
   return rows.map(toAnnotationDto);
 }
 
+// `options` is only used by offline sync replay (T-069): an annotation
+// made offline keeps its client-generated id, so later offline edits can
+// reference it, and its real creation time.
 export async function createAnnotation(
   userId: string,
   editionId: string,
   input: CreateAnnotationInput,
+  options: { id?: string; createdAt?: Date } = {},
 ): Promise<AnnotationDto> {
   const copy = await requireOwnCopyForEdition(userId, editionId);
 
@@ -83,6 +87,10 @@ export async function createAnnotation(
 
   const annotation = await prisma.annotation.create({
     data: {
+      ...(options.id ? { id: options.id } : {}),
+      // updatedAt too: otherwise it's the replay time, and a later
+      // offline edit of this same annotation would look stale (T-069).
+      ...(options.createdAt ? { createdAt: options.createdAt, updatedAt: options.createdAt } : {}),
       userId,
       copyId: copy.id,
       sessionId: input.sessionId ?? null,

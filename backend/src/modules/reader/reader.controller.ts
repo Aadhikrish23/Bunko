@@ -28,3 +28,15 @@ export async function getChaptersHandler(
     next(err);
   }
 }
+
+export async function getDownloadManifestHandler(
+  req: Request<{ editionId: string }>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    sendOk(res, await readerService.getDownloadManifest(requireUserId(req), req.params.editionId));
+  } catch (err) {
+    next(err);
+  }
+}

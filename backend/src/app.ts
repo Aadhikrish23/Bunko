@@ -22,6 +22,9 @@ import { continuityRouter } from './modules/continuity/continuity.routes';
 import { annotationsForEditionRouter, annotationsRouter } from './modules/annotations/annotations.routes';
 import { notesForWorkRouter, notesRouter } from './modules/notes/notes.routes';
 import { reviewsRouter } from './modules/reviews/reviews.routes';
+import { bookmarksForEditionRouter, bookmarksRouter } from './modules/bookmarks/bookmarks.routes';
+import { preferencesRouter } from './modules/preferences/preferences.routes';
+import { syncRouter } from './modules/sync/sync.routes';
 import {
   soundtrackForWorkRouter,
   soundtrackMappingsRouter,
@@ -70,6 +73,10 @@ export function createApp(): Express {
   app.use('/api/v1/works', soundtrackForWorkRouter);
   app.use('/api/v1/soundtracks', soundtracksRouter);
   app.use('/api/v1/soundtrack-mappings', soundtrackMappingsRouter);
+  app.use('/api/v1/editions', bookmarksForEditionRouter);
+  app.use('/api/v1/bookmarks', bookmarksRouter);
+  app.use('/api/v1/preferences', preferencesRouter);
+  app.use('/api/v1/sync', syncRouter);
   app.use('/api/v1/metadata', metadataRouter);
   app.use('/api/v1/editions', editionsRouter);
   app.use('/api/v1/editions', readerRouter);
