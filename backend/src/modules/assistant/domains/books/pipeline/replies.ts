@@ -57,7 +57,8 @@ export function tidyReply(message: string): string {
       /I've added (.+?)( by [^.]+?)? to your library as Want to Read\. I've marked \1 as ([A-Za-z ]+?)\.( Congratulations on finishing it!)?/g,
       (_m, title: string, by: string | undefined, status: string, congrats: string | undefined) => `I've added ${title}${by ?? ''} to your library as ${status}.${congrats ?? ''}`,
     )
-    .replace(/\s{2,}/g, ' ')
+    // Squeeze doubled spaces only; line breaks carry lists and paragraphs.
+    .replace(/[ \t]{2,}/g, ' ')
     .trim();
 }
 

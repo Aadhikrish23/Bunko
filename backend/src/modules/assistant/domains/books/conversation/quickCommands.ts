@@ -112,12 +112,28 @@ function parseSingle(clause: string): AIIntent[] | undefined {
     const verb = m[1]!.toLowerCase();
     let rest = m[2]!;
     const score = statedScore(rest);
-    rest = rest.replace(/[,.;:-]?\s*(?:it'?s\s+(?:a\s+)?|gave it\s+(?:a\s+)?)?\d+(?:\.\d+)?\s*(?:\/\s*(?:5|10)|out of (?:5|10)|stars?).*$/i, '');
+    // "finished piranesi, 5 stars, the house was unforgettable": the words after the score are a review.
+    const scored = rest.match(/^(.*?)[,.;:-]?\s*(?:it'?s\s+(?:a\s+)?|gave it\s+(?:a\s+)?)?\d+(?:\.\d+)?\s*(?:\/\s*(?:5|10)|out of (?:5|10)|stars?)\s*[,.;:!-]*\s*(.*)$/i);
+    let comment: string | undefined;
+    if (score && scored) {
+      rest = scored[1]!;
+      comment = scored[2]?.trim() || undefined;
+    } else {
+      // "finished circe, loved it": the title stops at the comma.
+      rest = rest.split(/\s*[,;]\s*/)[0] ?? rest;
+    }
     rest = rest.replace(/\s+(?:last night|today|yesterday|this morning|this week|finally|at last)$/i, '');
     const status = toStatus(verb.replace(/^'m /, ''));
     if (!status) return undefined;
     const out = [intent(BookIntent.SetStatus, [bookT(clean(rest))], [{ type: IntentParameterType.Status, value: status }])];
-    if (score) out.push(intent(BookIntent.RateBook, [bookT(clean(rest))], [{ type: IntentParameterType.Rating, value: score.scale === 10 ? score.value / 2 : score.value }]));
+    if (score) {
+      out.push(
+        intent(BookIntent.RateBook, [bookT(clean(rest))], [
+          { type: IntentParameterType.Rating, value: score.scale === 10 ? score.value / 2 : score.value },
+          ...(comment ? [{ type: IntentParameterType.Text, value: comment }] : []),
+        ]),
+      );
+    }
     return out;
   }
   if ((m = text.match(/^(?:please\s+)?(?:add|save|track)\s+(.+?)(?:\s+to\s+(?:my\s+)?(?:library|want to read list|reading list|list))?$/i)) && !/\bshelf\b/i.test(text)) {

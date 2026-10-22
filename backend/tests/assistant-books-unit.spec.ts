@@ -88,6 +88,16 @@ test.describe('plain commands', () => {
     expect(splitBookList('pride and prejudice', ['Pride and Prejudice'])).toEqual(['pride and prejudice']);
   });
 
+  test('a status with a score keeps the comment as the review; a comma ends the title', () => {
+    const [status, rate] = parseCommands('finished piranesi, 5 stars, the house was unforgettable')!;
+    expect(status!.targets[0]!.name).toBe('piranesi');
+    expect(rate!.parameters).toEqual([
+      { type: 'Rating', value: 5 },
+      { type: 'Text', value: 'the house was unforgettable' },
+    ]);
+    expect(parseCommands('finished circe, loved it')![0]!.targets[0]!.name).toBe('circe');
+  });
+
   test('anything that is not a plain command goes to the model', () => {
     expect(parseCommands('what do you think of dune?')).toBeUndefined();
     expect(parseCommands('I loved that one so much')).toBeUndefined();

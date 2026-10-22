@@ -4,24 +4,69 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "frontend", "--", "--port", "5174", "--strictPort"],
-      "env": { "VITE_API_BASE_URL": "http://localhost:3100/api/v1" },
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "frontend",
+        "--",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
+      "env": {
+        "VITE_API_BASE_URL": "http://localhost:3100/api/v1"
+      },
       "port": 5174
     },
     {
       "name": "backend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "backend"],
-      "env": { "PORT": "3100" },
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "backend"
+      ],
+      "env": {
+        "PORT": "3100"
+      },
       "port": 3100,
       "autoPort": false
     },
     {
       "name": "backend-mock",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "backend"],
-      "env": { "PORT": "3101", "AI_PROVIDER": "mock" },
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "backend"
+      ],
+      "env": {
+        "PORT": "3101",
+        "AI_PROVIDER": "mock"
+      },
       "port": 3101,
+      "autoPort": false
+    },
+    {
+      "name": "frontend-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "frontend",
+        "--",
+        "--port",
+        "5175",
+        "--strictPort"
+      ],
+      "env": {
+        "VITE_API_BASE_URL": "http://localhost:3101/api/v1"
+      },
+      "port": 5175,
       "autoPort": false
     }
   ]

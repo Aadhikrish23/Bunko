@@ -2,6 +2,7 @@ import type { PreRouteInput, PreRouteOutcome } from '../../../domain/DomainPack'
 import { IntentParameterType } from '../../../intent/IntentParameterType';
 import type { AIIntent } from '../../../intent/AIIntent';
 import recentExchanges from '../../../conversation/RecentExchanges';
+import { isConfirmReply } from '../../../conversation/PendingConfirmationStore';
 import { BookIntent } from '../intent/BookIntent';
 import { loadLibrary, loadShelves, snapshotOf } from '../data/library';
 import { answerFromLibrary } from '../conversation/libraryAnswers';
@@ -31,6 +32,11 @@ export async function preRoute({ userId, requestId, message, client, session, re
 
   // "undo" / "undo that": put back what the last message changed.
   if (UNDO_ASK.test(message)) return reply(await undoLastChange(userId));
+
+  // A "yes" with nothing waiting for one (the question expired, or the server restarted).
+  if (isConfirmReply(message)) {
+    return reply("There's nothing waiting for a yes right now; that question may have expired. Tell me again what you'd like and I'll ask once more.");
+  }
 
   // Questions about the reader's own records, answered from their data.
   if (LOOKS_LIKE_QUESTION.test(message.trim()) || isQuestionOnly(message)) {

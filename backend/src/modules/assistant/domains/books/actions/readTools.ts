@@ -6,7 +6,7 @@ import conversationManager from '../../../conversation/ConversationManager';
 import { loadLibrary, loadShelves, type BookRecord } from '../data/library';
 import { STATUS_LABEL } from '../data/status';
 import { answerFromLibrary, searchBooks, titlesOf } from '../conversation/libraryAnswers';
-import { norm } from '../text/match';
+import { norm, titleScore } from '../text/match';
 
 export class SearchLibraryTool extends BaseTool<{ searchValue: string }, { titles: string[] }> {
   readonly category = 'library';
@@ -50,6 +50,8 @@ export class LibraryQuestionTool extends BaseTool<{ question?: string }, { answe
   }
 }
 
+const WAITING = 'waiting';
+
 interface Pick {
   book: BookRecord;
   score: number;
@@ -70,7 +72,7 @@ function rankToRead(books: BookRecord[], hint: string): Pick[] {
     .filter((b) => b.status === 'WANT_TO_READ')
     .map((book) => {
       let score = 0;
-      let reason = 'it has been waiting on your Want to Read list';
+      let reason = WAITING;
       const author = book.authors.find((a) => lovedAuthors.has(norm(a)));
       const genre = book.genres.find((g) => lovedGenres.has(norm(g)));
       if (book.seriesName && finishedSeries.has(norm(book.seriesName))) {
@@ -102,7 +104,10 @@ export class RecommendBooksTool extends BaseTool<{ query?: string }, { titles: s
     const books = await loadLibrary(context.userId);
     const hint = input.query ?? '';
     const picks = rankToRead(books, hint).slice(0, 3);
-    const lines = picks.map((p) => `- ${p.book.title}${p.book.authors[0] ? ` by ${p.book.authors[0]}` : ''}: ${p.reason}.`);
+    const byLine = (p: Pick) => `${p.book.title}${p.book.authors[0] ? ` by ${p.book.authors[0]}` : ''}`;
+    // Say "because..." only when there's a real reason; otherwise say once why these three.
+    const reasoned = picks.some((p) => p.reason !== WAITING);
+    const lines = picks.map((p) => (reasoned && p.reason !== WAITING ? `- ${byLine(p)}: ${p.reason}.` : `- ${byLine(p)}`));
 
     // The next book in a series they just finished, even if it isn't in the library yet.
     const lastSeries = books.find((b) => b.status === 'FINISHED' && b.seriesName);
@@ -112,8 +117,11 @@ export class RecommendBooksTool extends BaseTool<{ query?: string }, { titles: s
         discoverRelatedBooks(lastSeries.title, lastSeries.authors[0]).catch(() => null),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 6_000)),
       ]);
-      const owned = new Set(books.map((b) => norm(b.title)));
-      const candidate = related?.books.find((b) => !owned.has(norm(b.title)));
+      const owned = books.map((b) => b.title);
+      // A real next book: not one they have, and not the series' own name ("Dune series").
+      const candidate = related?.books.find(
+        (b) => !owned.some((t) => titleScore(b.title, t) >= 90) && !/\bseries\b/i.test(b.title) && norm(b.title) !== norm(lastSeries.seriesName ?? ''),
+      );
       if (candidate) next = `${candidate.title}${candidate.authors[0] ? ` by ${candidate.authors[0]}` : ''}`;
     }
 
@@ -126,7 +134,13 @@ export class RecommendBooksTool extends BaseTool<{ query?: string }, { titles: s
       );
     }
     const parts: string[] = [];
-    if (lines.length) parts.push(`From your Want to Read list, I'd start with:\n${lines.join('\n')}`);
+    if (lines.length) {
+      parts.push(
+        reasoned
+          ? `From your Want to Read list, I'd start with:\n${lines.join('\n')}`
+          : `Your ratings don't point at any of these yet, so here are the ones that have waited longest on your Want to Read list:\n${lines.join('\n')}`,
+      );
+    }
     if (next) parts.push(`You finished ${lastSeries!.title}; the series continues with ${next}. Say "add ${next.split(' by ')[0]}" if you'd like it.`);
     return this.success({ titles: picks.map((p) => p.book.title) }, parts.join('\n\n'));
   }
