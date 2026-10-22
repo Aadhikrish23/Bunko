@@ -1014,17 +1014,18 @@ paths:
   /ai/consent:
     put:
       summary: "Set the caller's AI consent (SRS §20.4)"
-      description: "Both default to off. generative requires semanticSearch. Turning semanticSearch off deletes the caller's embeddings immediately; turning it on starts indexing. Stores the current policy version."
+      description: "All default to off. generative requires semanticSearch; translation is independent. Turning semanticSearch off deletes the caller's embeddings immediately, and turning it on starts indexing. Turning translation off deletes the caller's saved chapter translations (SRS §20.5). Stores the current policy version."
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [semanticSearch, generative]
+              required: [semanticSearch, generative, translation]
               properties:
                 semanticSearch: { type: boolean }
                 generative: { type: boolean }
+                translation: { type: boolean }
       responses:
         "200":
           description: "Updated status"
@@ -1139,6 +1140,60 @@ paths:
         "403": { description: "Generated insights consent not given" }
         "429": { description: "Daily generation limit reached" }
         "503": { description: "AI_UNAVAILABLE" }
+
+  /ai/editions/{editionId}/translations:
+    post:
+      summary: "Translate one chapter of an edition the caller holds (T-090, SRS §20.5)"
+      description: "Queues a background translation and returns it as PENDING; poll the GET to follow progress. Asking again for a chapter whose current text is already translated or in progress returns that translation without charging the daily allowance again. Requires translation consent."
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [structuralId, targetLanguage]
+              properties:
+                structuralId: { type: string, minLength: 1, maxLength: 500 }
+                targetLanguage: { type: string, description: "A code from AiStatus.translationLanguages" }
+      responses:
+        "200":
+          description: "The translation, pending or already available"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/ChapterTranslation" }
+        "400": { description: "Unsupported language, a chapter with no text, or a chapter over 120,000 characters" }
+        "403": { description: "Translation consent not given" }
+        "404": { description: "No digital copy of this edition in the caller's library, or no such chapter" }
+        "429": { description: "Daily translation allowance would be exceeded" }
+        "503": { description: "AI_UNAVAILABLE" }
+    get:
+      summary: "The caller's own translations of an edition, with progress (T-090)"
+      parameters:
+        - in: path
+          name: editionId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: targetLanguage
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: "Translations, oldest first"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/ChapterTranslation" } }
 
   /editions/{editionId}/annotations:
     get:
@@ -1733,14 +1788,41 @@ components:
           properties:
             semanticSearch: { type: boolean }
             generative: { type: boolean }
+            translation: { type: boolean }
         consent:
           type: object
           properties:
             semanticSearch: { type: boolean }
             generative: { type: boolean }
+            translation: { type: boolean }
             policyVersion: { type: string, nullable: true }
         currentPolicyVersion: { type: string }
         dailyGenerationLimit: { type: integer }
+        dailyTranslationChars: { type: integer }
+        translationLanguages:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              name: { type: string }
+              rtl: { type: boolean }
+
+    ChapterTranslation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        structuralId: { type: string }
+        targetLanguage: { type: string }
+        status: { type: string, enum: [PENDING, READY, FAILED] }
+        segmentsDone: { type: integer }
+        segmentsTotal: { type: integer }
+        text: { type: string, nullable: true, description: "Set once READY" }
+        error: { type: string, nullable: true }
+        stale: { type: boolean, description: "The chapter's text has changed since this was translated" }
+        model: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time }
+        generated: { type: boolean, enum: [true], description: "Always true: a machine translation (SRS §20.5)" }
 
     AiExcerpt:
       type: object

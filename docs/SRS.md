@@ -1384,6 +1384,30 @@ interpretations rather than objective facts.
 Private user content shall not be exposed to third parties without
 appropriate user consent and contractual/legal controls.
 
+## 20.5 Chapter Translation (Phase 11)
+
+*Added by requirement change, 2026-10 — see the Change Log.*
+
+A reader may ask for an AI translation of one chapter of a digital book
+they hold into a language they choose, and read it in the flow reader
+in place of the original.
+
+-   **Opt-in, its own consent.** Translation sends the book's own text
+    to the AI provider, a different category of data from notes, so it
+    has a separate consent, off by default.
+-   **On request, one chapter at a time.** Nothing is translated
+    automatically, and never a whole library.
+-   **Private to the requester.** A translation is visible only to the
+    user who asked for it, and is never shared with other users who hold
+    the same edition (§25.4: no redistribution).
+-   **Labelled.** A translation is shown as a machine translation that
+    may contain errors, and the original is always one tap away.
+-   **Revocable.** Turning the consent off deletes the user's stored
+    translations.
+-   **Bounded.** A per-user daily character budget caps cost, and a
+    chapter too long to translate in one request is refused with a
+    clear message rather than partially translated.
+
 ------------------------------------------------------------------------
 
 # 21. Synchronization and Offline Support
@@ -2342,7 +2366,8 @@ Potential future capabilities include:
 -   advanced semantic search;
 -   AI-generated book soundtrack plans;
 -   adaptive chapter-level soundtrack;
--   multilingual reader features;
+-   multilingual reader features (chapter translation approved as
+    Phase 11, §20.5);
 -   OCR for physical-book photographs;
 -   camera-assisted page/ISBN recognition;
 -   handwriting capture;
@@ -2641,3 +2666,13 @@ implementation.
     what becomes searchable/anchorable/chapter-extractable. See also the
     chapter-extraction project memory note for the related, broader
     (non-SRS-formalized) plan this sits inside.
+-   **2026-10 — AI chapter translation added as Phase 11 (§20.5).** AI
+    data-processing and reading-behaviour change. §37 listed
+    "multilingual reader features" as a future enhancement needing
+    separate approval; the product owner approved it in session after
+    Phases 1–10 were complete. It builds on the chapter text extracted at
+    import (§11.6) and the Phase 10 AI service and consent model. What
+    changes: the reader's book text (not just their notes) can now be
+    sent to the AI provider, under a new, separate consent that is off by
+    default and documented in `docs/AI_DATA_POLICY.md`. Translations are
+    stored per user only, never shared across users (§25.4).

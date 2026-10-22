@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { logger } from './lib/logger';
 import { scheduleIdleTimeoutSweep, startIdleTimeoutWorker } from './modules/reading-sessions/idle-timeout.worker';
 import { startOcrBackfillWorker } from './modules/reader/ocr-backfill.worker';
+import { startTranslationWorker } from './modules/ai/translation.worker';
 
 const app = createApp();
 
@@ -15,3 +16,4 @@ scheduleIdleTimeoutSweep().catch((err) => {
   logger.warn({ err }, 'failed to schedule idle-timeout sweep (Redis unreachable?)');
 });
 startOcrBackfillWorker();
+startTranslationWorker();

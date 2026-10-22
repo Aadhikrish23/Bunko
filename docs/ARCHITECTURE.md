@@ -186,6 +186,17 @@ decision, recorded now so later work doesn't re-litigate it:
   service runs under the `ai` Compose profile with the least-privilege
   role from `ai-service/scripts/create_ai_role.sql`. What reaches the
   provider, and when, is set out in `docs/AI_DATA_POLICY.md`.
+- **Chapter translation (Phase 11, T-087–T-092).** This follows the same
+  boundary. The Express `ai/` module checks the third consent
+  (`translation`), ownership of a digital copy, the chapter's length, and
+  a daily character budget. It then queues a BullMQ job
+  (`translation.worker.ts`) that splits the chapter at paragraph
+  boundaries and sends each piece to ai-service's `/internal/translate`,
+  which streams the Claude reply. Express sends the chapter text itself,
+  so ai-service needs no new database access. Results are stored per user
+  in `ChapterTranslation` and never shared across users (SRS §25.4). The
+  flow reader renders a translated chapter in place of the original,
+  through the same template.
 
 ## 9. Folder Structure (top level)
 

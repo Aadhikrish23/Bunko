@@ -37,6 +37,12 @@ class SummaryRequest(UserRequest):
     workId: str = Field(min_length=1, max_length=64)
 
 
+class TranslateRequest(UserRequest):
+    # One segment of a chapter; Express splits chapters to stay under this.
+    text: str = Field(min_length=1, max_length=12_000)
+    targetLanguage: str = Field(min_length=2, max_length=40)
+
+
 def _error(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "message": message})
 
@@ -87,3 +93,8 @@ def insights(request: UserRequest, llm: Llm = Depends(get_llm)) -> dict[str, Any
 @app.post("/internal/recommendations", dependencies=internal)
 def recommendations(request: UserRequest, llm: Llm = Depends(get_llm)) -> dict[str, Any]:
     return _generated(lambda: features.recommendations(request.userId, llm))
+
+
+@app.post("/internal/translate", dependencies=internal)
+def translate(request: TranslateRequest, llm: Llm = Depends(get_llm)) -> dict[str, Any]:
+    return _generated(lambda: features.translate(request.text, request.targetLanguage, llm))

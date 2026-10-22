@@ -4,7 +4,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { useAiStatus, useSetAiConsent } from '../../lib/api/ai';
 import { errorMessage } from '../../lib/error-message';
-import { GENERATIVE_DISCLOSURE, SEMANTIC_SEARCH_DISCLOSURE } from './ai-disclosure';
+import { GENERATIVE_DISCLOSURE, SEMANTIC_SEARCH_DISCLOSURE, TRANSLATION_DISCLOSURE } from './ai-disclosure';
 import { revokeWarning, toggleConsent, type Consent } from './consent-logic';
 
 function Toggle({
@@ -53,8 +53,12 @@ export function AiSettingsCard() {
   const [pending, setPending] = useState<{ next: Consent; warning: string } | null>(null);
 
   const current: Consent = status.data
-    ? { semanticSearch: status.data.consent.semanticSearch, generative: status.data.consent.generative }
-    : { semanticSearch: false, generative: false };
+    ? {
+        semanticSearch: status.data.consent.semanticSearch,
+        generative: status.data.consent.generative,
+        translation: status.data.consent.translation,
+      }
+    : { semanticSearch: false, generative: false, translation: false };
   const available = status.data?.available;
 
   function change(key: keyof Consent, on: boolean) {
@@ -86,13 +90,23 @@ export function AiSettingsCard() {
             disabled={setConsent.isPending}
             onChange={(on) => change('generative', on)}
           />
-          {available && (!available.semanticSearch || (!available.generative && current.generative)) && (
-            <p className="text-xs text-ember-600">
-              {available.semanticSearch
-                ? 'Generated insights aren’t set up on this server yet.'
-                : 'AI features aren’t set up on this server yet — your choice is saved for when they are.'}
-            </p>
-          )}
+          <Toggle
+            label="Chapter translation"
+            description={`${TRANSLATION_DISCLOSURE} Up to ${status.data.dailyTranslationChars.toLocaleString()} characters a day.`}
+            checked={current.translation}
+            disabled={setConsent.isPending}
+            onChange={(on) => change('translation', on)}
+          />
+          {available &&
+            (!available.semanticSearch ||
+              (!available.generative && current.generative) ||
+              (!available.translation && current.translation)) && (
+              <p className="text-xs text-ember-600">
+                {available.semanticSearch
+                  ? 'Generated insights and translation aren’t set up on this server yet.'
+                  : 'AI features aren’t set up on this server yet — your choice is saved for when they are.'}
+              </p>
+            )}
         </div>
       )}
       {pending && (

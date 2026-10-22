@@ -2,7 +2,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { requireUserId } from '../../lib/require-user';
 import { sendOk } from '../../lib/response';
 import * as aiService from './ai.service';
-import type { AskInput, ConsentInput, SearchQuery } from './ai.schema';
+import type { AskInput, ConsentInput, SearchQuery, TranslateInput, TranslationsQuery } from './ai.schema';
+import * as translationService from './translation.service';
 
 type Handler<P = Record<string, string>, B = unknown> = (
   req: Request<P, unknown, B>,
@@ -35,3 +36,18 @@ export const summaryHandler = handle<{ workId: string }, unknown>((req) =>
 );
 export const insightsHandler = handle((req) => aiService.insights(requireUserId(req)));
 export const recommendationsHandler = handle((req) => aiService.recommendations(requireUserId(req)));
+export const requestTranslationHandler = handle<{ editionId: string }, TranslateInput>((req) =>
+  translationService.requestTranslation(
+    requireUserId(req),
+    req.params.editionId,
+    req.body.structuralId,
+    req.body.targetLanguage,
+  ),
+);
+export const listTranslationsHandler = handle<{ editionId: string }, unknown>((req) =>
+  translationService.listTranslations(
+    requireUserId(req),
+    req.params.editionId,
+    (req.query as unknown as TranslationsQuery).targetLanguage,
+  ),
+);

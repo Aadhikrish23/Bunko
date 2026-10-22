@@ -34,6 +34,8 @@ const envSchema = z.object({
   AI_SERVICE_URL: z.string().url().optional(),
   AI_SERVICE_TOKEN: z.string().min(16).optional(),
   AI_DAILY_GENERATION_LIMIT: z.coerce.number().int().min(0).default(30),
+  // Phase 11: characters of book text a user can have translated per day.
+  AI_DAILY_TRANSLATION_CHARS: z.coerce.number().int().min(0).default(200_000),
 });
 
 export const env = envSchema.parse(process.env);

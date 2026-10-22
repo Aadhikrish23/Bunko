@@ -290,11 +290,35 @@ export interface SyncDevice {
   current: boolean;
 }
 
+export interface TranslationLanguage {
+  code: string;
+  name: string;
+  rtl?: boolean;
+}
+
 export interface AiStatus {
-  available: { semanticSearch: boolean; generative: boolean };
-  consent: { semanticSearch: boolean; generative: boolean; policyVersion: string | null };
+  available: { semanticSearch: boolean; generative: boolean; translation: boolean };
+  consent: { semanticSearch: boolean; generative: boolean; translation: boolean; policyVersion: string | null };
   currentPolicyVersion: string;
   dailyGenerationLimit: number;
+  dailyTranslationChars: number;
+  translationLanguages: TranslationLanguage[];
+}
+
+// SRS §20.5 — one machine translation of one chapter (Phase 11).
+export interface ChapterTranslation {
+  id: string;
+  structuralId: string;
+  targetLanguage: string;
+  status: 'PENDING' | 'READY' | 'FAILED';
+  segmentsDone: number;
+  segmentsTotal: number;
+  text: string | null;
+  error: string | null;
+  stale: boolean;
+  model: string | null;
+  updatedAt: string;
+  generated: true;
 }
 
 export interface AiExcerpt {

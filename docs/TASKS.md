@@ -979,6 +979,78 @@ Depends on: T-078 · SRS: §20.4, §38.5
 
 ---
 
+## Phase 11 — AI Chapter Translation (Future v2+)
+
+Added by requirement change (SRS §20.5 and its Change Log entry). Builds
+on the chapter text extracted at import (§11.6, `Edition.chapterGraph`)
+and on Phase 10's `ai-service`, consent model, and limits.
+
+### T-087 — Translation requirement & data-processing design
+Depends on: T-077 · SRS: §20.5, §25.4, §38.5
+
+Decision:
+
+- **A third consent, `translation`, off by default and independent of
+  the other two.** It sends the book's own text (not the reader's notes)
+  to the Claude API, which is a different category of data. It doesn't
+  need semantic search.
+- **Per chapter, on request.** Express splits the chapter at paragraph
+  boundaries into segments of about 6,000 characters and a background
+  job translates them one at a time through `ai-service`. Express sends
+  the text, so `ai-service` gains no new database access.
+- **Stored per user** (`ChapterTranslation`, keyed by user, edition,
+  chapter, and language), never shared across users (§25.4). A
+  `sourceHash` marks a translation stale if the chapter's text is
+  re-extracted.
+- **Limits:** chapters over 120,000 characters are refused with a clear
+  message, and a daily character budget (`AI_DAILY_TRANSLATION_CHARS`,
+  default 200,000) is charged when a translation is requested.
+- **Target languages** come from a fixed list; the source language is
+  detected by the model.
+
+- [x] SRS §20.5 and Change Log entry
+- [x] `docs/AI_DATA_POLICY.md` §3, `ARCHITECTURE.md` §8, and the in-app disclosure updated; `AI_POLICY_VERSION` bumped
+
+### T-088 — Translation consent & schema
+Depends on: T-087, T-078 · SRS: §20.5
+
+- [x] `AiConsent.translation` + `ChapterTranslation` model + migration
+- [x] `GET /ai/status` reports translation availability and consent; `PUT /ai/consent` accepts `translation`; turning it off deletes the user's translations
+- [x] `openapi.yaml` updated
+- [ ] Integration tests — *written (`backend/tests/ai.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-089 — `ai-service` translation endpoint
+Depends on: T-079 · SRS: §20.5
+
+- [x] `POST /internal/translate` translates one segment into the target language, keeping paragraph breaks; the text is passed as data, never as instructions
+- [x] Streams the response; a refusal, a cut-off reply, or a provider error surfaces as a clean failure
+- [x] pytest coverage for the prompt and the error mapping
+
+### T-090 — Translation jobs & API
+Depends on: T-088, T-089 · SRS: §20.5, §25.2
+
+- [x] Paragraph-boundary segmentation (pure, unit-tested in `backend/tests/segment-text.spec.ts`, passing)
+- [x] `POST /ai/editions/:editionId/translations` (`{ structuralId, targetLanguage }`) checks consent, ownership of a copy, chapter length, and the daily budget, then queues a job; asking again for a ready, current translation returns it without re-charging
+- [x] `GET /ai/editions/:editionId/translations?targetLanguage=` lists the caller's translations of that edition, with progress, staleness, and text
+- [x] The BullMQ worker translates segment by segment, records progress, stops if consent is revoked, and marks failures with a message
+- [x] `openapi.yaml` updated
+- [ ] Integration tests (consent, ownership, length limit, cross-user isolation) — *written (`backend/tests/ai.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-091 — Reader translation UI
+Depends on: T-090 · SRS: §20.5
+
+- [x] A Translate control in the flow reader: pick a language, translate the current chapter, see progress, and switch between original and translation
+- [x] Translated chapters render in the same template, labelled as machine translation; highlighting is paused on translated text (annotations anchor to the original)
+- [x] Consent off or service unavailable leads to a clear message with a link to Settings
+
+### T-092 — Translation settings
+Depends on: T-088 · SRS: §20.5, §38.5
+
+- [x] Third toggle in the AI settings card with its disclosure; turning it off warns that saved translations are deleted
+- [x] Frontend tests for the client-side pieces (consent rules, language list, paragraph-aware display helpers)
+
+---
+
 ## Ticket Count Summary
 
 | Phase | Tickets | Status |
@@ -995,7 +1067,8 @@ Depends on: T-078 · SRS: §20.4, §38.5
 | 8 — Soundtrack | T-058 – T-064 (7) | **Implemented — backend integration tests written, not yet run** |
 | 9 — Offline & Sync | T-065 – T-076 (12) | **Implemented — backend integration tests written, not yet run** |
 | 10 — AI Layer | T-077 – T-086 (10) | **Implemented — backend integration tests written, not yet run** |
+| 11 — AI Chapter Translation | T-087 – T-092 (6) | **Implemented — backend integration tests written, not yet run** |
 
-All ten roadmap phases are ticketed. Phase 10 lives in a separate
+All ten roadmap phases are ticketed, plus Phase 11 (chapter translation), added by requirement change (SRS §20.5). Phase 10 lives in a separate
 `ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module
 inside `backend/`.

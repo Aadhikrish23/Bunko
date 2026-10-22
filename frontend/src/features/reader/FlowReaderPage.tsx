@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Highlighter,
+  Languages,
   List,
   MapPinOff,
   Music,
@@ -32,10 +33,13 @@ import {
 import { useCreateNote } from '../../lib/api/notes';
 import type { NoteScope } from '../../lib/api/types';
 import { useAddBookmark, useBookmarks, useRemoveBookmark } from '../../lib/api/bookmarks';
+import { useAiStatus, useTranslations } from '../../lib/api/ai';
 import type { HighlightColor } from '../../lib/annotation-colors';
 import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
 import { usePrefersReducedMotion } from '../../lib/use-reduced-motion';
+import { TranslatePanel } from '../ai/TranslatePanel';
+import { applyTranslations, isRtl, translationsKey, usableTranslations } from '../ai/translation-view';
 import { NoteComposerModal } from '../notes/NoteComposerModal';
 import { ReaderSoundtrack } from '../soundtrack/ReaderSoundtrack';
 import { AnnotationsDrawer } from './AnnotationsDrawer';
@@ -94,6 +98,9 @@ const FONT_FAMILY_CHAR_WIDTH_FACTOR: Record<ReaderFontFamily, number> = {
 // that page's character budget so it doesn't get a full page's worth of
 // body text packed in above where the heading already sits.
 const CHAPTER_HEADING_RESERVED_PX = 56;
+// Extra room on a translated chapter's first page for its machine-
+// translation label (SRS §20.5).
+const TRANSLATION_LABEL_RESERVED_PX = 24;
 
 interface FlowPage {
   chapterOrder: number;
@@ -108,6 +115,8 @@ interface FlowPage {
   // first page would just be blank instead of showing the cover art the
   // rest of the app already has (Work.coverImageUrl).
   isCoverPlaceholder: boolean;
+  // A machine translation is shown instead of the book's text (Phase 11).
+  translated: boolean;
 }
 
 // The unified "personalized book" template for reading extracted
@@ -162,6 +171,37 @@ export function FlowReaderPage() {
   const [showCorrection, setShowCorrection] = useState(false);
   const [showNoteComposer, setShowNoteComposer] = useState(false);
   const [showSoundtrack, setShowSoundtrack] = useState(false);
+  const [showTranslatePanel, setShowTranslatePanel] = useState(false);
+  const [currentStructuralId, setCurrentStructuralId] = useState<string | null>(null);
+
+  // Chapter translation (SRS §20.5, T-091): the chosen language is
+  // remembered per edition on this device; the translations themselves
+  // come from the server.
+  const [translationLanguage, setTranslationLanguage] = useState<string | null>(() => {
+    try {
+      return editionId ? localStorage.getItem(`bunko_translate_lang_${editionId}`) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [showTranslated, setShowTranslated] = useState(true);
+  const aiStatus = useAiStatus();
+  const translations = useTranslations(editionId, translationLanguage);
+  const usable = usableTranslations(translations.data);
+  const usableKey = translationsKey(usable);
+  const translationRtl = isRtl(aiStatus.data?.translationLanguages, translationLanguage);
+
+  function changeTranslationLanguage(code: string | null) {
+    setTranslationLanguage(code);
+    setShowTranslated(true);
+    if (!editionId) return;
+    try {
+      if (code) localStorage.setItem(`bunko_translate_lang_${editionId}`, code);
+      else localStorage.removeItem(`bunko_translate_lang_${editionId}`);
+    } catch {
+      // ignore
+    }
+  }
   const annotationsQuery = useAnnotations(editionId);
   const annotations = annotationsQuery.data ?? [];
   const createAnnotation = useCreateAnnotation(editionId);
@@ -216,6 +256,7 @@ export function FlowReaderPage() {
 
   function handlePositionChange(structuralId: string) {
     currentPositionRef.current = structuralId;
+    setCurrentStructuralId(structuralId);
     const chapter = chapters.data?.chapters.find((c) => c.structuralId === structuralId);
     if (chapter) setDisplayPositionLabel(chapter.label);
     if (editionId) {
@@ -297,9 +338,18 @@ export function FlowReaderPage() {
   const warmthFilter = settings.temperature > 0 ? ` sepia(${(settings.temperature / 100) * 0.5})` : '';
   const pageFilterStyle = { filter: `${brightnessFilter}${warmthFilter}` };
 
+  // Keyed on usableKey, not the query data: progress polling returns new
+  // objects every few seconds, and re-paginating on each would keep
+  // throwing the reader back to the chapter start.
+  const displayChapters = useMemo(
+    () => applyTranslations(chapters.data?.chapters ?? [], usable, showTranslated && translationLanguage !== null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chapters.data, usableKey, showTranslated, translationLanguage],
+  );
+
   const pages = useMemo<FlowPage[]>(() => {
-    const list = chapters.data?.chapters;
-    if (!list || list.length === 0) return [];
+    const list = displayChapters;
+    if (list.length === 0) return [];
     const pageBoxOptions = {
       lineHeightMultiplier: settings.lineHeight,
       marginFraction: MARGIN_SIZE_FRACTION[settings.marginSize],
@@ -310,10 +360,18 @@ export function FlowReaderPage() {
       ...pageBoxOptions,
       reservedTopPx: CHAPTER_HEADING_RESERVED_PX,
     });
+    const translatedFirstCharsPerPage = estimateCharsPerPage(bookWidth, bookHeight, settings.fontScale, {
+      ...pageBoxOptions,
+      reservedTopPx: CHAPTER_HEADING_RESERVED_PX + TRANSLATION_LABEL_RESERVED_PX,
+    });
     const result: FlowPage[] = [];
     const sorted = [...list].sort((a, b) => a.order - b.order);
     sorted.forEach((chapter, chapterIndex) => {
-      const chunks = paginateChapterText(chapter.text, firstCharsPerPage, regularCharsPerPage);
+      const chunks = paginateChapterText(
+        chapter.text,
+        chapter.translated ? translatedFirstCharsPerPage : firstCharsPerPage,
+        regularCharsPerPage,
+      );
       chunks.forEach((chunk, i) => {
         result.push({
           chapterOrder: chapter.order,
@@ -322,11 +380,12 @@ export function FlowReaderPage() {
           isChapterStart: i === 0,
           text: chunk,
           isCoverPlaceholder: chapterIndex === 0 && chapter.text.trim().length === 0,
+          translated: chapter.translated,
         });
       });
     });
     return result;
-  }, [chapters.data, bookWidth, bookHeight, settings.fontScale, settings.lineHeight, settings.marginSize, settings.fontFamily]);
+  }, [displayChapters, bookWidth, bookHeight, settings.fontScale, settings.lineHeight, settings.marginSize, settings.fontFamily]);
 
   const pagesRef = useRef<FlowPage[]>([]);
   pagesRef.current = pages;
@@ -621,6 +680,9 @@ export function FlowReaderPage() {
     const rect = range?.getBoundingClientRect();
     const position = currentPositionRef.current ?? pagesRef.current[currentPageIndex]?.structuralId ?? '';
     if (!position) return;
+    // Highlights and quotes anchor to the book's own text; a selection in a
+    // translated chapter would save words that aren't in the book.
+    if (displayChapters.find((c) => c.structuralId === position)?.translated) return;
     setActiveSelection({
       text,
       x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
@@ -727,7 +789,14 @@ export function FlowReaderPage() {
     );
   }
 
-  const sortedChapters = chapters.data.chapters.slice().sort((a, b) => a.order - b.order);
+  const sortedChapters = displayChapters.slice().sort((a, b) => a.order - b.order);
+  const currentChapter = chapters.data.chapters.find((c) => c.structuralId === currentStructuralId) ?? null;
+  const translationLanguageName = aiStatus.data?.translationLanguages.find((l) => l.code === translationLanguage)?.name;
+  const translationLabel = (
+    <p className="mb-3 text-xs italic opacity-70">
+      Machine translation{translationLanguageName ? ` into ${translationLanguageName}` : ''} — may contain mistakes.
+    </p>
+  );
 
   return (
     <div style={{ backgroundColor: theme.bg }} className="flex h-screen flex-col">
@@ -792,6 +861,46 @@ export function FlowReaderPage() {
             <Music className="h-4 w-4" />
             <span className="hidden sm:inline">Music</span>
           </button>
+
+          {!manifest.data.offline && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTranslatePanel((v) => !v);
+                  setShowBookmarks(false);
+                  setShowChapterList(false);
+                }}
+                aria-label="Translate"
+                aria-expanded={showTranslatePanel}
+                title="Translate"
+                className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium hover:bg-paper-100"
+              >
+                <Languages className="h-4 w-4" />
+                <span className="hidden sm:inline">Translate</span>
+              </button>
+              {showTranslatePanel && (
+                <TranslatePanel
+                  editionId={editionId}
+                  chapter={
+                    currentChapter
+                      ? {
+                          structuralId: currentChapter.structuralId,
+                          label: currentChapter.label,
+                          length: currentChapter.text.trim().length,
+                        }
+                      : null
+                  }
+                  language={translationLanguage}
+                  onLanguageChange={changeTranslationLanguage}
+                  showTranslated={showTranslated}
+                  onShowTranslatedChange={setShowTranslated}
+                  translations={translations.data}
+                  onClose={() => setShowTranslatePanel(false)}
+                />
+              )}
+            </div>
+          )}
 
           <button
             type="button"
@@ -1040,7 +1149,9 @@ export function FlowReaderPage() {
                       >
                         {chapter.label}
                       </h2>
+                      {chapter.translated && translationLabel}
                       <p
+                        dir={chapter.translated && translationRtl ? 'rtl' : undefined}
                         className="whitespace-pre-line text-base"
                         style={{
                           fontFamily: FONT_FAMILY_STACK[settings.fontFamily],
@@ -1158,7 +1269,9 @@ export function FlowReaderPage() {
                         {page.chapterLabel}
                       </h2>
                     )}
+                    {page.isChapterStart && page.translated && translationLabel}
                     <p
+                      dir={page.translated && translationRtl ? 'rtl' : undefined}
                       className="whitespace-pre-line overflow-hidden text-sm"
                       style={{
                         fontSize: `${0.95 * settings.fontScale}rem`,

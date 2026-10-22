@@ -43,6 +43,7 @@ model User {
   preferences       UserPreference[]
   aiConsent         AiConsent?
   aiEmbeddings      AiEmbedding[]
+  translations      ChapterTranslation[]
 }
 
 model Author {
@@ -160,6 +161,7 @@ model Edition {
   createdAt    DateTime      @default(now())
 
   copies Copy[]
+  translations ChapterTranslation[]
 }
 
 enum EditionFormat {
@@ -524,6 +526,7 @@ model AiConsent {
   user           User     @relation(fields: [userId], references: [id])
   semanticSearch Boolean  @default(false) // local embeddings, nothing leaves Bunko
   generative     Boolean  @default(false) // excerpts sent to the Claude API
+  translation    Boolean  @default(false) // chapter text sent to the Claude API (Phase 11)
   policyVersion  String
   updatedAt      DateTime @updatedAt
 }
@@ -551,4 +554,37 @@ enum AiSourceType {
   ANNOTATION
   NOTE
   REVIEW
+}
+
+// SRS §20.5 — one AI translation of one chapter, for the user who asked
+// (Phase 11, T-088). Never shared across users, even for the same edition
+// (§25.4). `sourceHash` is the hash of the chapter text it was made from, so
+// a re-extracted chapter shows the translation as stale.
+model ChapterTranslation {
+  id             String            @id @default(uuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id])
+  editionId      String
+  edition        Edition           @relation(fields: [editionId], references: [id])
+  structuralId   String
+  targetLanguage String
+  sourceHash     String
+  charCount      Int
+  status         TranslationStatus
+  segmentsDone   Int               @default(0)
+  segmentsTotal  Int
+  text           String            @default("")
+  error          String?
+  model          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([userId, editionId, structuralId, targetLanguage])
+  @@index([userId, editionId])
+}
+
+enum TranslationStatus {
+  PENDING
+  READY
+  FAILED
 }

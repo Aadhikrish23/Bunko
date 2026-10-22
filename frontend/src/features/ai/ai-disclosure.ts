@@ -11,3 +11,8 @@ export const GENERATIVE_DISCLOSURE =
   'highlights, notes, reviews, ratings, and library that the request needs to Anthropic’s Claude API, which writes ' +
   'the response. Data is sent only when you ask, and Bunko doesn’t keep the responses. Anthropic processes it under ' +
   'its commercial API terms. Needs semantic search to be on.';
+
+export const TRANSLATION_DISCLOSURE =
+  'When you ask to translate a chapter of a book in your library, Bunko sends that chapter’s text to Anthropic’s ' +
+  'Claude API, which translates it. Text is sent only when you ask, one chapter at a time. The translation is saved ' +
+  'for you alone and never shown to other readers. Turning this off deletes your saved translations.';

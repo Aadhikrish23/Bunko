@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import anthropic
@@ -5,7 +6,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app import features
+from app import features, prompts
 from app.llm import FALLBACK_BETA, Llm, LlmDeclined, LlmFailed, LlmUnavailable, get_llm
 from app.main import app
 
@@ -22,10 +23,19 @@ class FakeMessages:
             raise self.error
         return self.response
 
+    @contextmanager
+    def stream(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
+        yield SimpleNamespace(get_final_message=lambda: self.response)
+
 
 def fake_client(response=None, error=None):
     messages = FakeMessages(response, error)
-    return SimpleNamespace(beta=SimpleNamespace(messages=messages)), messages
+    client = SimpleNamespace(beta=SimpleNamespace(messages=messages))
+    client.with_options = lambda **_kwargs: client
+    return client, messages
 
 
 def text_response(text, stop_reason="end_turn"):
@@ -102,3 +112,40 @@ def test_generation_errors_map_to_coded_responses(client, monkeypatch):
     response = client.post("/internal/recommendations", json={"userId": "u1"}, headers={"X-Internal-Token": TOKEN})
     assert response.status_code == 503
     assert response.json()["detail"]["code"] == "LLM_UNAVAILABLE"
+
+
+def test_translation_streams_plain_text_and_keeps_paragraphs():
+    client, messages = fake_client(text_response("Hola.\n\nAdiós &lt;3"))
+    llm = Llm(client, "claude-opus-5-5")
+
+    result = features.translate("Hello.\n\nBye <3", "Spanish", llm)
+
+    assert result == {"text": "Hola.\n\nAdiós <3", "model": "claude-opus-5-5"}
+    call = messages.calls[0]
+    assert call["system"] == prompts.TRANSLATE_SYSTEM
+    assert call["fallbacks"] == "default"
+    assert "format" not in call["output_config"]  # plain text, not JSON
+    assert "Bye &lt;3" in call["messages"][0]["content"]
+
+
+def test_translation_refusal_and_cut_off_are_failures_not_text():
+    with pytest.raises(LlmDeclined):
+        features.translate("x", "French", Llm(fake_client(text_response("", "refusal"))[0], "m"))
+    with pytest.raises(LlmFailed):
+        features.translate("x", "French", Llm(fake_client(text_response("Bonj", "max_tokens"))[0], "m"))
+
+
+def test_translate_route_validates_and_maps_errors(client, monkeypatch):
+    headers = {"X-Internal-Token": TOKEN}
+    too_long = {"userId": "u1", "text": "a" * 12_001, "targetLanguage": "French"}
+    assert client.post("/internal/translate", json=too_long, headers=headers).status_code == 422
+
+    def declined(*_args):
+        raise LlmDeclined()
+
+    monkeypatch.setattr(features, "translate", declined)
+    response = client.post(
+        "/internal/translate", json={"userId": "u1", "text": "Hi", "targetLanguage": "French"}, headers=headers
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "DECLINED"

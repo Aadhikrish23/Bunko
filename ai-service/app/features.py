@@ -193,3 +193,13 @@ def recommendations(user_id: str, llm: Llm) -> dict[str, Any]:
     owned = {title.strip().lower() for title in titles}
     picks = [item for item in result.get("recommendations", []) if item["title"].strip().lower() not in owned]
     return {"recommendations": picks, "model": llm.model}
+
+
+def translate(text: str, target_language: str, llm: Llm) -> dict[str, Any]:
+    """One segment of a chapter the reader owns (T-089). Nothing is stored
+    here; the Express API keeps the result for that reader only."""
+    translated = llm.generate_text(
+        system=prompts.TRANSLATE_SYSTEM,
+        prompt=prompts.translate_prompt(text, target_language),
+    )
+    return {"text": prompts.unescape(translated).strip(), "model": llm.model}

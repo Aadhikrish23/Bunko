@@ -499,6 +499,7 @@ model AiConsent {
   user           User     @relation(fields: [userId], references: [id])
   semanticSearch Boolean  @default(false) // local embeddings, nothing leaves Bunko
   generative     Boolean  @default(false) // excerpts sent to the Claude API
+  translation    Boolean  @default(false) // chapter text sent to the Claude API (Phase 11)
   policyVersion  String
   updatedAt      DateTime @updatedAt
 }
@@ -526,6 +527,39 @@ enum AiSourceType {
   ANNOTATION
   NOTE
   REVIEW
+}
+
+// SRS §20.5 — one AI translation of one chapter, for the user who asked
+// (Phase 11, T-088). Never shared across users, even for the same edition
+// (§25.4). `sourceHash` is the hash of the chapter text it was made from, so
+// a re-extracted chapter shows the translation as stale.
+model ChapterTranslation {
+  id             String            @id @default(uuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id])
+  editionId      String
+  edition        Edition           @relation(fields: [editionId], references: [id])
+  structuralId   String
+  targetLanguage String
+  sourceHash     String
+  charCount      Int
+  status         TranslationStatus
+  segmentsDone   Int               @default(0)
+  segmentsTotal  Int
+  text           String            @default("")
+  error          String?
+  model          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([userId, editionId, structuralId, targetLanguage])
+  @@index([userId, editionId])
+}
+
+enum TranslationStatus {
+  PENDING
+  READY
+  FAILED
 }
 ```
 
@@ -556,6 +590,8 @@ Copy 1 --- N Bookmark
 User 1 --- N UserPreference  (one per user+key)
 User 1 --- 0..1 AiConsent
 User 1 --- N AiEmbedding     (one per source row; deleted on consent revoke)
+User 1 --- N ChapterTranslation  (one per edition+chapter+language; deleted on consent revoke)
+Edition 1 --- N ChapterTranslation  (per user only, never shared)
 ```
 
 ## 4. External Metadata Source (SRS §16)
@@ -582,7 +618,8 @@ is deliberately nullable and non-unique-alone:
 `Annotation` (Highlight/Quote) and `Note` shipped in Phase 6; `Review`
 in Phase 7; `Soundtrack` and `SoundtrackMapping` in Phase 8;
 `DeviceSession`, `SyncEvent`, `Bookmark`, and `UserPreference` in Phase 9;
-`AiConsent` and `AiEmbedding` in Phase 10 — see §2 above.
+`AiConsent` and `AiEmbedding` in Phase 10; `ChapterTranslation` in
+Phase 11 — see §2 above.
 
 - `Tag`, `BookTag` (MVP uses `Shelf` only; tags are Phase 6/7 polish —
   `Annotation.tags` on quotes is the one Phase 6 exception, scoped to

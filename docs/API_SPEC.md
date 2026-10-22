@@ -123,3 +123,4 @@ sections and backend modules (`ARCHITECTURE.md` §2):
 | Sync (Phase 9) | `/sync/devices`, `/sync/events`, `/sync/conflicts` — send `X-Device-Id` | §21 |
 | Offline download (Phase 9) | `/editions/:id/download` | §21.3 |
 | AI (Phase 10) | `/ai/status`, `/ai/consent`, `/ai/search`, `/ai/ask`, `/ai/works/:id/summary`, `/ai/insights`, `/ai/recommendations` — consent-gated, off by default | §20 |
+| Chapter translation (Phase 11) | `/ai/editions/:id/translations` — its own consent; POST queues a chapter, GET polls progress | §20.5 |
