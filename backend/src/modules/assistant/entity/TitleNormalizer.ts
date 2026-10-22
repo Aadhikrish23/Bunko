@@ -1,4 +1,4 @@
-export class GameNameNormalizer {
+export class TitleNormalizer {
   /**
    * Normalizes a game name string by:
    * - normalising unicode characters

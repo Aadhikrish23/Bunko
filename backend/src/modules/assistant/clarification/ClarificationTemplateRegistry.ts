@@ -17,7 +17,7 @@ export class ClarificationTemplateRegistry {
     });
 
     this.templates.set(ClarificationType.MISSING_ENTITY, (input) => {
-      const entity = input.entityType || "game";
+      const entity = input.entityType || "book";
       return `Which ${entity.toLowerCase()} are you referring to?`;
     });
 
@@ -27,7 +27,7 @@ export class ClarificationTemplateRegistry {
         return "What rating (1-10) would you like to give?";
       }
       if (fact === "status") {
-        return "What status should I update the game to?";
+        return "What status should I set for that book?";
       }
       if (fact === "collection" || fact === "collectionname" || fact === "name") {
         return "Which collection would you like to use?";
@@ -38,8 +38,8 @@ export class ClarificationTemplateRegistry {
       if (fact === "content") {
         return "What should the note say?";
       }
-      if (fact === "gameid" || fact === "gamename" || fact === "game") {
-        return "Which game do you mean?";
+      if (fact === "bookid" || fact === "bookname" || fact === "book") {
+        return "Which book do you mean?";
       }
       return "Could you tell me a bit more about what you'd like me to do?";
     });

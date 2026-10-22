@@ -47,6 +47,6 @@ export async function handlePending(userId: string, message: string): Promise<Pe
 export function intoCollection(rest: string, collection: string): string {
   const [first, ...others] = rest.split(/(?<=[.!;])\s+|\s+(?=also\b)/i);
   if (/^(put|add|throw|chuck|toss|move|remove|take|mark|rate|set|pause|drop|delete)\b/i.test(first!.trim())) return rest;
-  const game = first!.replace(/\b(too|as well|also)\b/gi, "").replace(/[.!;,]+$/, "").trim();
-  return [`put ${game} in ${collection}.`, ...others].join(" ");
+  const book = first!.replace(/\b(too|as well|also)\b/gi, "").replace(/[.!;,]+$/, "").trim();
+  return [`put ${book} in ${collection}.`, ...others].join(" ");
 }

@@ -1,5 +1,5 @@
 export enum IntentTargetType {
-  Game = "Game",
+  Book = "Book",
   Collection = "Collection",
   Provider = "Provider",
   Library = "Library",

@@ -13,7 +13,7 @@ export class SessionLifecycleManager {
       status: ConversationStatus.ACTIVE,
       turns: [],
       references: {
-        currentGame: null,
+        currentBook: null,
         lastEntity: null,
         pendingEntity: null,
         currentCollection: null,
@@ -44,7 +44,7 @@ export class SessionLifecycleManager {
     session.status = ConversationStatus.ACTIVE;
     session.turns = [];
     session.references = {
-      currentGame: null,
+      currentBook: null,
       lastEntity: null,
       pendingEntity: null,
       currentCollection: null,

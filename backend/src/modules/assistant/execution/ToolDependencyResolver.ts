@@ -30,7 +30,7 @@ export class ToolDependencyResolver {
             } else {
               const resolvedVal =
                 targetResult.output.id ||
-                targetResult.output.gameId ||
+                targetResult.output.bookId ||
                 (targetResult.output.data as Record<string, unknown>)?.id;
               if (resolvedVal !== undefined) {
                 parameters[key] = resolvedVal;

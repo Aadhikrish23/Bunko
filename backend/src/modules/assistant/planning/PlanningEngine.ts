@@ -18,7 +18,7 @@ import { usesReferenceFallback } from "../execution/NoReferenceFallbackTools";
 // category word (or the action verb itself) is treated as not really supplied,
 // so it falls through to a clarification instead of acting on a placeholder.
 const GENERIC_PLACEHOLDER_NAMES = new Set([
-  "game", "collection", "library",
+  "book", "collection", "library",
   "launch", "create", "add", "remove", "search", "complete", "rate", "review", "delete",
 ]);
 
@@ -36,7 +36,7 @@ export const INTENT_PARAM_TYPE_BY_TOOL_PARAM: Record<string, string> = {
 };
 
 // Tool parameters (lowercased) supplied from the intent's targets instead.
-export const TARGET_SUPPLIED_TOOL_PARAMS = new Set(["gameid", "collectionname", "name", "gamename"]);
+export const TARGET_SUPPLIED_TOOL_PARAMS = new Set(["bookid", "collectionname", "name", "bookname"]);
 
 function isMeaningfulTargetName(name: unknown): boolean {
   return typeof name === "string" && name.trim() !== "" && !GENERIC_PLACEHOLDER_NAMES.has(name.trim().toLowerCase());
@@ -129,11 +129,11 @@ export class PlanningEngine {
 
                 // B. Check intent targets
                 if (!isSupplied && resolved.intent.targets) {
-                  if (paramNameLower === "gameid") {
-                    isSupplied = resolved.intent.targets.some(t => t.type === "Game" && isMeaningfulTargetName(t.name));
+                  if (paramNameLower === "bookid") {
+                    isSupplied = resolved.intent.targets.some(t => t.type === "Book" && isMeaningfulTargetName(t.name));
                   } else if (paramNameLower === "collectionname" || paramNameLower === "name") {
                     isSupplied = resolved.intent.targets.some(t => t.type === "Collection" && isMeaningfulTargetName(t.name));
-                  } else if (paramNameLower === "gamename") {
+                  } else if (paramNameLower === "bookname") {
                     isSupplied = resolved.intent.targets.some(t => t.type === "Library" && isMeaningfulTargetName(t.name));
                   }
                 }
@@ -141,7 +141,7 @@ export class PlanningEngine {
                 // C. Check conversation references (skipped for tools that must not
                 // silently act on a stale reference -- see NoReferenceFallbackTools)
                 if (!isSupplied && conversationReferences && usesReferenceFallback(toolName)) {
-                  if (paramNameLower === "gameid" && conversationReferences.currentGame) {
+                  if (paramNameLower === "bookid" && conversationReferences.currentBook) {
                     isSupplied = true;
                   } else if (paramNameLower === "collectionname" && conversationReferences.currentCollection) {
                     isSupplied = true;
@@ -167,8 +167,8 @@ export class PlanningEngine {
                 }
 
                 if (!isSupplied) {
-                  if (paramNameLower === "gameid") {
-                    missingFactsSet.add("game");
+                  if (paramNameLower === "bookid") {
+                    missingFactsSet.add("book");
                   } else if (paramNameLower === "collectionname" || paramNameLower === "name") {
                     missingFactsSet.add("collection");
                   } else {

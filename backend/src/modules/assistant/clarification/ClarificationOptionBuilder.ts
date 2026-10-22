@@ -24,7 +24,7 @@ export class ClarificationOptionBuilder {
     let description = "";
 
     const typeLower = entityType.toLowerCase();
-    if (typeLower === "game" || typeLower === "librarygame" || entity.title) {
+    if (typeLower === "book" || typeLower === "librarybook" || entity.title) {
       const providerName = (entity.provider || "manual").toUpperCase();
       const isInstalled = !!(entity.exePath || (entity.providers && Object.values(entity.providers).some((p) => p.installed)));
       const installText = isInstalled ? "Installed" : "Not Installed";

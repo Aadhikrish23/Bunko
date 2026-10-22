@@ -55,12 +55,12 @@ export class ToolParameterResolver {
           continue;
         }
 
-        // A. Resolve gameId from Game target
-        if (param.name === "gameId") {
-          const gameTarget = targets.find((t) => t.type === "Game" || t.type?.toLowerCase() === "game");
-          if (gameTarget) {
+        // A. Resolve bookId from Game target
+        if (param.name === "bookId") {
+          const bookTarget = targets.find((t) => t.type === "Book" || t.type?.toLowerCase() === "book");
+          if (bookTarget) {
             const resolved = context.resolvedIntentPlan.resolvedTargets?.find(
-              (r) => r.originalTarget.name === gameTarget.name
+              (r) => r.originalTarget.name === bookTarget.name
             );
             if (resolved && resolved.resolution?.status === "RESOLVED") {
               const ent = resolved.resolution.entity as any;
@@ -85,9 +85,9 @@ export class ToolParameterResolver {
           }
         }
 
-        // C. Resolve gameName from a Library target (a search query for a game the
+        // C. Resolve bookName from a Library target (a search query for a game the
         // user doesn't own yet, not a resolved library entity -- take it as-is).
-        if (param.name === "gameName") {
+        if (param.name === "bookName") {
           const libraryTarget = targets.find((t) => t.type === "Library" || t.type?.toLowerCase() === "library");
           if (libraryTarget) {
             parameters[param.name] = libraryTarget.name;
@@ -100,8 +100,8 @@ export class ToolParameterResolver {
           usesReferenceFallback(step.toolName)
         ) {
           if (session && session.references) {
-            if (param.name === "gameId" && session.references.currentGame) {
-              parameters[param.name] = session.references.currentGame.entityId;
+            if (param.name === "bookId" && session.references.currentBook) {
+              parameters[param.name] = session.references.currentBook.entityId;
             } else if ((param.name === "collectionName" || param.name === "name") && session.references.currentCollection) {
               parameters[param.name] = session.references.currentCollection.displayName;
             } else if (param.name === "provider" && session.references.currentProvider) {

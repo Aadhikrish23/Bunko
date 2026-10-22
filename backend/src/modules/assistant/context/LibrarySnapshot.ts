@@ -4,7 +4,7 @@
  */
 export interface LibrarySnapshot {
   /** Newest first: title and status. */
-  games: { title: string; status: string }[];
-  totalGames: number;
+  books: { title: string; status: string }[];
+  totalBooks: number;
   collections: string[];
 }

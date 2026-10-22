@@ -2,7 +2,7 @@
 export interface AIClientCapabilities {
   canLaunchGames: boolean;
   /** The game page the user has open (library id or RAWG id), for "this game". */
-  pageGameId?: string;
+  pageBookId?: string;
   /** The collection page the user has open, for "this collection". */
   pageCollectionId?: string;
 }
@@ -14,7 +14,7 @@ export interface AIClientCapabilities {
  */
 export interface AIClientAction {
   type: "launch_game";
-  gameId: string;
+  bookId: string;
   title: string;
 }
 

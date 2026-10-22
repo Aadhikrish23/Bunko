@@ -13,7 +13,7 @@ export interface AIRequestContext {
   /** The last few exchanges, including failures and questions. */
   recentExchanges?: Exchange[];
   /** The game or collection page the user has open. */
-  page?: { gameTitle?: string; collectionName?: string };
+  page?: { bookTitle?: string; collectionName?: string };
   /** Facts from the game database about the games a question names (answer mode only). */
   facts?: string;
 }

@@ -20,7 +20,7 @@ export class MemoryAliasResolver {
     if (session && session.references) {
       const refs = session.references;
       const slotValues = [
-        refs.currentGame,
+        refs.currentBook,
         refs.lastEntity,
         refs.pendingEntity,
         refs.currentCollection,

@@ -54,18 +54,18 @@ export class ExecutionValidator {
       const targets = rawInput.targets as any[];
       if (targets) {
         for (const target of targets) {
-          if (target.type === IntentTargetType.Game) {
+          if (target.type === IntentTargetType.Book) {
             const rt = resolvedIntentPlan.resolvedTargets?.find(
               (r) => r.originalTarget.name === target.name
             );
             if (rt) {
               if (rt.resolution.status === EntityResolutionStatus.AMBIGUOUS) {
-                errors.push(`Validation failed: Ambiguous game selection: "${target.name}".`);
+                errors.push(`Validation failed: Ambiguous book selection: "${target.name}".`);
               } else if (rt.resolution.status === EntityResolutionStatus.NOT_FOUND) {
-                errors.push(`Validation failed: Game "${target.name}" not found.`);
+                errors.push(`Validation failed: Book "${target.name}" not found.`);
               }
             } else {
-              errors.push(`Validation failed: Target game "${target.name}" has no resolution record.`);
+              errors.push(`Validation failed: Target book "${target.name}" has no resolution record.`);
             }
           }
         }

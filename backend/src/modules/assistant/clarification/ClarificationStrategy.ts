@@ -1,7 +1,7 @@
 export class ClarificationStrategy {
   // Configurable priorities
   private priorities: string[] = [
-    "game",
+    "book",
     "entity",
     "status",
     "platform",

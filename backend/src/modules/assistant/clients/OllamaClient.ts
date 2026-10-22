@@ -51,37 +51,37 @@ export class OllamaClient {
           intents: [{ type: "RecommendGame", targets: [], parameters: [{ type: "Text", value: query }] }],
         });
       } else if (queryLower.includes("launch")) {
-        let gameName = "Fallout Shelter";
+        let bookName = "Fallout Shelter";
         if (queryLower.includes("elden ring")) {
-          gameName = "Elden Ring";
+          bookName = "Elden Ring";
         } else if (queryLower.includes("cyberpunk")) {
-          gameName = "Cyberpunk 2077";
+          bookName = "Cyberpunk 2077";
         } else if (queryLower.includes("unknown game")) {
-          gameName = "Unknown Game";
+          bookName = "Unknown Game";
         } else if (queryLower.includes("fallout") && !queryLower.includes("shelter")) {
-          gameName = "Fallout";
+          bookName = "Fallout";
         } else if (queryLower.includes("it")) {
-          gameName = "it";
+          bookName = "it";
         }
         responseText = JSON.stringify({
           intents: [
             {
               type: "LaunchGame",
-              targets: [{ type: "Game", name: gameName }],
+              targets: [{ type: "Game", name: bookName }],
               parameters: []
             }
           ]
         });
       } else if (queryLower.includes("complete")) {
-        let gameName = "Fallout Shelter";
+        let bookName = "Fallout Shelter";
         if (queryLower.includes("cyberpunk")) {
-          gameName = "Cyberpunk 2077";
+          bookName = "Cyberpunk 2077";
         }
         responseText = JSON.stringify({
           intents: [
             {
               type: "CompleteGame",
-              targets: [{ type: "Game", name: gameName }],
+              targets: [{ type: "Game", name: bookName }],
               parameters: []
             }
           ]
@@ -98,9 +98,9 @@ export class OllamaClient {
       } else if (queryLower.includes("rate") || queryLower.includes("review")) {
         let rating = 9;
         let text = "";
-        let gameName = "Fallout Shelter";
+        let bookName = "Fallout Shelter";
         if (queryLower.includes("it")) {
-          gameName = "it";
+          bookName = "it";
         }
         if (queryLower.includes("9")) {
           rating = 9;
@@ -114,7 +114,7 @@ export class OllamaClient {
           intents: [
             {
               type: "ReviewGame",
-              targets: [{ type: "Game", name: gameName }],
+              targets: [{ type: "Game", name: bookName }],
               parameters: [
                 { type: "Rating", value: rating },
                 ...(text ? [{ type: "Text", value: text }] : [])
@@ -138,9 +138,9 @@ export class OllamaClient {
           ]
         });
       } else if (queryLower.includes("add") && queryLower.includes("collection")) {
-        let gameName = "Fallout Shelter";
+        let bookName = "Fallout Shelter";
         if (queryLower.includes("it")) {
-          gameName = "it";
+          bookName = "it";
         }
         responseText = JSON.stringify({
           intents: [
@@ -148,7 +148,7 @@ export class OllamaClient {
               type: "OrganizeCollection",
               targets: [
                 { type: "Collection", name: "RPG Collection" },
-                { type: "Game", name: gameName }
+                { type: "Game", name: bookName }
               ],
               parameters: []
             }

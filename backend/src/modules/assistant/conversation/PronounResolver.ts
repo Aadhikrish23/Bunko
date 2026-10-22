@@ -20,9 +20,9 @@ export class PronounResolver {
 
         let resolvedName: string | null = null;
 
-        if (target.type === IntentTargetType.Game) {
-          if (this.isGamePronoun(nameLower)) {
-            resolvedName = session.references.currentGame?.displayName ||
+        if (target.type === IntentTargetType.Book) {
+          if (this.isBookPronoun(nameLower)) {
+            resolvedName = session.references.currentBook?.displayName ||
                            session.references.lastEntity?.displayName ||
                            null;
           }
@@ -61,8 +61,8 @@ export class PronounResolver {
     return intentPlan;
   }
 
-  private isGamePronoun(name: string): boolean {
-    const pronouns = ["it", "that", "this game", "the game", "the previous one", "last game", "the previous game", "the first one", "the second one", "the third one"];
+  private isBookPronoun(name: string): boolean {
+    const pronouns = ["it", "that", "this book", "the book", "the previous one", "last book", "the previous book", "the first one", "the second one", "the third one"];
     return pronouns.includes(name);
   }
 

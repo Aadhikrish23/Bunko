@@ -195,7 +195,7 @@ export class AIRuntime {
         let generalAnswer: string | undefined = modelReply;
         if (wantsAnswer && requestContext) {
           try {
-            generalAnswer = (await this.model.answerSafely(domain.withPageContext(cleanRequest, requestContext.page?.gameTitle), requestContext)) || modelReply;
+            generalAnswer = (await this.model.answerSafely(domain.withPageContext(cleanRequest, requestContext.page?.bookTitle), requestContext)) || modelReply;
           } catch {
             generalAnswer = modelReply;
           }
@@ -290,7 +290,7 @@ export class AIRuntime {
     recentExchanges.clear(userId);
     pendingConfirmations.take(userId);
     const session = await conversationManager.getOrCreateSession(userId);
-    session.references = { ...session.references, currentGame: null, currentCollection: null, currentProvider: null, lastEntity: null };
+    session.references = { ...session.references, currentBook: null, currentCollection: null, currentProvider: null, lastEntity: null };
     await conversationManager.saveSession(session);
   }
 }

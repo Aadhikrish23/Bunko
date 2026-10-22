@@ -36,7 +36,7 @@ export class MissingParameterClarificationBuilder {
         { id: "Completed", label: "Completed", description: "Set status to Completed" },
         { id: "Dropped", label: "Dropped", description: "Set status to Dropped" },
       ];
-    } else if (factLower === "game" || factLower === "entity") {
+    } else if (factLower === "book" || factLower === "entity") {
       type = ClarificationType.MISSING_ENTITY;
     }
 

@@ -3,6 +3,7 @@ import { ConversationReference } from "./ConversationReference";
 import { ResolvedIntentPlan } from "../entity/ResolvedIntentPlan";
 import { IntentTargetType } from "../intent/IntentTargetType";
 import aiTraceLogger from "../debug/AITraceLogger";
+import { domainPack } from "../domain/activeDomain";
 
 import { OptionEntity } from "../clarification/ClarificationOptionBuilder";
 
@@ -57,15 +58,15 @@ export class ConversationReferenceManager {
           });
         }
 
-        // Update slots depending on entityType. A game the user just added
-        // (an AddGame "Library" target) is the game "it" refers to next, not
-        // whichever game was current before.
-        const isAddedGame = entityType === IntentTargetType.Library && intent.type === "AddGame";
-        if (entityType === IntentTargetType.Game || isAddedGame) {
-          session.references.currentGame = ref;
+        // Update slots depending on entityType. An item the user just added (the
+        // "Library" target of an intent the pack runs first, i.e. an add) is what
+        // "it" refers to next, not whichever item was current before.
+        const isAddedBook = entityType === IntentTargetType.Library && domainPack().runsFirst(intent.type);
+        if (entityType === IntentTargetType.Book || isAddedBook) {
+          session.references.currentBook = ref;
           if (trace) {
             trace.log("ConversationRuntime", "Reference Added", {
-              slot: "currentGame",
+              slot: "currentBook",
               reference: ref
             });
           }
@@ -109,7 +110,7 @@ export class ConversationReferenceManager {
    */
   clearReferences(session: ConversationSession): void {
     session.references = {
-      currentGame: null,
+      currentBook: null,
       currentCollection: null,
       currentProvider: null,
       lastEntity: null,

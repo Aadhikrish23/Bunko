@@ -34,11 +34,11 @@ export class ExecutionAdapter {
     for (const step of executionPlan.steps) {
       const legacyInput = toolInputFactory.createInput(step);
 
-      if (typeof legacyInput.gameId === "string" && legacyInput.gameId !== "") {
-        const resolutionResult = entityIndex.get(IntentTargetType.Game, legacyInput.gameId);
+      if (typeof legacyInput.bookId === "string" && legacyInput.bookId !== "") {
+        const resolutionResult = entityIndex.get(IntentTargetType.Book, legacyInput.bookId);
         if (resolutionResult && resolutionResult.entity) {
           const entity = resolutionResult.entity as { _id: { toString(): string } };
-          legacyInput.gameId = entity._id.toString();
+          legacyInput.bookId = entity._id.toString();
         }
       }
       steps.push({

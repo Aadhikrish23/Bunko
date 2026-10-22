@@ -1,7 +1,7 @@
 import { ConversationReference } from "./ConversationReference";
 
 export interface ConversationReferences {
-  currentGame?: ConversationReference | null;
+  currentBook?: ConversationReference | null;
   currentCollection?: ConversationReference | null;
   currentProvider?: ConversationReference | null;
   lastEntity?: ConversationReference | null;

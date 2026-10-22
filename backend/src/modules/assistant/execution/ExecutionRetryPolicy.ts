@@ -17,7 +17,7 @@ export class ExecutionRetryPolicy {
       "type mismatch",
       "not found",
       "duplicate step",
-      "ambiguous game",
+      "ambiguous book",
     ];
 
     if (nonRetryablePatterns.some((pat) => lowercaseMsg.includes(pat))) {

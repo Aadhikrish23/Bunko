@@ -70,7 +70,7 @@ export class ToolValidator {
           (r) => r.originalTarget.name === target.name && r.originalTarget.type === target.type
         );
         if (resolved && resolved.resolution?.status !== "RESOLVED") {
-          if (target.type === "Game") {
+          if (target.type === "Book") {
             errors.push(`I couldn't find "${target.name}" in your library. Say "add ${target.name}" if you want me to add it.`);
           } else {
             errors.push(`Entity target "${target.name}" of type "${target.type}" could not be resolved.`);

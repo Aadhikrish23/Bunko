@@ -64,7 +64,7 @@ export class AIController {
     const id = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9]{1,40}$/.test(v) ? v : undefined);
     const client = {
       canLaunchGames: raw.canLaunchGames === true,
-      pageGameId: id(raw.pageGameId),
+      pageBookId: id(raw.pageBookId),
       pageCollectionId: id(raw.pageCollectionId),
     };
 

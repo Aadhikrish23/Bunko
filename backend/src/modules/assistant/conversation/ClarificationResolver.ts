@@ -55,7 +55,7 @@ export class ClarificationResolver {
       // Try resolving using session references
       if (session && session.references) {
         const lastEntity = session.references.lastEntity;
-        const currentGame = session.references.currentGame;
+        const currentBook = session.references.currentBook;
 
         if (lastEntity) {
           selected = candidates.find(
@@ -65,11 +65,11 @@ export class ClarificationResolver {
           ) || null;
         }
 
-        if (!selected && currentGame) {
+        if (!selected && currentBook) {
           selected = candidates.find(
             (c) =>
-              c.id === currentGame.entityId ||
-              c.label.toLowerCase() === currentGame.displayName.toLowerCase()
+              c.id === currentBook.entityId ||
+              c.label.toLowerCase() === currentBook.displayName.toLowerCase()
           ) || null;
         }
       }

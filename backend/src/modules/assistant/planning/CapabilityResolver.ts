@@ -22,8 +22,8 @@ export class CapabilityResolver {
           .list()
           .find((cap) => {
             if (cap.intentType === intent.type) return true;
-            if (cap.id === "review-game" && (intent.type === "RateGame" || intent.type === "DeleteReview")) return true;
-            if (cap.id === "collection" && intent.type === "CreateCollection") return true;
+            // The pack says which extra intents a capability serves (no domain names here).
+            if (cap.extraIntentTypes?.includes(intent.type)) return true;
             return false;
           });
 

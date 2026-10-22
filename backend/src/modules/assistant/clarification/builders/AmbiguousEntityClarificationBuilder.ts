@@ -44,7 +44,7 @@ export class AmbiguousEntityClarificationBuilder {
       type,
       question,
       // Shown to the user as the card heading.
-      reason: options.length === 1 ? question : `A few games match "${origReq.originalQuery}". Which one?`,
+      reason: options.length === 1 ? question : `A few books match "${origReq.originalQuery}". Which one?`,
       entityType: origReq.entityType,
       originalQuery: origReq.originalQuery,
       candidates: options,

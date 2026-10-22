@@ -15,12 +15,12 @@ function getBulkQueryInfo(targetName: string): { isBulk: boolean; cleanQuery: st
   
   if (nameLower.startsWith("all ") || nameLower.startsWith("every ")) {
     let query = nameLower.replace(/^(all|every)\s+/, "");
-    query = query.replace(/\s+games?(\s+in\s+library)?$/, "");
+    query = query.replace(/\s+books?(\s+in\s+library)?$/, "");
     return { isBulk: true, cleanQuery: query.trim() };
   }
   
-  if (nameLower.endsWith(" games") || nameLower.endsWith(" game")) {
-    const query = nameLower.replace(/\s+games?$/, "");
+  if (nameLower.endsWith(" books") || nameLower.endsWith(" book")) {
+    const query = nameLower.replace(/\s+books?$/, "");
     return { isBulk: true, cleanQuery: query.trim() };
   }
   
@@ -48,7 +48,7 @@ export class EntityResolutionLayer {
       const resolvedTargets: ResolvedTarget[] = [];
 
       for (const target of intent.targets) {
-        if (target.type === IntentTargetType.Game) {
+        if (target.type === IntentTargetType.Book) {
           const { isBulk, cleanQuery } = getBulkQueryInfo(target.name);
           const resolutionResult = await domainPack().resolveEntity(userId, cleanQuery, { isBulk });
 
@@ -69,12 +69,12 @@ export class EntityResolutionLayer {
             // PlanningEngine's bulk expansion renames each execution candidate's
             // target to candidate.title and looks it up here by that exact name.
             // Skipping index 0 (an earlier "fix" for a cosmetic duplicate-reference
-            // concern) silently broke gameId resolution for the first bulk item,
+            // concern) silently broke bookId resolution for the first bulk item,
             // since the primary entry above is only keyed by the generic bulk
             // phrase (e.g. "all Batman games"), never by matched[0]'s own title.
             for (const cand of resolutionResult.candidates || []) {
               const candTarget: IntentTarget = {
-                type: IntentTargetType.Game,
+                type: IntentTargetType.Book,
                 name: cand.title,
               };
               allResolvedTargets.push({
@@ -100,7 +100,7 @@ export class EntityResolutionLayer {
               requestId,
               type: ClarificationType.AMBIGUOUS_GAME,
               reason: `Multiple matches found for "${target.name}"`,
-              entityType: IntentTargetType.Game,
+              entityType: IntentTargetType.Book,
               originalQuery: target.name,
               candidates,
             });
@@ -119,7 +119,7 @@ export class EntityResolutionLayer {
             status: EntityResolutionStatus.RESOLVED,
             confidence: 1.0,
             entity: target,
-            reasoning: "Non-game target bypass resolution.",
+            reasoning: "Non-book target bypass resolution.",
           };
 
           const resolvedTarget: ResolvedTarget<IntentTarget> = {
