@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -51,6 +52,16 @@ export function SettingsPage() {
             {saved ? 'Saved' : 'Save changes'}
           </Button>
         </div>
+      </Card>
+
+      <Card className="max-w-md p-5">
+        <h2 className="mb-2 font-display text-lg text-paper-900">Reading soundtrack</h2>
+        <p className="text-sm text-paper-600">
+          Optional music while you read, from your own Spotify, YouTube, Apple Music, or SoundCloud playlists.
+        </p>
+        <Link to="/soundtracks" className="focus-visible:focus-ring mt-3 inline-block rounded text-sm font-medium text-moss-700 underline">
+          Manage playlists
+        </Link>
       </Card>
     </div>
   );

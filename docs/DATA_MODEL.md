@@ -346,6 +346,59 @@ model ShelfArrangement {
 
   @@unique([userId, tabKey])
 }
+
+// SRS §17 — one of a user's playlists (Phase 8, T-059). Only a link to
+// the provider's own content: Bunko never stores or proxies audio
+// (§17.6). The embed URL is derived from `url` by the T-058 parser, not
+// stored, so a parser fix applies to every existing row.
+model Soundtrack {
+  id        String             @id @default(uuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id])
+  name      String
+  url       String
+  provider  SoundtrackProvider
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  mappings SoundtrackMapping[]
+
+  @@index([userId])
+}
+
+enum SoundtrackProvider {
+  SPOTIFY
+  YOUTUBE
+  APPLE_MUSIC
+  SOUNDCLOUD
+}
+
+// What a soundtrack is associated with (§17.2, §17.3) — one playlist per
+// target. `targetKey` is a workId/shelfId for WORK/SHELF, or a
+// normalised (trimmed, lowercased) label for GENRE/MOOD/SITUATION. It's
+// polymorphic, so there's no FK: deleteShelf / deleteWork clean up the
+// WORK/SHELF rows that point at what they remove.
+model SoundtrackMapping {
+  id           String               @id @default(uuid())
+  userId       String
+  user         User                 @relation(fields: [userId], references: [id])
+  soundtrackId String
+  soundtrack   Soundtrack           @relation(fields: [soundtrackId], references: [id], onDelete: Cascade)
+  targetType   SoundtrackTargetType
+  targetKey    String
+  createdAt    DateTime             @default(now())
+
+  @@unique([userId, targetType, targetKey])
+  @@index([soundtrackId])
+}
+
+enum SoundtrackTargetType {
+  WORK
+  SHELF
+  GENRE
+  MOOD
+  SITUATION
+}
 ```
 
 ## 3. Key Relationships (matches `SRS.md` §27.2)
@@ -367,6 +420,8 @@ ReadingSession 1 --- N Note
 ReadingJourney 1 --- 0..1 ReadingPosition (canonical position)
 User 1 --- N Review
 Work 1 --- N Review          (@@unique([userId, workId]) caps it at one per user)
+User 1 --- N Soundtrack
+Soundtrack 1 --- N SoundtrackMapping   (cascade delete; one mapping per user+target)
 ```
 
 ## 4. External Metadata Source (SRS §16)
@@ -388,15 +443,15 @@ is deliberately nullable and non-unique-alone:
   `Edition` rows from user input without cross-referencing the
   provider's own edition data.
 
-## 5. Deferred to Phase 8+ (do not create yet)
+## 5. Deferred to Phase 9+ (do not create yet)
 
 `Annotation` (Highlight/Quote) and `Note` shipped in Phase 6; `Review`
-shipped in Phase 7 — see §2 above.
+in Phase 7; `Soundtrack` and `SoundtrackMapping` in Phase 8 — see §2
+above.
 
 - `Tag`, `BookTag` (MVP uses `Shelf` only; tags are Phase 6/7 polish —
   `Annotation.tags` on quotes is the one Phase 6 exception, scoped to
   quotes specifically per SRS §13.3, not a general tagging system)
-- `Soundtrack`, `SoundtrackMapping`
 - `DeviceSession`, `SyncEvent` (offline/sync, Phase 9)
 
 Adding these tables before their phase begins is scope creep — see

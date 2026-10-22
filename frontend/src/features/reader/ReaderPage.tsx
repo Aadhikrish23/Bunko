@@ -1,4 +1,15 @@
-import { Bookmark as BookmarkIcon, Highlighter, List, MapPinOff, NotebookPen, Search, Sliders, Trash2, X } from 'lucide-react';
+import {
+  Bookmark as BookmarkIcon,
+  Highlighter,
+  List,
+  MapPinOff,
+  Music,
+  NotebookPen,
+  Search,
+  Sliders,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
@@ -20,6 +31,7 @@ import type { HighlightColor } from '../../lib/annotation-colors';
 import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
 import { NoteComposerModal } from '../notes/NoteComposerModal';
+import { ReaderSoundtrack } from '../soundtrack/ReaderSoundtrack';
 import { CorrectPositionDialog } from './CorrectPositionDialog';
 import { EpubReader, type EpubTocItem } from './EpubReader';
 import { PdfReader } from './PdfReader';
@@ -53,6 +65,7 @@ export function ReaderPage() {
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
   const [showAnnotationsDrawer, setShowAnnotationsDrawer] = useState(false);
   const [showNoteComposer, setShowNoteComposer] = useState(false);
+  const [showSoundtrack, setShowSoundtrack] = useState(false);
   const annotationsQuery = useAnnotations(editionId);
   const annotations = annotationsQuery.data ?? [];
   const createAnnotation = useCreateAnnotation(editionId);
@@ -349,6 +362,18 @@ export function ReaderPage() {
 
           <button
             type="button"
+            onClick={() => setShowSoundtrack((v) => !v)}
+            aria-label="Reading soundtrack"
+            aria-pressed={showSoundtrack}
+            title="Soundtrack"
+            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+          >
+            <Music className="h-4 w-4 text-paper-600" />
+            <span className="hidden sm:inline">Music</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               setShowSearchDrawer((v) => !v);
               setShowAnnotationsDrawer(false);
@@ -511,6 +536,13 @@ export function ReaderPage() {
           onClose={() => setActiveSelection(null)}
         />
       )}
+
+      <ReaderSoundtrack
+        workId={manifest.data?.workId}
+        open={showSoundtrack}
+        onOpen={() => setShowSoundtrack(true)}
+        onClose={() => setShowSoundtrack(false)}
+      />
 
       {showNoteComposer && (
         <NoteComposerModal

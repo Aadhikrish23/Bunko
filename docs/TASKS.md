@@ -663,6 +663,99 @@ bare numbers.
 
 ---
 
+## Phase 8 — Soundtrack (Future v2+)
+
+Scoped per `IMPLEMENTATION_PLAN.md` §7 and SRS §17. Optional music
+alongside reading — never a replacement for a streaming service
+(§17.1), always off until the reader turns it on, and independent of
+reading progress. SRS §38.4's risk (providers restricting playback or
+API access) drives T-058's decision, which shapes everything after it.
+
+### T-058 — Soundtrack provider abstraction (spike)
+Depends on: none · SRS: §17.6, §38.4
+
+Decision: Bunko plays music by embedding each provider's **official
+embed player** for a playlist link the user pastes (Spotify, YouTube,
+Apple Music, SoundCloud) — no API keys, no OAuth, no audio ever passing
+through or stored on Bunko's servers (§17.6 "shall not store or
+redistribute copyrighted music"). A link is parsed against a strict
+host allowlist into `{ provider, embedUrl, capabilities }`; anything
+else is rejected with a clear message (§38.4 "graceful fallback").
+Full-account integrations (Spotify Web Playback SDK, Apple MusicKit)
+need developer credentials and paid user accounts — deferred until a
+real need justifies them.
+
+- [x] URL → provider/embed parser with a strict host allowlist (arbitrary URLs never become iframes)
+- [x] Per-provider capability flags (e.g. whether volume is controllable from Bunko or only in the provider's player — §17.7 "where permitted")
+- [x] Decision recorded in `ARCHITECTURE.md`
+- [ ] Tests covering each provider's link shapes and the rejection cases — *written (`backend/tests/soundtracks.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-059 — Soundtrack & SoundtrackMapping schema
+Depends on: T-058 · SRS: §17.2, §17.3
+
+`Soundtrack` = one of the user's playlists (name, source URL,
+provider). `SoundtrackMapping` = an association of a soundtrack with a
+target — a book (`WORK`, §17.3's "dedicated soundtrack"), a `SHELF`, a
+`GENRE`, a `MOOD`, or a reading `SITUATION` (§17.2) — one playlist per
+target. Free-text keys (genre/mood/situation) are normalised
+(trimmed, lowercased) so "Fantasy" and "fantasy" are one target.
+
+- [x] Both models + migration; `DATA_MODEL.md` updated
+- [x] One mapping per `(userId, targetType, targetKey)`; deleting a soundtrack removes its mappings
+- [x] Deleting a shelf or removing a book from the library removes mappings that pointed at it
+
+### T-060 — Soundtrack library & association API
+Depends on: T-059 · SRS: §17.2, §17.4
+
+- [x] `GET/POST /soundtracks`, `PATCH/DELETE /soundtracks/:id` (URL validated through T-058's parser); each soundtrack carries its mappings, so there's no separate mapping list endpoint
+- [x] `PUT /soundtrack-mappings` (upsert by target), `DELETE /soundtrack-mappings/:id`
+- [x] `WORK`/`SHELF` targets must belong to the caller; a soundtrack can only be mapped by its owner
+- [x] `openapi.yaml` updated
+- [ ] Integration tests (CRUD, validation, ownership isolation) — *written (`backend/tests/soundtracks.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-061 — Automatic soundtrack resolution
+Depends on: T-060 · SRS: §17.2, §17.3, §17.7
+
+`GET /works/:workId/soundtrack` picks what "automatic" mode plays for a
+book: its own soundtrack first, then a shelf it's on, then one of its
+genres. Moods and situations aren't attributes of a book, so they're
+manual picks in the player (T-064), not automatic inputs.
+
+- [x] Precedence book → shelf → genre, deterministic within each tier; response says which association matched
+- [x] `null` (not an error) when nothing matches
+- [x] `openapi.yaml` updated
+- [ ] Integration tests for each tier and the no-match case — *written (`backend/tests/soundtracks.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-062 — Soundtracks page
+Depends on: T-060 · SRS: §17.2, §17.4
+
+A page to add/rename/remove playlists and associate them with genres,
+shelves, moods (SRS §17.4's twelve defaults plus custom ones —
+"configurable"), and reading situations.
+
+- [x] Add a playlist by link, with the parser's error shown inline
+- [x] Associate each playlist with moods, situations, genres, and shelves; remove associations
+- [x] No third-party player loads until the reader explicitly previews a playlist (privacy: an embed contacts the provider)
+- [x] Loading/error/empty states; frontend tests
+
+### T-063 — Book soundtrack
+Depends on: T-060, T-061 · SRS: §17.3
+
+- [x] Panel on `BookDetailPage.tsx`: choose one of the reader's playlists as this book's soundtrack, or clear it
+- [x] Shows what automatic mode would play when no book soundtrack is set, and why (shelf/genre)
+
+### T-064 — Reader soundtrack player
+Depends on: T-061 · SRS: §17.7
+
+- [x] Toolbar entry in both readers opening a small player: enable/disable, automatic vs manual (pick a playlist, mood, or situation)
+- [x] "Stop" ends playback immediately (unmounts the player); hiding the panel keeps music playing with a visible now-playing control
+- [x] Volume from Bunko only where the provider permits it; otherwise the provider's own controls
+- [x] Off by default; on/off and mode are per-device preferences (music on a laptop shouldn't start it on a phone)
+- [x] Playback is independent of reading progress (page turns never interrupt or change it)
+- [x] Frontend tests
+
+---
+
 ## Ticket Count Summary
 
 | Phase | Tickets | Status |
@@ -676,9 +769,10 @@ bare numbers.
 | **Total (MVP)** | **45** | **100% Complete** |
 | 6 — Annotations | T-042 – T-049 (8) | **100% Complete** |
 | 7 — Reviews & Reading Insights | T-050 – T-057 (8) | **Implemented — backend integration tests written, not yet run** |
+| 8 — Soundtrack | T-058 – T-064 (7) | **Implemented — backend integration tests written, not yet run** |
 
-Phase 8+ tickets (Soundtrack, Offline/Sync, AI) are intentionally not
-written yet — see `AGENTS.md` §3. Do not pre-create them. When Phase
-10 (AI Layer) begins, its tickets will scaffold a separate
-`ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module
-inside `backend/`.
+Phase 9+ tickets (Offline/Sync, AI) are intentionally not written yet
+— see `AGENTS.md` §3. Do not pre-create them. When Phase 10 (AI Layer)
+begins, its tickets will scaffold a separate `ai-service/`
+(Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module inside
+`backend/`.

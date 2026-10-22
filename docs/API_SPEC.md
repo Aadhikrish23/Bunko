@@ -116,3 +116,4 @@ sections and backend modules (`ARCHITECTURE.md` §2):
 | Notes (Phase 6) | `/works/:id/notes`, `/notes` | §13.1 |
 | Reviews (Phase 7) | `/works/:id/review` (one per user per work) | §14 |
 | Statistics & trends (Phase 7) | `/statistics?tz=`, `/statistics/trends?range=&tz=` | §19.1–19.3 |
+| Soundtrack (Phase 8) | `/soundtracks`, `/soundtrack-mappings`, `/works/:id/soundtrack` | §17 |

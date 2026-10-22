@@ -6,6 +6,7 @@ import {
   Highlighter,
   List,
   MapPinOff,
+  Music,
   NotebookPen,
   Search,
   Sliders,
@@ -36,6 +37,7 @@ import { errorMessage } from '../../lib/error-message';
 import { useDebouncedCallback } from '../../lib/use-debounced-callback';
 import { usePrefersReducedMotion } from '../../lib/use-reduced-motion';
 import { NoteComposerModal } from '../notes/NoteComposerModal';
+import { ReaderSoundtrack } from '../soundtrack/ReaderSoundtrack';
 import { AnnotationsDrawer } from './AnnotationsDrawer';
 import { CorrectPositionDialog } from './CorrectPositionDialog';
 import { InBookSearchDrawer, type SearchMatch } from './InBookSearchDrawer';
@@ -159,6 +161,7 @@ export function FlowReaderPage() {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
   const [showNoteComposer, setShowNoteComposer] = useState(false);
+  const [showSoundtrack, setShowSoundtrack] = useState(false);
   const annotationsQuery = useAnnotations(editionId);
   const annotations = annotationsQuery.data ?? [];
   const createAnnotation = useCreateAnnotation(editionId);
@@ -784,6 +787,18 @@ export function FlowReaderPage() {
 
           <button
             type="button"
+            onClick={() => setShowSoundtrack((v) => !v)}
+            aria-label="Reading soundtrack"
+            aria-pressed={showSoundtrack}
+            title="Soundtrack"
+            className="focus-visible:focus-ring flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium hover:bg-paper-100"
+          >
+            <Music className="h-4 w-4" />
+            <span className="hidden sm:inline">Music</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               setShowSearchDrawer((v) => !v);
               setShowAnnotationsDrawer(false);
@@ -948,6 +963,13 @@ export function FlowReaderPage() {
           onClose={() => setActiveSelection(null)}
         />
       )}
+
+      <ReaderSoundtrack
+        workId={manifest.data?.workId}
+        open={showSoundtrack}
+        onOpen={() => setShowSoundtrack(true)}
+        onClose={() => setShowSoundtrack(false)}
+      />
 
       {showNoteComposer && (
         <NoteComposerModal

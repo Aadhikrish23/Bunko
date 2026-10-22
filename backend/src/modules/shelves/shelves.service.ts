@@ -33,6 +33,9 @@ export async function deleteShelf(userId: string, shelfId: string): Promise<void
   // Assigning/removing a work from one shelf must not affect others
   // (T-016) — deleting a shelf only ever touches its own ShelfWork rows.
   await prisma.shelfWork.deleteMany({ where: { shelfId } });
+  // SoundtrackMapping.targetKey is polymorphic (no FK), so a shelf's
+  // soundtrack association is removed here explicitly.
+  await prisma.soundtrackMapping.deleteMany({ where: { userId, targetType: 'SHELF', targetKey: shelfId } });
   await prisma.shelf.delete({ where: { id: shelfId } });
 }
 

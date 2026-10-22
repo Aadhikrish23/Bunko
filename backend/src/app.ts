@@ -22,6 +22,11 @@ import { continuityRouter } from './modules/continuity/continuity.routes';
 import { annotationsForEditionRouter, annotationsRouter } from './modules/annotations/annotations.routes';
 import { notesForWorkRouter, notesRouter } from './modules/notes/notes.routes';
 import { reviewsRouter } from './modules/reviews/reviews.routes';
+import {
+  soundtrackForWorkRouter,
+  soundtrackMappingsRouter,
+  soundtracksRouter,
+} from './modules/soundtrack/soundtrack.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -62,6 +67,9 @@ export function createApp(): Express {
   app.use('/api/v1/works', notesForWorkRouter);
   app.use('/api/v1/notes', notesRouter);
   app.use('/api/v1/works', reviewsRouter);
+  app.use('/api/v1/works', soundtrackForWorkRouter);
+  app.use('/api/v1/soundtracks', soundtracksRouter);
+  app.use('/api/v1/soundtrack-mappings', soundtrackMappingsRouter);
   app.use('/api/v1/metadata', metadataRouter);
   app.use('/api/v1/editions', editionsRouter);
   app.use('/api/v1/editions', readerRouter);

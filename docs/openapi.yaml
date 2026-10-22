@@ -506,7 +506,7 @@ paths:
                 type: object
                 properties:
                   data: { $ref: "#/components/schemas/Note" }
-        "404": { description: Work, copy, or session not found/owned by caller }
+        "404": { description: "Work, copy, or session not found/owned by caller" }
 
   /notes/{id}:
     patch:
@@ -557,7 +557,7 @@ paths:
                 type: object
                 properties:
                   data: { $ref: "#/components/schemas/Review" }
-        "404": { description: No review yet, or work not in the caller's library }
+        "404": { description: "No review yet, or work not in the caller's library" }
     put:
       summary: Create or replace the caller's rating/review of a work
       description: >-
@@ -630,6 +630,143 @@ paths:
         "204": { description: Deleted }
         "404": { description: Review not found }
 
+  /soundtracks:
+    get:
+      summary: The caller's playlists, each with its associations (SRS §17.2)
+      responses:
+        "200":
+          description: Playlists, by name
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Soundtrack" } }
+    post:
+      summary: Add a playlist by share link
+      description: >-
+        The link must be a Spotify, YouTube, Apple Music, or SoundCloud
+        playlist/album/track; Bunko embeds the provider's official player
+        and never stores or proxies audio (SRS §17.6, T-058). Tracking
+        parameters are stripped from the stored link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                url: { type: string, maxLength: 2048 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Soundtrack" }
+        "400": { description: "Unsupported link (details[0].field = \"url\")" }
+
+  /soundtracks/{id}:
+    patch:
+      summary: Rename a playlist or change its link
+      parameters:
+        - $ref: "#/components/parameters/SoundtrackId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 80 }
+                url: { type: string, maxLength: 2048 }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Soundtrack" }
+        "400": { description: "Unsupported link, or neither field given" }
+        "404": { description: Not found or not owned by caller }
+    delete:
+      summary: Delete a playlist (its associations go with it)
+      parameters:
+        - $ref: "#/components/parameters/SoundtrackId"
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not found or not owned by caller }
+
+  /soundtrack-mappings:
+    put:
+      summary: Associate a playlist with a book, shelf, genre, mood, or situation
+      description: >-
+        One playlist per target: mapping a target that already has one
+        re-points it. GENRE/MOOD/SITUATION keys are normalised (trimmed,
+        whitespace-collapsed, lowercased). WORK/SHELF keys are ids that
+        must belong to the caller.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [soundtrackId, targetType, targetKey]
+              properties:
+                soundtrackId: { type: string, format: uuid }
+                targetType: { type: string, enum: [WORK, SHELF, GENRE, MOOD, SITUATION] }
+                targetKey: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        "200":
+          description: The association
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/SoundtrackMapping" }
+        "400": { description: Invalid target }
+        "404": { description: "Playlist, book, or shelf not found/owned by caller" }
+
+  /soundtrack-mappings/{id}:
+    delete:
+      summary: Remove an association
+      parameters:
+        - $ref: "#/components/parameters/SoundtrackMappingId"
+      responses:
+        "204": { description: Removed }
+        "404": { description: Not found or not owned by caller }
+
+  /works/{workId}/soundtrack:
+    get:
+      summary: What automatic mode plays for a book (T-061)
+      description: >-
+        The book's own soundtrack, else one from a shelf it's on (shelves
+        by name), else one from its genres (in the book's genre order).
+        Moods and situations are manual picks in the player, not
+        automatic inputs. `match` is null when nothing applies.
+      parameters:
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The automatic pick, if any
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/SoundtrackResolution" }
+        "404": { description: Work not found in the caller's library }
+
   /editions/{editionId}/annotations:
     get:
       summary: List the caller's highlights and quotes for an edition (SRS §13.2, §13.3)
@@ -681,7 +818,7 @@ paths:
                 type: object
                 properties:
                   data: { $ref: "#/components/schemas/Annotation" }
-        "404": { description: No digital copy of this edition, or sessionId not owned by caller }
+        "404": { description: "No digital copy of this edition, or sessionId not owned by caller" }
 
   /annotations/search:
     get:
@@ -993,6 +1130,18 @@ components:
         type: string
         pattern: "^(all|status:[A-Z_]+|shelf:[0-9a-f-]{36})$"
 
+    SoundtrackId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+
+    SoundtrackMappingId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+
     TimeZone:
       in: query
       name: tz
@@ -1108,6 +1257,47 @@ components:
         metadata: { type: object, nullable: true, additionalProperties: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    SoundtrackMapping:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        soundtrackId: { type: string, format: uuid }
+        targetType: { type: string, enum: [WORK, SHELF, GENRE, MOOD, SITUATION] }
+        targetKey: { type: string, description: "A workId/shelfId, or a normalised label" }
+        label: { type: string, nullable: true, description: Book title or shelf name for WORK/SHELF; null for label targets }
+
+    Soundtrack:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        url: { type: string, description: "The share link, tracking parameters stripped" }
+        provider: { type: string, enum: [SPOTIFY, YOUTUBE, APPLE_MUSIC, SOUNDCLOUD] }
+        embedUrl: { type: string, description: "The provider's official embed player URL (derived, never user-supplied)" }
+        capabilities:
+          type: object
+          properties:
+            volumeControl: { type: boolean, description: Whether Bunko can set volume; otherwise it lives in the provider's player }
+        mappings: { type: array, items: { $ref: "#/components/schemas/SoundtrackMapping" } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SoundtrackResolution:
+      type: object
+      properties:
+        match:
+          type: object
+          nullable: true
+          properties:
+            soundtrack: { $ref: "#/components/schemas/Soundtrack" }
+            via:
+              type: object
+              properties:
+                mappingId: { type: string, format: uuid }
+                targetType: { type: string, enum: [WORK, SHELF, GENRE] }
+                targetKey: { type: string }
+                label: { type: string, nullable: true }
 
     SearchResult:
       type: object

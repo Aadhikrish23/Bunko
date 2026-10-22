@@ -64,8 +64,11 @@ backend/src/modules/
 ├── continuity/        # cross-edition mapping engine (SRS §11.7-11.9)
 ├── reading-sessions/  # session lifecycle (SRS §12)
 ├── journal/           # chronological journal view (SRS §12.5)
-├── statistics/        # baseline reading statistics (SRS §19, T-023)
-├── annotations/       # notes/highlights/quotes — Phase 6, stubbed only
+├── statistics/        # reading statistics & trends (SRS §19 — T-023, Phase 7)
+├── annotations/       # highlights/quotes + annotation search (SRS §13 — Phase 6)
+├── notes/             # standalone book/chapter/session notes (SRS §13.1 — Phase 6)
+├── reviews/           # ratings & reviews (SRS §14 — Phase 7)
+├── soundtrack/        # playlists & associations, provider embeds (SRS §17 — Phase 8, see §12)
 └── shelves/           # shelves, tags, collections (SRS §15)
 ```
 
@@ -74,9 +77,9 @@ Each module folder follows the same internal shape (see
 controller → service → Prisma, with a Zod schema file shared between
 validation and OpenAPI generation intent.
 
-Modules the MVP does **not** implement (Phase 6+, per `SRS.md` §36.4):
-`reviews`, `soundtrack`, `sync`, `notifications`, `ai`. Do not create
-these directories until their phase begins.
+Modules not yet implemented (later phases, per `SRS.md` §36.4): `sync`
+(Phase 9), `notifications`, `ai` (Phase 10, a separate service — §8).
+Do not create these directories until their phase begins.
 
 ## 4. Request Flow (example: opening a digital book)
 
@@ -232,3 +235,31 @@ metadata rather than requiring the user to type everything by hand.
   - If missing, `fetchWorkDescription(source, externalId)` fetches it once from the respective provider.
 - The stored `Work` row is the source of truth after creation — external APIs are never queried on page load.
 - The user can still skip search and enter a book manually (`externalSource`/`externalId` left `null`).
+
+## 12. Soundtrack Providers (SRS §17, Phase 8)
+
+SRS §38.4 warns that music services restrict background playback, API
+access, and playlist control; §17.6 forbids storing or redistributing
+copyrighted music.
+
+**Decision: official embed players only, from user-pasted links (T-058).**
+
+- A reader adds a playlist by pasting a share link. `soundtrack/providers.ts`
+  parses it against a strict host allowlist (Spotify, YouTube/YouTube
+  Music, Apple Music, SoundCloud) into the provider's **official embed
+  player** URL. Anything else is rejected with a specific message — an
+  arbitrary URL never becomes an iframe. The embed URL is derived from
+  the stored link on every read, so a parser fix applies retroactively.
+- Bunko never fetches, proxies, caches, or stores audio. Playback happens
+  entirely inside the provider's player, under the provider's own
+  account, licensing, and autoplay rules.
+- No API keys or OAuth. Full-account integrations (Spotify Web Playback
+  SDK, Apple MusicKit) would need developer credentials and paid user
+  accounts; they're deferred until a concrete need outweighs that cost.
+- Capabilities are per provider (`PROVIDER_CAPABILITIES`): YouTube and
+  SoundCloud embeds accept volume commands over `postMessage`, so Bunko
+  offers a volume control for them; Spotify and Apple Music don't, so
+  volume stays in their player or the device (§17.7 "where permitted").
+- Privacy: no third-party player loads until the reader turns the
+  soundtrack on or explicitly previews a playlist, and YouTube embeds
+  use `youtube-nocookie.com`.

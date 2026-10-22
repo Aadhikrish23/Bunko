@@ -225,6 +225,36 @@ export interface Review {
   updatedAt: string;
 }
 
+export type SoundtrackProvider = 'SPOTIFY' | 'YOUTUBE' | 'APPLE_MUSIC' | 'SOUNDCLOUD';
+export type SoundtrackTargetType = 'WORK' | 'SHELF' | 'GENRE' | 'MOOD' | 'SITUATION';
+
+export interface SoundtrackMapping {
+  id: string;
+  soundtrackId: string;
+  targetType: SoundtrackTargetType;
+  targetKey: string; // workId/shelfId, or a normalised (lowercased) label
+  label: string | null; // book title / shelf name for WORK/SHELF
+}
+
+export interface Soundtrack {
+  id: string;
+  name: string;
+  url: string;
+  provider: SoundtrackProvider;
+  embedUrl: string;
+  capabilities: { volumeControl: boolean };
+  mappings: SoundtrackMapping[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SoundtrackResolution {
+  match: {
+    soundtrack: Soundtrack;
+    via: { mappingId: string; targetType: 'WORK' | 'SHELF' | 'GENRE'; targetKey: string; label: string | null };
+  } | null;
+}
+
 export interface SearchResult {
   type: 'ANNOTATION' | 'NOTE';
   id: string;

@@ -9,6 +9,7 @@ import { useDeleteWork, useUpdateWorkStatus, useWork } from '../../lib/api/works
 import { errorMessage } from '../../lib/error-message';
 import { NotesPanel } from '../notes/NotesPanel';
 import { ReviewPanel } from '../reviews/ReviewPanel';
+import { BookSoundtrackPanel } from '../soundtrack/BookSoundtrackPanel';
 import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
@@ -157,6 +158,11 @@ export function BookDetailPage() {
       <Card className="p-5">
         <h2 className="mb-3 font-display text-lg text-paper-900">Notes</h2>
         <NotesPanel workId={data.id} />
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="mb-3 font-display text-lg text-paper-900">Soundtrack</h2>
+        <BookSoundtrackPanel workId={data.id} />
       </Card>
 
       {data.seriesName && <SeriesPanel seriesName={data.seriesName} siblings={data.seriesWorks} />}

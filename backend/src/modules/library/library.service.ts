@@ -465,5 +465,7 @@ export async function deleteWork(userId: string, workId: string): Promise<void> 
   // reading history is personal data preserved independently of library
   // membership (SRS §6.4, §24.4).
   await prisma.shelfWork.deleteMany({ where: { userWorkId: existing.id } });
+  // A book soundtrack is library configuration, not reading history.
+  await prisma.soundtrackMapping.deleteMany({ where: { userId, targetType: 'WORK', targetKey: workId } });
   await prisma.userWork.delete({ where: { userId_workId: { userId, workId } } });
 }
