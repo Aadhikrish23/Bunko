@@ -570,7 +570,7 @@ partially updates an existing review, `GET` returns the caller's own
 - [x] Create, update, delete, and get-own-review endpoints
 - [x] Authorisation scoped to the review's owner
 - [x] `openapi.yaml` updated
-- [ ] Integration tests (CRUD, ownership isolation, the one-per-work constraint) — *written (`backend/tests/reviews.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Integration tests (CRUD, ownership isolation, the one-per-work constraint) — *`backend/tests/reviews.spec.ts`, run and passing (2026-10-22)*
 
 ### T-052 — Review & Rating UI
 Depends on: T-051 · SRS: §14
@@ -597,7 +597,7 @@ on `Work`/`Edition` — no new schema needed, just aggregation).
 - [x] `getExtendedStatistics` computes every SRS §19.1 field
 - [x] Breakdowns by genre, author, language, and format
 - [x] `GET /statistics` response extended (`openapi.yaml` updated — note any field removed/renamed from the T-023 shape)
-- [ ] Fixture-based tests (numbers reconcile against a known session set, same bar T-023 set) — *written (`backend/tests/statistics.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Fixture-based tests (numbers reconcile against a known session set, same bar T-023 set) — *`backend/tests/statistics.spec.ts`, run and passing (2026-10-22)*
 
 ### T-054 — Streak logic hardening
 Depends on: T-023 · SRS: §19.1 (edge cases flagged in `IMPLEMENTATION_PLAN.md` §6)
@@ -618,7 +618,7 @@ is bucketed by the zone in effect when the stats are viewed.
 
 - [x] Day-bucketing uses a day boundary the user actually experiences, not a bare UTC slice (document the chosen approach — e.g. a user-level timezone field vs. request-supplied offset — since none exists in the schema yet)
 - [x] Longest-streak calculation (new, for T-053) shares this same day-bucketing logic — not a second implementation
-- [ ] Tests covering a DST transition, a session just before/after local midnight, and a multi-day gap — *written (`backend/tests/statistics.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Tests covering a DST transition, a session just before/after local midnight, and a multi-day gap — *`backend/tests/statistics.spec.ts`, run and passing (2026-10-22)*
 
 ### T-055 — Time-based statistics views
 Depends on: T-053 · SRS: §19.2
@@ -634,7 +634,7 @@ months, yearly = first session's year to now, all-time = one bucket.
 - [x] `GET /statistics/trends?range=daily|weekly|monthly|yearly|all-time` (or equivalent query param on the existing endpoint — pick one, document the choice)
 - [x] Each range buckets correctly at its boundaries (reuses T-054's day-bucketing)
 - [x] `openapi.yaml` updated
-- [ ] Tests across all five ranges — *written (`backend/tests/statistics.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Tests across all five ranges — *`backend/tests/statistics.spec.ts`, run and passing (2026-10-22)*
 
 ### T-056 — Reading pace calculations
 Depends on: T-053 · SRS: §19.3
@@ -646,7 +646,7 @@ spirit as the continuity engine's proportional-position fallback).
 
 - [x] Pace fields return `null` rather than a misleading number when data is insufficient (define and document the threshold)
 - [x] Reflowable-format progress uses an estimated-equivalent-pages figure, not a literal page count
-- [ ] Tests for both the "enough data" and "not enough data" paths — *written (`backend/tests/statistics.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Tests for both the "enough data" and "not enough data" paths — *`backend/tests/statistics.spec.ts`, run and passing (2026-10-22)*
 
 ### T-057 — Frontend stats dashboard
 Depends on: T-053, T-055, T-056 · SRS: §19
@@ -688,7 +688,7 @@ real need justifies them.
 - [x] URL → provider/embed parser with a strict host allowlist (arbitrary URLs never become iframes)
 - [x] Per-provider capability flags (e.g. whether volume is controllable from Bunko or only in the provider's player — §17.7 "where permitted")
 - [x] Decision recorded in `ARCHITECTURE.md`
-- [ ] Tests covering each provider's link shapes and the rejection cases — *written (`backend/tests/soundtracks.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Tests covering each provider's link shapes and the rejection cases — *`backend/tests/soundtracks.spec.ts`, run and passing (2026-10-22)*
 
 ### T-059 — Soundtrack & SoundtrackMapping schema
 Depends on: T-058 · SRS: §17.2, §17.3
@@ -711,7 +711,7 @@ Depends on: T-059 · SRS: §17.2, §17.4
 - [x] `PUT /soundtrack-mappings` (upsert by target), `DELETE /soundtrack-mappings/:id`
 - [x] `WORK`/`SHELF` targets must belong to the caller; a soundtrack can only be mapped by its owner
 - [x] `openapi.yaml` updated
-- [ ] Integration tests (CRUD, validation, ownership isolation) — *written (`backend/tests/soundtracks.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Integration tests (CRUD, validation, ownership isolation) — *`backend/tests/soundtracks.spec.ts`, run and passing (2026-10-22)*
 
 ### T-061 — Automatic soundtrack resolution
 Depends on: T-060 · SRS: §17.2, §17.3, §17.7
@@ -724,7 +724,7 @@ manual picks in the player (T-064), not automatic inputs.
 - [x] Precedence book → shelf → genre, deterministic within each tier; response says which association matched
 - [x] `null` (not an error) when nothing matches
 - [x] `openapi.yaml` updated
-- [ ] Integration tests for each tier and the no-match case — *written (`backend/tests/soundtracks.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Integration tests for each tier and the no-match case — *`backend/tests/soundtracks.spec.ts`, run and passing (2026-10-22)*
 
 ### T-062 — Soundtracks page
 Depends on: T-060 · SRS: §17.2, §17.4
@@ -815,14 +815,14 @@ Depends on: T-066 · SRS: §21.1 (bookmarks)
 
 - [x] `GET/POST /editions/:editionId/bookmarks`, `DELETE /bookmarks/:id` (owner-scoped like annotations)
 - [x] Both readers use it instead of `lib/bookmarks.ts`'s `localStorage`; existing local bookmarks are imported once rather than dropped
-- [ ] `openapi.yaml` updated; integration tests — *written (`backend/tests/bookmarks-preferences.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] `openapi.yaml` updated; integration tests — *`backend/tests/bookmarks-preferences.spec.ts`, run and passing (2026-10-22)*
 
 ### T-068 — Synced preferences
 Depends on: T-066 · SRS: §21.1, §21.2 (LWW for simple preferences), FR-021
 
 - [x] `GET /preferences`, `PUT /preferences/:key` — applies only if the incoming client timestamp is newer than the stored one
 - [x] Reader settings and soundtrack mode/volume/manual choice sync through it; the soundtrack on/off switch stays per-device (T-065)
-- [ ] `openapi.yaml` updated; integration tests for the LWW rule — *written (`backend/tests/bookmarks-preferences.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] `openapi.yaml` updated; integration tests for the LWW rule — *`backend/tests/bookmarks-preferences.spec.ts`, run and passing (2026-10-22)*
 
 ### T-069 — Sync event ingestion
 Depends on: T-066, T-067, T-068 · SRS: §21.2, §21.3
@@ -830,14 +830,14 @@ Depends on: T-066, T-067, T-068 · SRS: §21.2, §21.3
 - [x] `POST /sync/events`: ordered batch, per-event result (`APPLIED`/`SKIPPED`/`CONFLICT`/`REJECTED`/`DUPLICATE`), idempotent replay
 - [x] Handlers: offline session (append-only), annotation/note/bookmark create/update/delete (merge rules), preference set (LWW)
 - [x] All ownership checks the online endpoints make, made here too
-- [ ] `openapi.yaml` updated; integration tests (idempotency, each merge rule, cross-user isolation) — *written (`backend/tests/sync.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] `openapi.yaml` updated; integration tests (idempotency, each merge rule, cross-user isolation) — *`backend/tests/sync.spec.ts`, run and passing (2026-10-22)*
 
 ### T-070 — Reading-position conflicts
 Depends on: T-069 · SRS: §21.2, §30, E2E-008
 
 - [x] An offline session whose end position would overwrite a canonical position another device moved during that session is recorded as a conflict instead — nothing overwritten
 - [x] `GET /sync/conflicts`, `POST /sync/conflicts/:id/resolve` (`SERVER` or `DEVICE`)
-- [ ] Integration tests for conflict / no-conflict / same-position / resolution — *written (`backend/tests/sync.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Integration tests for conflict / no-conflict / same-position / resolution — *`backend/tests/sync.spec.ts`, run and passing (2026-10-22)*
 
 ### T-071 — Device identity
 Depends on: T-066 · SRS: §21
@@ -924,7 +924,7 @@ Depends on: T-077 · SRS: §20.4, §38.5
 - [x] `AiConsent` model + migration (per user; semantic search, generated insights, policy version)
 - [x] `GET /ai/status` (availability + consent), `PUT /ai/consent` — generated insights require semantic search; revoking semantic search deletes the user's embeddings
 - [x] `openapi.yaml` updated
-- [ ] Integration tests — *written (`backend/tests/ai.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Integration tests — *`backend/tests/ai.spec.ts`, run and passing (2026-10-22)*
 
 ### T-079 — `ai-service` scaffold
 Depends on: T-077 · SRS: §20
@@ -1017,7 +1017,7 @@ Depends on: T-087, T-078 · SRS: §20.5
 - [x] `AiConsent.translation` + `ChapterTranslation` model + migration
 - [x] `GET /ai/status` reports translation availability and consent; `PUT /ai/consent` accepts `translation`; turning it off deletes the user's translations
 - [x] `openapi.yaml` updated
-- [ ] Integration tests — *written (`backend/tests/ai.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Integration tests — *`backend/tests/ai.spec.ts`, run and passing (2026-10-22)*
 
 ### T-089 — `ai-service` translation endpoint
 Depends on: T-079 · SRS: §20.5
@@ -1034,7 +1034,7 @@ Depends on: T-088, T-089 · SRS: §20.5, §25.2
 - [x] `GET /ai/editions/:editionId/translations?targetLanguage=` lists the caller's translations of that edition, with progress, staleness, and text
 - [x] The BullMQ worker translates segment by segment, records progress, stops if consent is revoked, and marks failures with a message
 - [x] `openapi.yaml` updated
-- [ ] Integration tests (consent, ownership, length limit, cross-user isolation) — *written (`backend/tests/ai.spec.ts`), not yet run: deferred to the end-of-project test pass*
+- [x] Integration tests (consent, ownership, length limit, cross-user isolation) — *`backend/tests/ai.spec.ts`, run and passing (2026-10-22)*
 
 ### T-091 — Reader translation UI
 Depends on: T-090 · SRS: §20.5
@@ -1063,11 +1063,11 @@ Depends on: T-088 · SRS: §20.5, §38.5
 | Cross-cutting Frontend | T-038 – T-041 (4) | **100% Complete** |
 | **Total (MVP)** | **45** | **100% Complete** |
 | 6 — Annotations | T-042 – T-049 (8) | **100% Complete** |
-| 7 — Reviews & Reading Insights | T-050 – T-057 (8) | **Implemented — backend integration tests written, not yet run** |
-| 8 — Soundtrack | T-058 – T-064 (7) | **Implemented — backend integration tests written, not yet run** |
-| 9 — Offline & Sync | T-065 – T-076 (12) | **Implemented — backend integration tests written, not yet run** |
-| 10 — AI Layer | T-077 – T-086 (10) | **Implemented — backend integration tests written, not yet run** |
-| 11 — AI Chapter Translation | T-087 – T-092 (6) | **Implemented — backend integration tests written, not yet run** |
+| 7 — Reviews & Reading Insights | T-050 – T-057 (8) | **100% Complete** |
+| 8 — Soundtrack | T-058 – T-064 (7) | **100% Complete** |
+| 9 — Offline & Sync | T-065 – T-076 (12) | **100% Complete** |
+| 10 — AI Layer | T-077 – T-086 (10) | **100% Complete** |
+| 11 — AI Chapter Translation | T-087 – T-092 (6) | **100% Complete** |
 
 All ten roadmap phases are ticketed, plus Phase 11 (chapter translation), added by requirement change (SRS §20.5). Phase 10 lives in a separate
 `ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module

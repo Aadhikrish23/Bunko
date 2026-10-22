@@ -79,7 +79,7 @@ async function digitalEditionWithChapters(
   userId: string,
   chapters: Array<{ structuralId: string; text: string }>,
 ): Promise<string> {
-  const work = await authedRequest.post('/api/v1/works', { data: { title: `Translate ${randomUUID()}` } });
+  const work = await authedRequest.post('/api/v1/works', { data: { title: `Translate ${randomUUID()}`, coverImageUrl: 'https://example.com/c.jpg' } });
   const workId = (await work.json()).data.id;
   const edition = await authedRequest.post('/api/v1/editions', { data: { workId, format: 'EPUB' } });
   const editionId = (await edition.json()).data.id;
@@ -132,7 +132,7 @@ test.describe('Chapter translation (T-088, T-090)', () => {
     });
     expect(missingChapter.status()).toBe(404);
 
-    const work = await authedRequest.post('/api/v1/works', { data: { title: `Not mine ${randomUUID()}` } });
+    const work = await authedRequest.post('/api/v1/works', { data: { title: `Not mine ${randomUUID()}`, coverImageUrl: 'https://example.com/c.jpg' } });
     const edition = await authedRequest.post('/api/v1/editions', { data: { workId: (await work.json()).data.id, format: 'EPUB' } });
     const notHeld = await authedRequest.post(`/api/v1/ai/editions/${(await edition.json()).data.id}/translations`, {
       data: { structuralId: 'ch1', targetLanguage: 'fr' },

@@ -1,5 +1,9 @@
 import { defineConfig } from '@playwright/test';
 
+// Point the suite at an API on another port with API_BASE_URL (e.g. when 3000
+// is taken); the health check follows it.
+const baseURL = process.env.API_BASE_URL ?? 'http://localhost:3000';
+
 export default defineConfig({
   testDir: '.',
   fullyParallel: true,
@@ -7,11 +11,11 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: process.env.API_BASE_URL ?? 'http://localhost:3000',
+    baseURL,
   },
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3000/health',
+    url: `${baseURL}/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },

@@ -16,4 +16,10 @@ export const requestLogger = pinoHttp({
     return id;
   },
   customProps: (req) => ({ userId: (req as Request).user?.id }),
+  // Access tokens and the refresh-token cookie must never reach the logs
+  // (SRS §25): anyone reading them could act as that user.
+  redact: {
+    paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+    censor: '[redacted]',
+  },
 });
