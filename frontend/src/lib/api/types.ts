@@ -130,10 +130,50 @@ export interface ResolvedPosition {
   requiresConfirmation: boolean;
 }
 
-export interface BasicStatistics {
+// `label` null = the book has no value for that dimension (no genre, no
+// author, unknown language). byFormat labels are EditionFormat codes.
+export interface BreakdownEntry {
+  label: string | null;
+  count: number;
+}
+
+export interface ReadingPace {
+  pagesPerHour: number | null;
+  pagesPerSession: number | null;
+  sampleSessions: number;
+}
+
+export interface Statistics {
   booksCompleted: number;
   totalMinutesRead: number;
+  totalSessions: number;
+  averageSessionMinutes: number | null;
+  pagesRead: number;
   currentStreakDays: number;
+  longestStreakDays: number;
+  pace: ReadingPace;
+  breakdowns: {
+    byGenre: BreakdownEntry[];
+    byAuthor: BreakdownEntry[];
+    byLanguage: BreakdownEntry[];
+    byFormat: BreakdownEntry[];
+  };
+}
+
+export type TrendRange = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'all-time';
+
+export interface TrendBucket {
+  start: string; // YYYY-MM-DD, first local day of the bucket
+  minutesRead: number;
+  sessions: number;
+  pagesRead: number;
+}
+
+export interface Trends {
+  range: TrendRange;
+  timeZone: string;
+  buckets: TrendBucket[];
+  totals: Omit<TrendBucket, 'start'>;
 }
 
 export interface DigitalFile {
@@ -169,6 +209,18 @@ export interface Note {
   scope: NoteScope;
   position: string | null;
   body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Review {
+  id: string;
+  workId: string;
+  rating: number | null;
+  body: string | null;
+  isFavourite: boolean;
+  rereadIntention: boolean;
+  metadata: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }

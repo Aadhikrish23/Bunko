@@ -109,6 +109,26 @@ enum ReadingStatus {
   DID_NOT_FINISH
 }
 
+// A user's rating/review of a Work — SRS §14 (Phase 7, T-050). One per
+// (userId, workId); re-rating/re-reviewing is an upsert via T-051's
+// create-or-replace API, not a second row.
+model Review {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  workId          String
+  work            Work     @relation(fields: [workId], references: [id])
+  rating          Int? // 1-5 when set; nullable — SRS §14 lists rate/review/favourite/reread as independent actions
+  body            String?
+  isFavourite     Boolean  @default(false)
+  rereadIntention Boolean  @default(false)
+  metadata        Json? // open bucket for SRS §14's "other structured metadata" (e.g. favourite character)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, workId])
+}
+
 // A specific published version of a Work — SRS §4 "Edition"
 model Edition {
   id           String   @id @default(uuid())
@@ -345,6 +365,8 @@ Work 1 --- N Note
 ReadingSession 1 --- N Annotation
 ReadingSession 1 --- N Note
 ReadingJourney 1 --- 0..1 ReadingPosition (canonical position)
+User 1 --- N Review
+Work 1 --- N Review          (@@unique([userId, workId]) caps it at one per user)
 ```
 
 ## 4. External Metadata Source (SRS §16)
@@ -366,12 +388,11 @@ is deliberately nullable and non-unique-alone:
   `Edition` rows from user input without cross-referencing the
   provider's own edition data.
 
-## 5. Deferred to Phase 7+ (do not create yet)
+## 5. Deferred to Phase 8+ (do not create yet)
 
-`Annotation` (Highlight/Quote) and `Note` shipped in Phase 6 — see §2
-above.
+`Annotation` (Highlight/Quote) and `Note` shipped in Phase 6; `Review`
+shipped in Phase 7 — see §2 above.
 
-- `Review`, `Rating`
 - `Tag`, `BookTag` (MVP uses `Shelf` only; tags are Phase 6/7 polish —
   `Annotation.tags` on quotes is the one Phase 6 exception, scoped to
   quotes specifically per SRS §13.3, not a general tagging system)

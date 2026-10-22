@@ -31,6 +31,7 @@ model User {
   sessions          ReadingSession[]
   annotations       Annotation[]
   notes             Note[]
+  reviews           Review[]
 }
 
 model Author {
@@ -66,6 +67,7 @@ model Work {
   editions Edition[]
   users    UserWork[]
   notes    Note[]
+  reviews  Review[]
 
   @@unique([externalSource, externalId])
 }
@@ -106,6 +108,31 @@ enum ReadingStatus {
   READING
   FINISHED
   DID_NOT_FINISH
+}
+
+// A user's rating/review of a Work — SRS §14. One per (userId, workId);
+// re-rating/re-reviewing is an update, not a new row, per T-051's
+// create-or-replace API semantics.
+model Review {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  workId          String
+  work            Work     @relation(fields: [workId], references: [id])
+  // 1-5 when set; SRS §14 "configurable scale, 5-star default" — MVP
+  // hardcodes 5. Nullable because SRS §14 lists rating, review text,
+  // favourite and reread intention as independent actions.
+  rating          Int?
+  body            String?
+  isFavourite     Boolean  @default(false)
+  rereadIntention Boolean  @default(false)
+  // Open bucket for the "other structured metadata" SRS §14 mentions
+  // (e.g. favourite character) — no fixed shape at MVP scale.
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, workId])
 }
 
 // A specific published version of a Work — SRS §4 "Edition"

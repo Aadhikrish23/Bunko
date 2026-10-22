@@ -9,6 +9,7 @@
       "paper-text": { "role": "neutral", "displayName": "Warm Paper Ink", "canonical": "#26221D", "tonalRamp": ["#FBF8F3", "#F4EEE3", "#E8DFCF", "#D8CBAF", "#B7A98A", "#93855F", "#5B5347", "#3D3830", "#26221D"] },
       "moss-primary": { "role": "primary", "displayName": "Muted Forest Moss", "canonical": "#4F7A5C", "tonalRamp": ["#EEF3EE", "#D6E4D8", "#8FB08F", "#4F7A5C", "#3E6249", "#2F4B38", "#1B2B20"] },
       "ember-accent": { "role": "secondary", "displayName": "Burnt Ember Clay", "canonical": "#B35F2E", "tonalRamp": ["#C97B4A", "#B35F2E", "#93481F"] },
+      "chart-bar": { "role": "data", "displayName": "Chart Moss", "canonical": "#358051", "tonalRamp": ["#358051", "#4E9867"] },
       "oak-mid": { "role": "tertiary", "displayName": "Aged Oak", "canonical": "#9C6B3E", "tonalRamp": ["#C9A877", "#9C6B3E", "#7A4E2B", "#5E3A20", "#3B2417"] }
     },
     "typographyMeta": {

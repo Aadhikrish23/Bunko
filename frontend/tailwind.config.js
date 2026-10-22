@@ -48,6 +48,15 @@ export default {
           500: '#B35F2E',
           600: '#93481F',
         },
+        // "chart" — data marks on the Statistics dashboard (T-057). Same
+        // lightness and hue as moss-500 with chroma raised to 0.105
+        // (OKLCH): moss-500 itself sits at 0.067, below the 0.10 floor at
+        // which a single-series mark stops reading as recessive gray chrome.
+        // Both steps validated >= 3:1 against paper-50.
+        chart: {
+          bar: '#358051',
+          'bar-hover': '#4E9867',
+        },
         // "wood" — the bookcase chrome for the Shelves view (T-016 UI):
         // frame/plank tones, not used anywhere else in the app.
         wood: {

@@ -16,6 +16,8 @@ colors:
   ember-soft: "#C97B4A"
   ember-accent: "#B35F2E"
   ember-deep: "#93481F"
+  chart-bar: "#358051"
+  chart-bar-hover: "#4E9867"
   oak-light: "#C9A877"
   oak-mid: "#9C6B3E"
   oak-dark: "#7A4E2B"
@@ -105,6 +107,9 @@ A single warm neutral scale carries almost every surface; one accent (moss) does
 
 ### Neutral
 - **Warm Paper** (`#FBF8F3` bg → `#F4EEE3` surface → `#E8DFCF` border → `#B7A98A` muted → `#5B5347` soft text → `#26221D` text): the base everything sits on. `paper-50` is the page background and default card fill; `paper-900` is primary text. No pure white, no pure black, anywhere in the chrome.
+
+### Data marks (Statistics dashboard only)
+- **Chart Moss** (`#358051` bar / `#4E9867` hover): moss-500's exact lightness and hue with chroma raised from 0.067 to 0.105 (OKLCH). Plain moss-500 sits below the 0.10 chroma floor where a data mark starts reading as recessive gray chrome. Both validated ≥ 3:1 against `paper-50`. Data marks only (bars, meters) — buttons, links, and focus rings stay on moss. Gridlines are `paper-200` hairlines; axis and value text use text tokens (`paper-700`/`paper-900`), never the bar color.
 
 ### Reader surface themes (separate, user-selected sub-palette)
 The in-reader page surface has its own four themes the reader picks explicitly (Paper / Sepia / Charcoal / Dark) — a related but distinct token set from the app-chrome neutrals above (the reader's "paper" theme bg `#F5F2EB` is warmer/darker than chrome `paper-50`, by design — it's meant to read as an actual page, not a UI panel). Treat these as reader-content tokens, not candidates for reuse in app chrome.

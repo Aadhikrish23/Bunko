@@ -106,3 +106,13 @@ sections and backend modules (`ARCHITECTURE.md` §2):
 | Continuity | `/reading-journeys/:id/resolve-position` | §11 |
 | Reading Sessions | `/reading-sessions` | §12 |
 | Journal | `/journal` | §12.5 |
+| Statistics | `/statistics` | §19 |
+
+### Fast-follow (v1.1) groups
+
+| Group | Base Path | SRS Ref |
+|---|---|---|
+| Annotations (Phase 6) | `/editions/:id/annotations`, `/annotations`, `/annotations/search` | §13.2–13.4 |
+| Notes (Phase 6) | `/works/:id/notes`, `/notes` | §13.1 |
+| Reviews (Phase 7) | `/works/:id/review` (one per user per work) | §14 |
+| Statistics & trends (Phase 7) | `/statistics?tz=`, `/statistics/trends?range=&tz=` | §19.1–19.3 |

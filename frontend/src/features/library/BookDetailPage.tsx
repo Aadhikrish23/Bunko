@@ -8,6 +8,7 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { useDeleteWork, useUpdateWorkStatus, useWork } from '../../lib/api/works';
 import { errorMessage } from '../../lib/error-message';
 import { NotesPanel } from '../notes/NotesPanel';
+import { ReviewPanel } from '../reviews/ReviewPanel';
 import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
@@ -146,6 +147,11 @@ export function BookDetailPage() {
       <Card className="p-5">
         <h2 className="mb-3 font-display text-lg text-paper-900">Shelves</h2>
         <ShelfAssignmentPanel workId={data.id} shelfIds={data.shelfIds} />
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="mb-3 font-display text-lg text-paper-900">Your review</h2>
+        <ReviewPanel workId={data.id} />
       </Card>
 
       <Card className="p-5">

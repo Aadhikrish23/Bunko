@@ -540,6 +540,96 @@ paths:
         "204": { description: Deleted }
         "404": { description: Not found or not owned by caller }
 
+  /works/{workId}/review:
+    get:
+      summary: The caller's own rating/review of a work (SRS §14)
+      parameters:
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The caller's review
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Review" }
+        "404": { description: No review yet, or work not in the caller's library }
+    put:
+      summary: Create or replace the caller's rating/review of a work
+      description: >-
+        One review per (userId, workId) — re-rating/re-reviewing
+        replaces the existing row rather than erroring.
+      parameters:
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5, nullable: true }
+                body: { type: string, maxLength: 10000, nullable: true }
+                isFavourite: { type: boolean }
+                rereadIntention: { type: boolean }
+                metadata: { type: object, nullable: true, additionalProperties: true }
+      responses:
+        "200":
+          description: Created or replaced
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Review" }
+        "404": { description: Work not found in the caller's library }
+    patch:
+      summary: Partially update the caller's existing review
+      parameters:
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5, nullable: true }
+                body: { type: string, maxLength: 10000, nullable: true }
+                isFavourite: { type: boolean }
+                rereadIntention: { type: boolean }
+                metadata: { type: object, nullable: true, additionalProperties: true }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Review" }
+        "404": { description: Review not found }
+    delete:
+      summary: Delete the caller's review
+      parameters:
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Review not found }
+
   /editions/{editionId}/annotations:
     get:
       summary: List the caller's highlights and quotes for an edition (SRS §13.2, §13.3)
@@ -813,25 +903,50 @@ paths:
 
   /statistics:
     get:
-      summary: Basic reading statistics for the caller (SRS §19, baseline only)
+      summary: Reading statistics for the caller (SRS §19.1, §19.3)
       description: >
-        Minimum baseline per docs/TASKS.md T-023 — total books completed,
-        total minutes read, current streak. A full stats/trends dashboard
-        is Phase 7.
+        Extends the T-023 baseline (booksCompleted, totalMinutesRead,
+        currentStreakDays are unchanged — no field removed or renamed).
+        Streak days are bucketed in the `tz` time zone. pagesRead is an
+        estimate: literal pages for PDF/physical, estimated-equivalent
+        pages for EPUB (chapter-granular); sessions whose progress can't be
+        resolved are excluded rather than guessed.
+      parameters:
+        - $ref: "#/components/parameters/TimeZone"
       responses:
         "200":
-          description: The caller's basic statistics
+          description: The caller's statistics
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data:
-                    type: object
-                    properties:
-                      booksCompleted: { type: integer }
-                      totalMinutesRead: { type: integer }
-                      currentStreakDays: { type: integer }
+                  data: { $ref: "#/components/schemas/Statistics" }
+        "400": { description: Invalid tz }
+
+  /statistics/trends:
+    get:
+      summary: Reading activity bucketed by period (SRS §19.2)
+      description: >
+        daily = last 30 days, weekly = last 12 ISO weeks (Monday start),
+        monthly = last 12 months, yearly = every year from the first
+        session to now, all-time = one bucket. A session counts toward the
+        local day it started in. `totals` cover only the returned window.
+      parameters:
+        - in: query
+          name: range
+          schema: { type: string, enum: [daily, weekly, monthly, yearly, all-time], default: daily }
+        - $ref: "#/components/parameters/TimeZone"
+      responses:
+        "200":
+          description: Bucketed activity for the requested range
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Trends" }
+        "400": { description: Invalid range or tz }
 
 components:
   securitySchemes:
@@ -878,7 +993,72 @@ components:
         type: string
         pattern: "^(all|status:[A-Z_]+|shelf:[0-9a-f-]{36})$"
 
+    TimeZone:
+      in: query
+      name: tz
+      description: >
+        IANA time zone the client is viewing from (e.g. "Asia/Kolkata").
+        Day boundaries for streaks and trends follow it, DST included.
+        Request-supplied rather than stored on the user (T-054).
+      schema: { type: string, default: UTC, example: Europe/London }
+
   schemas:
+    BreakdownEntry:
+      type: object
+      properties:
+        label:
+          type: string
+          nullable: true
+          description: null = the book has no value for this dimension (no genre/author, unknown language). For byFormat, an EditionFormat code.
+        count: { type: integer }
+
+    Statistics:
+      type: object
+      properties:
+        booksCompleted: { type: integer }
+        totalMinutesRead: { type: integer }
+        totalSessions: { type: integer }
+        averageSessionMinutes: { type: number, nullable: true }
+        pagesRead: { type: integer }
+        currentStreakDays: { type: integer }
+        longestStreakDays: { type: integer }
+        pace:
+          type: object
+          description: All-null until at least 3 sessions with measurable progress totalling 30+ minutes exist (SRS §19.3 "enough reliable data").
+          properties:
+            pagesPerHour: { type: number, nullable: true }
+            pagesPerSession: { type: number, nullable: true }
+            sampleSessions: { type: integer }
+        breakdowns:
+          type: object
+          description: Books in the caller's library (any status). A book with copies in two formats counts once in each.
+          properties:
+            byGenre: { type: array, items: { $ref: "#/components/schemas/BreakdownEntry" } }
+            byAuthor: { type: array, items: { $ref: "#/components/schemas/BreakdownEntry" } }
+            byLanguage: { type: array, items: { $ref: "#/components/schemas/BreakdownEntry" } }
+            byFormat: { type: array, items: { $ref: "#/components/schemas/BreakdownEntry" } }
+
+    TrendBucket:
+      type: object
+      properties:
+        start: { type: string, format: date, description: First local day of the bucket }
+        minutesRead: { type: integer }
+        sessions: { type: integer }
+        pagesRead: { type: integer }
+
+    Trends:
+      type: object
+      properties:
+        range: { type: string, enum: [daily, weekly, monthly, yearly, all-time] }
+        timeZone: { type: string }
+        buckets: { type: array, items: { $ref: "#/components/schemas/TrendBucket" } }
+        totals:
+          type: object
+          properties:
+            minutesRead: { type: integer }
+            sessions: { type: integer }
+            pagesRead: { type: integer }
+
     ShelfResponse:
       type: object
       properties:
@@ -913,6 +1093,19 @@ components:
         scope: { type: string, enum: [BOOK, CHAPTER, SECTION, PAGE, PASSAGE, SESSION] }
         position: { type: string, nullable: true }
         body: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Review:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5, nullable: true }
+        body: { type: string, nullable: true }
+        isFavourite: { type: boolean }
+        rereadIntention: { type: boolean }
+        metadata: { type: object, nullable: true, additionalProperties: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 

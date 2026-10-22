@@ -544,30 +544,33 @@ fixtures alone.
 ### T-050 — Review & Rating schema
 Depends on: none · SRS: §14
 
-`Review` model: one per user per work, 5-star `rating` (configurable
-scale per SRS §14, default 5), optional `body`, `isFavourite`,
+`Review` model: one per user per work, optional 1-5 `rating` (SRS §14's
+"configurable scale, 5-star default" — MVP hardcodes 5; nullable
+because SRS §14 lists rating, review text, favourite and reread
+intention as independent actions), optional `body`, `isFavourite`,
 `rereadIntention`, and an open `metadata` field for structured extras
 (e.g. favourite character) per SRS §14's "other structured metadata"
 line. Add to `DATA_MODEL.md` (removing it from the Phase 7+ deferred
 list) and generate the Prisma migration in the same change, per
 `AGENTS.md` §3.
 
-- [ ] `Review` model added to `schema.prisma` + migration
-- [ ] `DATA_MODEL.md` updated (schema block + relations list)
-- [ ] One review per `(userId, workId)` enforced at the DB level
+- [x] `Review` model added to `schema.prisma` + migration
+- [x] `DATA_MODEL.md` updated (schema block + relations list)
+- [x] One review per `(userId, workId)` enforced at the DB level
 
 ### T-051 — Review & Rating CRUD API
 Depends on: T-050 · SRS: §14
 
-`POST/PATCH/DELETE` for a work's review (create-or-replace semantics
-are fine given the one-per-user-per-work constraint — no separate
-"rate" vs "review" endpoints needed). `GET /works/:workId/reviews/me`
-for the caller's own review.
+`GET/PUT/PATCH/DELETE /works/:workId/review` — singular, since there's
+one review per user per work. `PUT` is create-or-replace (no separate
+"rate" vs "review" endpoints, no "already reviewed" error), `PATCH`
+partially updates an existing review, `GET` returns the caller's own
+(404 when none).
 
-- [ ] Create, update, delete, and get-own-review endpoints
-- [ ] Authorisation scoped to the review's owner
-- [ ] `openapi.yaml` updated
-- [ ] Integration tests (CRUD, ownership isolation, the one-per-work constraint)
+- [x] Create, update, delete, and get-own-review endpoints
+- [x] Authorisation scoped to the review's owner
+- [x] `openapi.yaml` updated
+- [ ] Integration tests (CRUD, ownership isolation, the one-per-work constraint) — *written (`backend/tests/reviews.spec.ts`), not yet run: deferred to the end-of-project test pass*
 
 ### T-052 — Review & Rating UI
 Depends on: T-051 · SRS: §14
@@ -576,10 +579,10 @@ Star-rating widget, review text, and favourite/reread toggles on
 `BookDetailPage.tsx` — same "add a panel to the book detail page"
 pattern as `ShelfAssignmentPanel`/`NotesPanel` (T-047).
 
-- [ ] Star rating input (1-5) with the caller's existing rating pre-filled
-- [ ] Review body textarea (create/edit/delete)
-- [ ] Favourite and reread-intention toggles
-- [ ] Frontend tests
+- [x] Star rating input (1-5) with the caller's existing rating pre-filled
+- [x] Review body textarea (create/edit/delete)
+- [x] Favourite and reread-intention toggles
+- [x] Frontend tests
 
 ### T-053 — Extended statistics service & API
 Depends on: T-023 · SRS: §19.1
@@ -591,10 +594,10 @@ session duration, longest streak (current streak already exists —
 T-023), and breakdowns by genre/author/language/format (all already
 on `Work`/`Edition` — no new schema needed, just aggregation).
 
-- [ ] `getExtendedStatistics` computes every SRS §19.1 field
-- [ ] Breakdowns by genre, author, language, and format
-- [ ] `GET /statistics` response extended (`openapi.yaml` updated — note any field removed/renamed from the T-023 shape)
-- [ ] Fixture-based tests (numbers reconcile against a known session set, same bar T-023 set)
+- [x] `getExtendedStatistics` computes every SRS §19.1 field
+- [x] Breakdowns by genre, author, language, and format
+- [x] `GET /statistics` response extended (`openapi.yaml` updated — note any field removed/renamed from the T-023 shape)
+- [ ] Fixture-based tests (numbers reconcile against a known session set, same bar T-023 set) — *written (`backend/tests/statistics.spec.ts`), not yet run: deferred to the end-of-project test pass*
 
 ### T-054 — Streak logic hardening
 Depends on: T-023 · SRS: §19.1 (edge cases flagged in `IMPLEMENTATION_PLAN.md` §6)
@@ -605,9 +608,17 @@ session just after local midnight but before UTC midnight (or vice
 versa) can land on the wrong day, and DST transitions aren't
 considered at all. Harden this before building trends on top of it.
 
-- [ ] Day-bucketing uses a day boundary the user actually experiences, not a bare UTC slice (document the chosen approach — e.g. a user-level timezone field vs. request-supplied offset — since none exists in the schema yet)
-- [ ] Longest-streak calculation (new, for T-053) shares this same day-bucketing logic — not a second implementation
-- [ ] Tests covering a DST transition, a session just before/after local midnight, and a multi-day gap
+Decision: the client sends its IANA zone as `?tz=` on each stats
+request (default `UTC`, so T-023's behaviour is unchanged when it's
+omitted) — no new `User.timezone` column. Sessions are bucketed into
+local calendar dates via `Intl`, and all streak/trend arithmetic then
+runs on those plain dates, so DST never enters the math
+(`statistics/day-buckets.ts`). Trade-off: reading done while travelling
+is bucketed by the zone in effect when the stats are viewed.
+
+- [x] Day-bucketing uses a day boundary the user actually experiences, not a bare UTC slice (document the chosen approach — e.g. a user-level timezone field vs. request-supplied offset — since none exists in the schema yet)
+- [x] Longest-streak calculation (new, for T-053) shares this same day-bucketing logic — not a second implementation
+- [ ] Tests covering a DST transition, a session just before/after local midnight, and a multi-day gap — *written (`backend/tests/statistics.spec.ts`), not yet run: deferred to the end-of-project test pass*
 
 ### T-055 — Time-based statistics views
 Depends on: T-053 · SRS: §19.2
@@ -615,10 +626,15 @@ Depends on: T-053 · SRS: §19.2
 Daily/weekly/monthly/yearly/all-time aggregation of the T-053 metrics,
 per SRS §19.2.
 
-- [ ] `GET /statistics/trends?range=daily|weekly|monthly|yearly|all-time` (or equivalent query param on the existing endpoint — pick one, document the choice)
-- [ ] Each range buckets correctly at its boundaries (reuses T-054's day-bucketing)
-- [ ] `openapi.yaml` updated
-- [ ] Tests across all five ranges
+Decision: a separate `GET /statistics/trends?range=` endpoint (its
+response is a bucket series, a different shape from `/statistics`).
+daily = last 30 days, weekly = last 12 ISO weeks, monthly = last 12
+months, yearly = first session's year to now, all-time = one bucket.
+
+- [x] `GET /statistics/trends?range=daily|weekly|monthly|yearly|all-time` (or equivalent query param on the existing endpoint — pick one, document the choice)
+- [x] Each range buckets correctly at its boundaries (reuses T-054's day-bucketing)
+- [x] `openapi.yaml` updated
+- [ ] Tests across all five ranges — *written (`backend/tests/statistics.spec.ts`), not yet run: deferred to the end-of-project test pass*
 
 ### T-056 — Reading pace calculations
 Depends on: T-053 · SRS: §19.3
@@ -628,9 +644,9 @@ reliable data exists" — for reflowable digital formats, uses an
 estimated equivalent-progress figure rather than literal pages (same
 spirit as the continuity engine's proportional-position fallback).
 
-- [ ] Pace fields return `null` rather than a misleading number when data is insufficient (define and document the threshold)
-- [ ] Reflowable-format progress uses an estimated-equivalent-pages figure, not a literal page count
-- [ ] Tests for both the "enough data" and "not enough data" paths
+- [x] Pace fields return `null` rather than a misleading number when data is insufficient (define and document the threshold)
+- [x] Reflowable-format progress uses an estimated-equivalent-pages figure, not a literal page count
+- [ ] Tests for both the "enough data" and "not enough data" paths — *written (`backend/tests/statistics.spec.ts`), not yet run: deferred to the end-of-project test pass*
 
 ### T-057 — Frontend stats dashboard
 Depends on: T-053, T-055, T-056 · SRS: §19
@@ -640,10 +656,10 @@ real dashboard: the extended metrics, the time-range views, and the
 breakdowns, each as an appropriate chart/visualization rather than
 bare numbers.
 
-- [ ] Extended metrics, breakdowns, and time-range views all rendered
-- [ ] Time-range selector (daily/weekly/monthly/yearly/all-time)
-- [ ] Loading/error/empty states (a new account with no sessions yet)
-- [ ] Frontend tests
+- [x] Extended metrics, breakdowns, and time-range views all rendered
+- [x] Time-range selector (daily/weekly/monthly/yearly/all-time)
+- [x] Loading/error/empty states (a new account with no sessions yet)
+- [x] Frontend tests
 
 ---
 
@@ -659,7 +675,7 @@ bare numbers.
 | Cross-cutting Frontend | T-038 – T-041 (4) | **100% Complete** |
 | **Total (MVP)** | **45** | **100% Complete** |
 | 6 — Annotations | T-042 – T-049 (8) | **100% Complete** |
-| 7 — Reviews & Reading Insights | T-050 – T-057 (8) | **Not Started** |
+| 7 — Reviews & Reading Insights | T-050 – T-057 (8) | **Implemented — backend integration tests written, not yet run** |
 
 Phase 8+ tickets (Soundtrack, Offline/Sync, AI) are intentionally not
 written yet — see `AGENTS.md` §3. Do not pre-create them. When Phase
