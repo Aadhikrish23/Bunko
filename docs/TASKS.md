@@ -1,7 +1,7 @@
 # Bunko — MVP Task Backlog
 
-Tickets for Phases 1-6 (`SRS.md` §36.1; Phase 6 is the first
-fast-follow phase per `IMPLEMENTATION_PLAN.md` §5). Work top-to-bottom
+Tickets for Phases 1-7 (`SRS.md` §36.1; Phases 6-7 are the
+fast-follow v1.1 phases per `IMPLEMENTATION_PLAN.md` §5-6). Work top-to-bottom
 within a phase; do not start a later phase until the current one's
 tickets are merged, unless a ticket's "Depends on" field says
 otherwise. See `AGENTS.md` for how to pick up a ticket.
@@ -531,6 +531,122 @@ session's journal entry, per the Phase 6 objective in
 
 ---
 
+## Phase 7 — Reviews & Reading Insights (Fast-Follow v1.1)
+
+Scoped per `IMPLEMENTATION_PLAN.md` §6. Lets users rate/review
+finished books (SRS §14) and replaces T-023's three-number baseline
+with the real stats/trends picture SRS §19 describes. The plan itself
+notes this phase is most useful once the MVP has real usage data —
+nothing technically blocks starting now, but the analytics tickets
+(T-053 onward) will read better against real session history than
+fixtures alone.
+
+### T-050 — Review & Rating schema
+Depends on: none · SRS: §14
+
+`Review` model: one per user per work, 5-star `rating` (configurable
+scale per SRS §14, default 5), optional `body`, `isFavourite`,
+`rereadIntention`, and an open `metadata` field for structured extras
+(e.g. favourite character) per SRS §14's "other structured metadata"
+line. Add to `DATA_MODEL.md` (removing it from the Phase 7+ deferred
+list) and generate the Prisma migration in the same change, per
+`AGENTS.md` §3.
+
+- [ ] `Review` model added to `schema.prisma` + migration
+- [ ] `DATA_MODEL.md` updated (schema block + relations list)
+- [ ] One review per `(userId, workId)` enforced at the DB level
+
+### T-051 — Review & Rating CRUD API
+Depends on: T-050 · SRS: §14
+
+`POST/PATCH/DELETE` for a work's review (create-or-replace semantics
+are fine given the one-per-user-per-work constraint — no separate
+"rate" vs "review" endpoints needed). `GET /works/:workId/reviews/me`
+for the caller's own review.
+
+- [ ] Create, update, delete, and get-own-review endpoints
+- [ ] Authorisation scoped to the review's owner
+- [ ] `openapi.yaml` updated
+- [ ] Integration tests (CRUD, ownership isolation, the one-per-work constraint)
+
+### T-052 — Review & Rating UI
+Depends on: T-051 · SRS: §14
+
+Star-rating widget, review text, and favourite/reread toggles on
+`BookDetailPage.tsx` — same "add a panel to the book detail page"
+pattern as `ShelfAssignmentPanel`/`NotesPanel` (T-047).
+
+- [ ] Star rating input (1-5) with the caller's existing rating pre-filled
+- [ ] Review body textarea (create/edit/delete)
+- [ ] Favourite and reread-intention toggles
+- [ ] Frontend tests
+
+### T-053 — Extended statistics service & API
+Depends on: T-023 · SRS: §19.1
+
+Replaces `BasicStatistics`'s three fields with the full SRS §19.1
+list this phase is scoped to land: pages read (estimated for
+reflowable formats per §19.3), total reading sessions, average
+session duration, longest streak (current streak already exists —
+T-023), and breakdowns by genre/author/language/format (all already
+on `Work`/`Edition` — no new schema needed, just aggregation).
+
+- [ ] `getExtendedStatistics` computes every SRS §19.1 field
+- [ ] Breakdowns by genre, author, language, and format
+- [ ] `GET /statistics` response extended (`openapi.yaml` updated — note any field removed/renamed from the T-023 shape)
+- [ ] Fixture-based tests (numbers reconcile against a known session set, same bar T-023 set)
+
+### T-054 — Streak logic hardening
+Depends on: T-023 · SRS: §19.1 (edge cases flagged in `IMPLEMENTATION_PLAN.md` §6)
+
+`computeCurrentStreak` (`statistics.service.ts`) currently buckets
+sessions by UTC calendar day via `toISOString().slice(0, 10)` — a
+session just after local midnight but before UTC midnight (or vice
+versa) can land on the wrong day, and DST transitions aren't
+considered at all. Harden this before building trends on top of it.
+
+- [ ] Day-bucketing uses a day boundary the user actually experiences, not a bare UTC slice (document the chosen approach — e.g. a user-level timezone field vs. request-supplied offset — since none exists in the schema yet)
+- [ ] Longest-streak calculation (new, for T-053) shares this same day-bucketing logic — not a second implementation
+- [ ] Tests covering a DST transition, a session just before/after local midnight, and a multi-day gap
+
+### T-055 — Time-based statistics views
+Depends on: T-053 · SRS: §19.2
+
+Daily/weekly/monthly/yearly/all-time aggregation of the T-053 metrics,
+per SRS §19.2.
+
+- [ ] `GET /statistics/trends?range=daily|weekly|monthly|yearly|all-time` (or equivalent query param on the existing endpoint — pick one, document the choice)
+- [ ] Each range buckets correctly at its boundaries (reuses T-054's day-bucketing)
+- [ ] `openapi.yaml` updated
+- [ ] Tests across all five ranges
+
+### T-056 — Reading pace calculations
+Depends on: T-053 · SRS: §19.3
+
+Pages/hour and pages/session, computed only where SRS §19.3's "enough
+reliable data exists" — for reflowable digital formats, uses an
+estimated equivalent-progress figure rather than literal pages (same
+spirit as the continuity engine's proportional-position fallback).
+
+- [ ] Pace fields return `null` rather than a misleading number when data is insufficient (define and document the threshold)
+- [ ] Reflowable-format progress uses an estimated-equivalent-pages figure, not a literal page count
+- [ ] Tests for both the "enough data" and "not enough data" paths
+
+### T-057 — Frontend stats dashboard
+Depends on: T-053, T-055, T-056 · SRS: §19
+
+Replaces `StatisticsPage.tsx`'s current three-number display with a
+real dashboard: the extended metrics, the time-range views, and the
+breakdowns, each as an appropriate chart/visualization rather than
+bare numbers.
+
+- [ ] Extended metrics, breakdowns, and time-range views all rendered
+- [ ] Time-range selector (daily/weekly/monthly/yearly/all-time)
+- [ ] Loading/error/empty states (a new account with no sessions yet)
+- [ ] Frontend tests
+
+---
+
 ## Ticket Count Summary
 
 | Phase | Tickets | Status |
@@ -543,9 +659,10 @@ session's journal entry, per the Phase 6 objective in
 | Cross-cutting Frontend | T-038 – T-041 (4) | **100% Complete** |
 | **Total (MVP)** | **45** | **100% Complete** |
 | 6 — Annotations | T-042 – T-049 (8) | **100% Complete** |
+| 7 — Reviews & Reading Insights | T-050 – T-057 (8) | **Not Started** |
 
-Phase 7+ tickets (Reviews, Soundtrack, Offline/Sync, AI) are
-intentionally not written yet — see `AGENTS.md` §3. Do not pre-create
-them. When Phase 10 (AI Layer) begins, its tickets will scaffold a
-separate `ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not
-a module inside `backend/`.
+Phase 8+ tickets (Soundtrack, Offline/Sync, AI) are intentionally not
+written yet — see `AGENTS.md` §3. Do not pre-create them. When Phase
+10 (AI Layer) begins, its tickets will scaffold a separate
+`ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module
+inside `backend/`.

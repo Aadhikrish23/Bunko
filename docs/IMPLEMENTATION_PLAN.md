@@ -32,8 +32,8 @@ until each phase actually begins, so this plan describes *what* and
 | 4. Digital Reading | MVP | 8 (T-024–T-031) | Ready — `TASKS.md` |
 | 5. Unified Physical/Digital Reading | MVP | 6 (T-032–T-037) | Ready — `TASKS.md` |
 | *(cross-cutting)* Frontend | MVP | 4 (T-038–T-041) | Ready — `TASKS.md` |
-| 6. Annotations | Fast-Follow v1.1 | ~9 (est.) | Scoped below, not ticketed |
-| 7. Reviews & Reading Insights | Fast-Follow v1.1 | ~8 (est.) | Scoped below, not ticketed |
+| 6. Annotations | Fast-Follow v1.1 | 8 | Ready — `TASKS.md` |
+| 7. Reviews & Reading Insights | Fast-Follow v1.1 | 8 (T-050–T-057) | Ready — `TASKS.md` |
 | 8. Soundtrack | Future v2+ | ~7 (est.) | Scoped below, not ticketed |
 | 9. Offline & Sync | Future v2+ | ~12 (est.) | Scoped below, not ticketed |
 | 10. AI Layer | Future v2+ | ~10 (est.) | Scoped below, not ticketed |
