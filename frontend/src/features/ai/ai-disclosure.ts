@@ -7,10 +7,10 @@ export const SEMANTIC_SEARCH_DISCLOSURE =
   'search them by meaning. Nothing is sent to an outside company. Turning this off deletes those vectors.';
 
 export const GENERATIVE_DISCLOSURE =
-  'When you ask a question or request a summary, insights, or recommendations, Bunko sends the excerpts of your own ' +
-  'highlights, notes, reviews, ratings, and library that the request needs to Anthropic’s Claude API, which writes ' +
-  'the response. Data is sent only when you ask, and Bunko doesn’t keep the responses. Anthropic processes it under ' +
-  'its commercial API terms. Needs semantic search to be on.';
+  'Powers the Assistant chat and book summaries. When you send the Assistant a message, Bunko sends it, the last few ' +
+  'messages, and a summary of your library (titles, reading status, shelves) to NVIDIA’s AI service; a book summary ' +
+  'sends that book’s highlights, notes, and review to Anthropic’s Claude API. Data is sent only when you ask, and ' +
+  'Bunko doesn’t store the replies. Needs semantic search to be on.';
 
 export const TRANSLATION_DISCLOSURE =
   'When you ask to translate a chapter of a book in your library, Bunko sends that chapter’s text to Anthropic’s ' +

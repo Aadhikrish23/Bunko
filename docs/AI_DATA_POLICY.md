@@ -1,6 +1,6 @@
 # Bunko — AI Data Processing
 
-Policy version: **2026-10-22.2** (adds §3, chapter translation) (must match `AI_POLICY_VERSION` in
+Policy version: **2026-10-22.3** (adds the assistant chat to §2) (must match `AI_POLICY_VERSION` in
 `backend/src/modules/ai/ai.service.ts`; the in-app wording lives in
 `frontend/src/features/ai/ai-disclosure.ts`). Change all three together.
 
@@ -34,10 +34,10 @@ Requires search by meaning (answers are grounded in retrieved excerpts).
 
 | | |
 |---|---|
-| What it processes | Only what the request needs: for a question, the top matching excerpts; for a book summary, that book's highlights, notes, review, and session reflections; for insights and recommendations, the reader's library (titles, authors, genres, status, ratings, review snippets), reading totals, and a sample of recent notes |
-| Where | Sent to **Anthropic's Claude API** when — and only when — the reader asks, and processed under Anthropic's commercial API terms. Account details (email, name, password) are never sent. |
-| What is stored by Bunko | Nothing. The response is returned to the reader and not kept. |
-| Limits | A per-user daily cap (`AI_DAILY_GENERATION_LIMIT`, default 30) |
+| What it processes | Only what the request needs: for a book summary, that book's highlights, notes, review, and session reflections; for the **assistant chat** (Phase 12, SRS §20.6), the reader's message, the last few messages of the conversation, and a summary of their library (book titles, reading status, shelf names), plus — for a question about a specific book — what the reader recorded about it (rating, review, notes) |
+| Where | Book summaries: **Anthropic's Claude API**, under its commercial API terms. The assistant chat: **NVIDIA NIM** (`integrate.api.nvidia.com`), under NVIDIA's API terms (the operator can switch the chat's provider in configuration; this document is updated when they do). Sent only when the reader asks or sends a message. Account details (email, name, password) are never sent. |
+| What is stored by Bunko | Book summaries: nothing. The chat keeps the last six exchanges in server memory (not the database) so "it" and "undo" work; they are gone on "Clear" or a server restart. |
+| Limits | A per-user daily cap on model calls (`AI_DAILY_GENERATION_LIMIT`, default 30); chat messages answered from the reader's data without the model don't count |
 | On revoke | No further requests are sent |
 
 ## 3. Chapter translation (Phase 11, SRS §20.5)

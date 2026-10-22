@@ -1408,6 +1408,37 @@ in place of the original.
     chapter too long to translate in one request is refused with a
     clear message rather than partially translated.
 
+## 20.6 Library Assistant Chat (Phase 12)
+
+*Added by requirement change, 2026-10 — see the Change Log.*
+
+The Assistant page becomes a chat in which the reader manages their
+library in their own words: "add Dune and mark it reading", "rate
+Project Hail Mary 5, loved it", "I DNF'd that one", "put it on my
+Sci-fi shelf", "what should I read next?", "undo that".
+
+-   **Acts only through the app's own operations.** It adds and removes
+    books, sets reading status, rates and reviews, deletes reviews,
+    adds notes, creates shelves and moves books on and off them, and
+    answers questions from the reader's own data.
+-   **Never claims what it didn't do.** Every reply about a change is
+    built from what actually ran; a model reply claiming a change is
+    replaced.
+-   **Asks before it destroys anything.** Removing a book needs a yes,
+    and the question says what is lost with it (review, notes).
+-   **Asks when unsure.** An ambiguous title gets "which one?" with
+    choices, and a book that isn't in the library is named as missing
+    rather than guessed.
+-   **Only the reader's own library.** Every action is scoped to the
+    signed-in user.
+-   **Consent and limits.** It sends the message and a summary of the
+    reader's library to the AI provider, so it is covered by the
+    *Generated insights* consent (§20.4) and counts toward the same daily
+    allowance. With the consent off, the page explains and links to
+    Settings.
+-   **Replaceable provider.** The model behind it is configuration; the
+    first provider is NVIDIA NIM.
+
 ------------------------------------------------------------------------
 
 # 21. Synchronization and Offline Support
@@ -2676,3 +2707,12 @@ implementation.
     sent to the AI provider, under a new, separate consent that is off by
     default and documented in `docs/AI_DATA_POLICY.md`. Translations are
     stored per user only, never shared across users (§25.4).
+-   **2026-10 — Library assistant chat added as Phase 12 (§20.6).** AI
+    data-processing, reading-behaviour, and external-integration change,
+    approved by the product owner in session. The Assistant page's
+    one-shot features (ask, insights, recommendations) are replaced by a
+    chat that can also change the library. It reuses the RoninArc AI
+    module (a domain-neutral core plus a books "domain pack") and runs on
+    NVIDIA NIM behind a swappable provider interface: a new external
+    processor, disclosed in `docs/AI_DATA_POLICY.md`, and covered by the
+    existing generated-insights consent and daily allowance.

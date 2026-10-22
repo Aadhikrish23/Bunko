@@ -9,7 +9,7 @@ import { TRANSLATION_LANGUAGES, type TranslationLanguage } from './translation-l
 
 // Bumped whenever docs/AI_DATA_POLICY.md (and the in-app disclosure)
 // changes materially; the stored version records what the user agreed to.
-export const AI_POLICY_VERSION = '2026-10-22.2'; // .2: chapter translation (Phase 11)
+export const AI_POLICY_VERSION = '2026-10-22.3'; // .2: chapter translation; .3: assistant chat on NVIDIA NIM
 
 export interface AiStatus {
   available: { semanticSearch: boolean; generative: boolean; translation: boolean };

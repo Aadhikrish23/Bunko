@@ -1051,6 +1051,92 @@ Depends on: T-088 · SRS: §20.5, §38.5
 
 ---
 
+## Phase 12 — Library Assistant Chat (Future v2+)
+
+Added by requirement change (SRS §20.6 and its Change Log entry). Reuses
+the RoninArc AI module: its domain-neutral **core** is copied into
+`backend/src/modules/assistant/`, and Bunko supplies a **books domain
+pack** (`assistant/domains/books/`). Core files never import the pack or
+Bunko's modules; only the composition root (`aiController.ts`) does.
+
+### T-093 — Assistant requirement & design
+Depends on: T-077 · SRS: §20.4, §20.6, §25
+
+- [ ] SRS §20.6 and Change Log entry; `docs/AI_DATA_POLICY.md` names NVIDIA NIM for the assistant; `AI_POLICY_VERSION` bumped
+- [ ] `ARCHITECTURE.md` §8: core vs. pack, provider registry, consent and cap at the composition root
+
+### T-094 — Import the AI core
+Depends on: T-093
+
+- [ ] Core copied into `backend/src/modules/assistant/`; compiles under Bunko's TypeScript settings with type-only fixes
+- [ ] Purity test: no core file imports `domains/` or Bunko's own modules (only the composition root may)
+- [ ] Request trace files are off by default (they contain the reader's library) and console output goes through one switchable core logger
+
+### T-095 — Book vocabulary in the core
+Depends on: T-094
+
+- [ ] Mechanical rename: `IntentTargetType.Game` → `Book`, `gameId`/`gameName` → `bookId`/`bookName`, `currentGame` → `currentBook`, library snapshot `games` → `books`
+
+### T-096 — Providers, consent, cap, and API
+Depends on: T-094 · SRS: §20.4, §20.6
+
+- [ ] Provider registry: `AI_PROVIDER` picks `nvidia`, `ollama`, or `mock`; adding a provider is one class plus one registry line
+- [ ] Chat requires generated-insights consent; every model call counts toward `AI_DAILY_GENERATION_LIMIT` (`LIMITED` reply past it)
+- [ ] `POST /assistant/chat`, `POST /assistant/reset` in Bunko's response envelope; `openapi.yaml` updated
+
+### T-097 — Books pack skeleton
+Depends on: T-095, T-096
+
+- [ ] Intents, capabilities, context providers (books, shelves, reviews), fuzzy title + author resolution
+- [ ] Planner and answer prompts, phrases, slang/typo normalisation ("TBR", "DNF'd", "finsihed")
+- [ ] Plan correction, grounding, and shaping: no unrequested changes, only named or referred-to books, one step per book
+
+### T-098 — Library tools
+Depends on: T-097
+
+- [ ] `add_book` (metadata search, best title + author match), `remove_book` (asks first), `update_status`
+
+### T-099 — Review and note tools
+Depends on: T-097
+
+- [ ] `create_review` (1–5 rating, optional text), `delete_review`, `add_note`
+
+### T-100 — Shelf tools
+Depends on: T-097
+
+- [ ] `create_shelf`, `add_to_shelf`, `remove_from_shelf`
+
+### T-101 — Questions and recommendations
+Depends on: T-097
+
+- [ ] `search_library`, `library_question` (answered from the reader's data), `recommend_books` (from their own to-read list and taste)
+
+### T-102 — Assistant chat UI
+Depends on: T-096 · SRS: §20.6
+
+- [ ] Chat replaces the Assistant page: message list, "which one?" choices, yes/no cards, clear conversation
+- [ ] Consent off, daily limit reached, and model unavailable each get a clear state; library views refresh after a change
+
+### T-103 — Tests
+Depends on: T-098 – T-101
+
+- [ ] Mock books model (`AI_PROVIDER=mock`); API tests for every intent through `POST /assistant/chat`, each checking the database changed
+- [ ] Removal asks first; an unknown book is reported missing; a question never changes anything
+- [ ] Unit tests for title resolution and message normalisation
+
+### T-104 — Undo
+Depends on: T-103
+
+- [ ] "undo" puts back the last change (status, rating/review, notes, shelf moves, an added book); a removal can't be undone and says so
+
+### T-105 — Black-box usability rounds
+Depends on: T-102, T-104
+
+- [ ] A code-blind tester (a book-loving reader persona) scores the whole app; issues are fixed, design polish applied, and each round's issues and fixes logged in `docs/qa/blackbox-test-log.xlsx`
+- [ ] Repeat until every score is at least 8/10
+
+---
+
 ## Ticket Count Summary
 
 | Phase | Tickets | Status |
@@ -1068,7 +1154,8 @@ Depends on: T-088 · SRS: §20.5, §38.5
 | 9 — Offline & Sync | T-065 – T-076 (12) | **100% Complete** |
 | 10 — AI Layer | T-077 – T-086 (10) | **100% Complete** |
 | 11 — AI Chapter Translation | T-087 – T-092 (6) | **100% Complete** |
+| 12 — Library Assistant Chat | T-093 – T-105 (13) | **In Progress** |
 
-All ten roadmap phases are ticketed, plus Phase 11 (chapter translation), added by requirement change (SRS §20.5). Phase 10 lives in a separate
+All ten roadmap phases are ticketed, plus Phase 11 (chapter translation, SRS §20.5) and Phase 12 (library assistant chat, SRS §20.6), both added by requirement change. Phase 10 lives in a separate
 `ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module
 inside `backend/`.

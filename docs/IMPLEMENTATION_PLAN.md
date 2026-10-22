@@ -38,9 +38,10 @@ until each phase actually begins, so this plan describes *what* and
 | 9. Offline & Sync | Future v2+ | 12 (T-065–T-076) | Ready — `TASKS.md` |
 | 10. AI Layer | Future v2+ | 10 (T-077–T-086) | Ready — `TASKS.md` |
 | 11. AI Chapter Translation | Future v2+ (requirement change, SRS §20.5) | 6 (T-087–T-092) | Ready — `TASKS.md` |
+| 12. Library Assistant Chat | Future v2+ (requirement change, SRS §20.6) | 13 (T-093–T-105) | Ready — `TASKS.md` |
 
 **MVP total: 44 tickets, all written and ready.**
-**Post-MVP total: 51 tickets (T-042–T-092), all written.**
+**Post-MVP total: 64 tickets (T-042–T-105), all written.**
 
 ## 3. Dependency & Sequencing Diagram
 
@@ -65,6 +66,7 @@ flowchart TD
     P9 --> V2
     P10 --> V2
     P10 --> P11["Phase 11: Chapter Translation"]
+    P10 --> P12["Phase 12: Library Assistant Chat"]
 ```
 
 Solid arrows are hard technical dependencies (must finish before the

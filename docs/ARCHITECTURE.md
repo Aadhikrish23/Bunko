@@ -197,6 +197,24 @@ decision, recorded now so later work doesn't re-litigate it:
   in `ChapterTranslation` and never shared across users (SRS §25.4). The
   flow reader renders a translated chapter in place of the original,
   through the same template.
+- **Library assistant chat (Phase 12, T-093–T-105).** This reuses the
+  RoninArc AI module, and it runs inside the Express API, not ai-service,
+  because its tools call Bunko's own services.
+  - `backend/src/modules/assistant/` holds the domain-neutral **core**
+    (conversation state, planning, entity resolution, execution, replies).
+  - `assistant/domains/books/` is the **books pack**: its tools,
+    prompts, title matching, and plan corrections.
+  - Core files never import the pack or Bunko's modules, which a purity
+    test enforces. Only the composition root (`aiController.ts`) does,
+    and that is also where consent (generated insights) and the daily
+    cap are applied, by wrapping the provider.
+  - The model sits behind the core's `AIProvider` interface and a
+    provider registry keyed by `AI_PROVIDER` (`nvidia` first, plus
+    `ollama` and the test `mock`), so changing the provider is
+    configuration, and adding one is one class.
+  - Conversation state is in process memory (the last six exchanges), so
+    it suits one API instance; a second instance would need a shared
+    store.
 
 ## 9. Folder Structure (top level)
 
