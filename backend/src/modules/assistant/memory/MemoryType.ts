@@ -1,0 +1,9 @@
+export enum MemoryType {
+  ENTITY_ALIAS = "ENTITY_ALIAS",
+  USER_PREFERENCE = "USER_PREFERENCE",
+  CONVERSATION = "CONVERSATION",
+  LEARNING = "LEARNING",
+  CUSTOM = "CUSTOM",
+}
+
+export default MemoryType;

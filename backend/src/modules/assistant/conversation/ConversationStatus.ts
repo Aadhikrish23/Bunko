@@ -1,0 +1,6 @@
+export enum ConversationStatus {
+  ACTIVE = "ACTIVE",
+  WAITING_FOR_CLARIFICATION = "WAITING_FOR_CLARIFICATION",
+  EXPIRED = "EXPIRED",
+  CLOSED = "CLOSED",
+}
