@@ -90,11 +90,26 @@ export function mentions(message: string, title: string): boolean {
   return false;
 }
 
-/** Titles (from `titles`) the message names, longest first so "Dune Messiah" beats "Dune". */
+/**
+ * Titles (from `titles`) the message names, longest first. A longer title's words are taken
+ * out before shorter ones are looked for, so "Dune Messiah" alone doesn't also count as
+ * "Dune", while "Dune Messiah ... than Dune" names both.
+ */
 export function namedTitles(message: string, titles: string[]): string[] {
-  const named = titles.filter((t) => mentions(message, t)).sort((a, b) => b.length - a.length);
-  // "Dune Messiah" also mentions "Dune"; keep the longer one only when it covers the shorter.
-  return named.filter((t, i) => !named.slice(0, i).some((longer) => norm(longer).includes(norm(mainTitle(t)))));
+  let rest = ` ${norm(message)} `;
+  const named: string[] = [];
+  for (const title of [...titles].sort((a, b) => b.length - a.length)) {
+    if (!mentions(rest, title)) continue;
+    named.push(title);
+    for (const form of [norm(title), bare(mainTitle(title))]) {
+      const at = rest.indexOf(` ${form} `);
+      if (at >= 0) {
+        rest = `${rest.slice(0, at)} ${rest.slice(at + form.length + 1)}`;
+        break;
+      }
+    }
+  }
+  return named;
 }
 
 /** A shelf the reader named: exact, without the word "shelf", or close spelling. */

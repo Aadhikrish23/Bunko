@@ -20,7 +20,9 @@ export class MockBooksProvider implements AIProvider {
     const intents: AIIntent[] = parseCommands(text, snapshotTitles(context.library)) ?? [];
     if (intents.length === 0) {
       const ask = (type: string, value: string): AIIntent => ({ type, confidence: 1, targets: [], parameters: [{ type: IntentParameterType.Text, value }] });
-      if (RECOMMEND_ASK.test(text)) intents.push(ask(BookIntent.RecommendBook, text));
+      const search = text.match(/^(?:find|search(?:\s+my\s+library)?(?:\s+for)?|look\s+for)\s+(?:my\s+)?(.+?)(?:\s+books?)?$/i);
+      if (search) intents.push(ask(BookIntent.SearchLibrary, search[1]!));
+      else if (RECOMMEND_ASK.test(text)) intents.push(ask(BookIntent.RecommendBook, text));
       else if (/\b(my|i|i've|i'm)\b/i.test(text) && LOOKS_LIKE_QUESTION.test(text)) intents.push(ask(BookIntent.LibraryQuestion, text));
       else if (LOOKS_LIKE_QUESTION.test(text)) intents.push(ask(BookIntent.AskQuestion, ''));
       else intents.push(ask(BookIntent.AskQuestion, "I didn't catch that. What would you like to do?"));

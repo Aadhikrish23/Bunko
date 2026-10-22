@@ -1141,6 +1141,49 @@ paths:
         "429": { description: "Daily generation limit reached" }
         "503": { description: "AI_UNAVAILABLE" }
 
+  /assistant/chat:
+    post:
+      summary: "Send a message to the library assistant (T-096, SRS §20.6)"
+      description: "Manages the caller's own library in plain words and answers questions about it. Requires generated-insights consent. Replies that describe a change are built only from what actually ran. Removing a book returns CONFIRMATION_REQUIRED first; send the chosen option label back as the next message. Model calls count toward AI_DAILY_GENERATION_LIMIT; past it the reply has status LIMITED."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string, minLength: 1, maxLength: 2000 }
+                client:
+                  type: object
+                  properties:
+                    pageBookId: { type: string, format: uuid, description: "The book page the reader has open, for 'this one'" }
+      responses:
+        "200":
+          description: "The assistant's reply"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AssistantReply" }
+        "400": { description: "Empty or too long message" }
+        "403": { description: "Generated insights consent not given" }
+        "503": { description: "AI_UNAVAILABLE: the model can't be reached or is too slow" }
+
+  /assistant/reset:
+    post:
+      summary: "Forget the conversation (Clear in the chat)"
+      responses:
+        "200":
+          description: "Cleared"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { cleared: { type: boolean } } }
+
   /ai/editions/{editionId}/translations:
     post:
       summary: "Translate one chapter of an edition the caller holds (T-090, SRS §20.5)"
@@ -1807,6 +1850,28 @@ components:
               code: { type: string }
               name: { type: string }
               rtl: { type: boolean }
+
+    AssistantReply:
+      type: object
+      properties:
+        success: { type: boolean }
+        status:
+          type: string
+          enum: [SUCCESS, PARTIAL, CLARIFICATION_REQUIRED, CONFIRMATION_REQUIRED, CANCELLED, LIMITED, FAILED]
+        message: { type: string }
+        clarificationRequest:
+          type: object
+          description: "Present for CLARIFICATION_REQUIRED and CONFIRMATION_REQUIRED: the choices to offer as buttons"
+          properties:
+            question: { type: string }
+            reason: { type: string }
+            candidates:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  label: { type: string }
 
     ChapterTranslation:
       type: object

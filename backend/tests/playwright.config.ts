@@ -15,6 +15,8 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm run dev',
+    // The assistant's API tests run against the deterministic mock model (T-103).
+    env: { AI_PROVIDER: 'mock' },
     url: `${baseURL}/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
