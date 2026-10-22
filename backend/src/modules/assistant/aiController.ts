@@ -3,10 +3,11 @@ import { ContextBuilder } from "./context/ContextBuilder";
 import { AIService } from "./aiService";
 import { ActionExecutor } from "./executor/ActionExecutor";
 import type { AIProvider } from "./providers/AIProvider";
-import { createProvider, providerNames } from "./providers/ProviderRegistry";
+import { createProvider, providerNames, registerProvider } from "./providers/ProviderRegistry";
 import { setDomainPack } from "./domain/activeDomain";
 import booksPack from "./domains/books";
 import { GuardedProvider } from "./domains/books/policy/GuardedProvider";
+import { MockBooksProvider } from "./domains/books/testing/MockBooksProvider";
 import { checkRegistryConsistency, reportRegistryConsistency } from "./registry/RegistryConsistencyCheck";
 import toolMapper from "./execution/ToolMapper";
 import toolMetadataRegistry from "./execution/ToolMetadataRegistry";
@@ -41,6 +42,9 @@ class UnconfiguredProvider implements AIProvider {
     throw new AIProviderUnavailableError(this.reason);
   }
 }
+
+// AI_PROVIDER=mock: a deterministic stand-in for tests and keyless local work (T-103).
+registerProvider("mock", () => new MockBooksProvider());
 
 function buildProvider(): AIProvider {
   const chosen = createProvider(AIConfig.aiProvider);

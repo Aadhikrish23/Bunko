@@ -26,6 +26,7 @@ import { bookmarksForEditionRouter, bookmarksRouter } from './modules/bookmarks/
 import { preferencesRouter } from './modules/preferences/preferences.routes';
 import { syncRouter } from './modules/sync/sync.routes';
 import { aiRouter } from './modules/ai/ai.routes';
+import assistantRouter from './modules/assistant/aiRoutes';
 import {
   soundtrackForWorkRouter,
   soundtrackMappingsRouter,
@@ -79,6 +80,8 @@ export function createApp(): Express {
   app.use('/api/v1/preferences', preferencesRouter);
   app.use('/api/v1/sync', syncRouter);
   app.use('/api/v1/ai', aiRouter);
+  // Library assistant chat (Phase 12, SRS §20.6).
+  app.use('/api/v1/assistant', assistantRouter);
   app.use('/api/v1/metadata', metadataRouter);
   app.use('/api/v1/editions', editionsRouter);
   app.use('/api/v1/editions', readerRouter);
