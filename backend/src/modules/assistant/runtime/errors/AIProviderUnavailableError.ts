@@ -1,20 +1,20 @@
 import { AIRuntimeError } from "./AIRuntimeError";
 
 export const AI_OFFLINE_MESSAGE =
-  "The AI assistant is offline right now. Check your internet connection and try again -- everything else in RoninArc keeps working.";
+  "The assistant can't reach its AI service right now. Try again in a moment; everything else keeps working.";
 
 /** The model answered too slowly (its service is overloaded) -- not the user's connection. */
 export const AI_SLOW_MESSAGE =
-  "The AI model is taking too long to answer right now, so I stopped waiting. Simple requests like \"pause rdr2\" or \"rate hades 9\" still work instantly. Or try again in a minute.";
+  "The AI model is taking too long to answer right now, so I stopped waiting. Please try again in a minute.";
 
 /** keygate (the key proxy the packaged app uses) said this install has used today's AI calls. */
 export const AI_DAILY_LIMIT_MESSAGE =
-  "You've used today's AI messages on this PC. They reset at midnight UTC (5:30 AM in India) -- everything else in RoninArc keeps working.";
+  "You've used today's AI messages. They reset tomorrow; everything else keeps working.";
 /** All installs together used today's AI allowance. */
 export const AI_SHARED_LIMIT_MESSAGE =
-  "RoninArc's AI has used up today's shared allowance. It resets at midnight UTC (5:30 AM in India) -- everything else keeps working.";
+  "The AI service has used up today's shared allowance. It resets tomorrow; everything else keeps working.";
 /** keygate doesn't accept this install's token (revoked). */
-export const AI_NOT_ENABLED_MESSAGE = "The AI assistant isn't enabled on this install. Everything else in RoninArc keeps working.";
+export const AI_NOT_ENABLED_MESSAGE = "The AI assistant isn't enabled here. Everything else keeps working.";
 
 /** The model can't be used right now for a reason the user should hear plainly (limits, access). */
 export class AIQuotaError extends AIRuntimeError {

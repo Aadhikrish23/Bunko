@@ -100,7 +100,7 @@ export async function requireConsent(userId: string, kind: keyof typeof CONSENT_
 
 // Each generation costs real money and sends data to the provider, so it's
 // capped per user per day (T-086).
-async function countGeneration(userId: string): Promise<void> {
+export async function countGeneration(userId: string): Promise<void> {
   const day = new Date().toISOString().slice(0, 10);
   const key = `ai:generations:${userId}:${day}`;
   const used = await redisConnection.incr(key);

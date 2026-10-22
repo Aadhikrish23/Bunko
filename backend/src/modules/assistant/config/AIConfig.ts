@@ -1,5 +1,5 @@
 import { coreLog } from "../logging/coreLog";
-const aiProvider = process.env.AI_PROVIDER || "ollama";
+const aiProvider = (process.env.AI_PROVIDER || "nvidia").toLowerCase();
 
 // This file is imported at server startup (well before any request exists),
 // so it must never throw -- an installation with no AI provider configured
@@ -9,12 +9,8 @@ const aiProvider = process.env.AI_PROVIDER || "ollama";
 // chat request tries to use the misconfigured provider (see OllamaClient /
 // NvidiaNimClient), the same lazy-validation pattern used elsewhere
 // (steamWebApiService.getApiKey(), atlasConnection.getAtlasConnection()).
-if (aiProvider !== "ollama" && aiProvider !== "nvidia") {
-  coreLog.warn(
-    `[AIConfig] AI_PROVIDER must be "ollama" or "nvidia", got "${aiProvider}" -- AI features will be unavailable.`,
-  );
-}
-
+// Whether AI_PROVIDER names a registered provider is checked where the provider is
+// created (providers/ProviderRegistry.ts), since apps can register their own.
 if (aiProvider === "ollama") {
   if (!process.env.OLLAMA_BASE_URL || !process.env.OLLAMA_MODEL) {
     coreLog.warn(
@@ -32,7 +28,7 @@ if (aiProvider === "nvidia") {
 }
 
 export const AIConfig = {
-  aiProvider: aiProvider as "ollama" | "nvidia",
+  aiProvider,
 
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL as string,
   ollamaModel: process.env.OLLAMA_MODEL as string,
