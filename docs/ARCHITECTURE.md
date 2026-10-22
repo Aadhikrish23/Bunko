@@ -72,6 +72,7 @@ backend/src/modules/
 ├── bookmarks/         # server-synced bookmarks (SRS §21.1 — Phase 9)
 ├── preferences/       # last-write-wins user preferences (SRS §21.2 — Phase 9)
 ├── sync/              # devices, offline event replay, position conflicts (SRS §21 — Phase 9, see §13)
+├── ai/                # consent, daily cap, proxy to ai-service (SRS §20 — Phase 10, see §8)
 └── shelves/           # shelves, tags, collections (SRS §15)
 ```
 
@@ -80,8 +81,9 @@ Each module folder follows the same internal shape (see
 controller → service → Prisma, with a Zod schema file shared between
 validation and OpenAPI generation intent.
 
-Modules not yet implemented (later phases, per `SRS.md` §36.4):
-`notifications`, `ai` (Phase 10, a separate service — §8).
+Not implemented: `notifications` (SRS §22 — optional, not on the
+phase roadmap). The AI models themselves run in the separate
+`ai-service/` (§8), not in this app.
 Do not create these directories until their phase begins.
 
 ## 4. Request Flow (example: opening a digital book)
@@ -148,7 +150,7 @@ Zod schemas in each module (`*.schema.ts`) are written to mirror the
 OpenAPI request/response shapes. If they diverge, treat it as a bug —
 one of the two is wrong, per `CODING_STANDARDS.md` §3.
 
-## 8. Future: AI Services (Phase 10 — not built during MVP)
+## 8. AI Services (Phase 10)
 
 SRS §20 (AI Capabilities) and Phase 10 (`SRS.md` §36.2) call for AI
 features once a real corpus of user notes/sessions exists. The
@@ -170,9 +172,20 @@ decision, recorded now so later work doesn't re-litigate it:
   HTTP (not exposed publicly); the AI service never talks to clients
   directly. This keeps auth, rate-limiting, and user-scoping in one
   place (the Express API) rather than duplicated in Python.
-- **Not started until Phase 10 begins.** Do not scaffold `ai-service/`
-  or add AI-related tables during MVP — see `AGENTS.md` §3 and
-  `SRS.md` §36.4.
+- **As built (T-077–T-086).** `ai-service/` serves internal endpoints for
+  indexing, semantic search, and generation. Embeddings come from a
+  **local** model (fastembed, `BAAI/bge-small-en-v1.5`, 384 dimensions),
+  so semantic search never sends content to a third party; generated
+  insights call the **Claude API** (`claude-opus-5-5` with structured
+  outputs and server-side refusal fallback). Two separate per-user
+  consents, both off by default, gate them (`AiConsent`); the Express
+  `ai/` module enforces consent, scoping, and a daily generation cap, and
+  deletes a user's embeddings directly when they revoke. Without
+  `AI_SERVICE_URL`/`AI_SERVICE_TOKEN` (API) or `ANTHROPIC_API_KEY`
+  (ai-service), the features report unavailable instead of failing. The
+  service runs under the `ai` Compose profile with the least-privilege
+  role from `ai-service/scripts/create_ai_role.sql`. What reaches the
+  provider, and when, is set out in `docs/AI_DATA_POLICY.md`.
 
 ## 9. Folder Structure (top level)
 

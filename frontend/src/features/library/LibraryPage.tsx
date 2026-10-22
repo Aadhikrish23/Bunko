@@ -1,5 +1,6 @@
 import { LibraryBig, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -22,7 +23,14 @@ const FILTERS: { value: ReadingStatus | 'ALL'; label: string }[] = [
 export function LibraryPage() {
   const [statusFilter, setStatusFilter] = useState<ReadingStatus | 'ALL'>('ALL');
   const [query, setQuery] = useState('');
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  // ?add=<title author> opens the add dialog prefilled (from AI recommendations).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const addQuery = searchParams.get('add') ?? '';
+  const [isAddOpen, setIsAddOpen] = useState(addQuery !== '');
+  function closeAdd() {
+    setIsAddOpen(false);
+    if (addQuery) setSearchParams({}, { replace: true });
+  }
   const [quickActionWorkId, setQuickActionWorkId] = useState<string | null>(null);
 
   const works = useWorks({ status: statusFilter === 'ALL' ? undefined : statusFilter, q: query || undefined });
@@ -129,9 +137,10 @@ export function LibraryPage() {
 
       {isAddOpen && (
         <AddBookDialog
-          onClose={() => setIsAddOpen(false)}
+          initialQuery={addQuery}
+          onClose={closeAdd}
           onAdded={(workId) => {
-            setIsAddOpen(false);
+            closeAdd();
             setQuickActionWorkId(workId);
           }}
         />

@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { RequireAuth } from './components/layout/RequireAuth';
+import { AssistantPage } from './features/ai/AssistantPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
 import { BookDetailPage } from './features/library/BookDetailPage';
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/statistics" element={<StatisticsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/soundtracks" element={<SoundtracksPage />} />
+            <Route path="/assistant" element={<AssistantPage />} />
           </Route>
         </Route>
 

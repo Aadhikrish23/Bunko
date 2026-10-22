@@ -31,8 +31,17 @@ const LANGUAGES = [
   { code: 'de', label: 'German' },
 ];
 
-export function AddBookDialog({ onClose, onAdded }: { onClose: () => void; onAdded: (workId: string) => void }) {
-  const [query, setQuery] = useState('');
+export function AddBookDialog({
+  onClose,
+  onAdded,
+  initialQuery = '',
+}: {
+  onClose: () => void;
+  onAdded: (workId: string) => void;
+  // Prefilled search, e.g. a recommendation's "title author" (T-085).
+  initialQuery?: string;
+}) {
+  const [query, setQuery] = useState(initialQuery);
   const [selectedLang, setSelectedLang] = useState('all');
   const [selectedCandidate, setSelectedCandidate] = useState<MetadataCandidate | null>(null);
   const [manualTitle, setManualTitle] = useState('');

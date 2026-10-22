@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
 import type { UpdateReviewInput, UpsertReviewInput } from './reviews.schema';
+import { scheduleAiIndex } from '../ai/ai-index';
 
 export interface ReviewDto {
   id: string;
@@ -86,6 +87,7 @@ export async function upsertReview(userId: string, workId: string, input: Upsert
       metadata: toJsonInput(input.metadata),
     },
   });
+  scheduleAiIndex(userId);
   return toReviewDto(review);
 }
 
@@ -101,10 +103,12 @@ export async function updateReview(userId: string, workId: string, input: Update
       ...(input.metadata !== undefined ? { metadata: toJsonInput(input.metadata) } : {}),
     },
   });
+  scheduleAiIndex(userId);
   return toReviewDto(updated);
 }
 
 export async function deleteReview(userId: string, workId: string): Promise<void> {
   await requireOwnReview(userId, workId);
   await prisma.review.delete({ where: { userId_workId: { userId, workId } } });
+  scheduleAiIndex(userId);
 }

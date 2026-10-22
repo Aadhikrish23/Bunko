@@ -1,5 +1,6 @@
 import { Highlighter, Quote, Search, StickyNote, Trash2, X, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
+import { useAiSearch, useAiStatus } from '../../lib/api/ai';
 import { useSearchAnnotations } from '../../lib/api/annotations';
 import type { Annotation } from '../../lib/api/types';
 import { COLOR_HEX_MAP, type HighlightColor } from '../../lib/annotation-colors';
@@ -33,7 +34,33 @@ export function AnnotationsDrawer({
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSetSearchQuery = useDebouncedCallback(setSearchQuery, 300);
   const isSearching = searchQuery.trim().length > 0;
-  const searchResults = useSearchAnnotations(searchQuery);
+  // Search by meaning (Phase 10, T-081) when the reader has turned it on;
+  // otherwise keyword search. Both normalise to one result shape.
+  const aiStatus = useAiStatus();
+  const canSearchByMeaning = !!aiStatus.data?.consent.semanticSearch && !!aiStatus.data?.available.semanticSearch;
+  const [byMeaning, setByMeaning] = useState(false);
+  const meaningSearch = byMeaning && canSearchByMeaning;
+  const keywordResults = useSearchAnnotations(meaningSearch ? '' : searchQuery);
+  const meaningResults = useAiSearch(searchQuery, meaningSearch);
+  const searchResults = meaningSearch ? meaningResults : keywordResults;
+  const results: Array<{ key: string; id: string; label: string; isNote: boolean; excerpt: string; inThisEdition: boolean }> =
+    meaningSearch
+      ? (meaningResults.data?.results ?? []).map((r) => ({
+          key: `${r.sourceType}-${r.sourceId}`,
+          id: r.sourceId,
+          label: r.sourceType === 'NOTE' ? 'Note' : r.sourceType === 'REVIEW' ? 'Review' : 'Highlight',
+          isNote: r.sourceType !== 'ANNOTATION',
+          excerpt: r.excerpt,
+          inThisEdition: r.sourceType === 'ANNOTATION',
+        }))
+      : (keywordResults.data ?? []).map((r) => ({
+          key: `${r.type}-${r.id}`,
+          id: r.id,
+          label: r.type === 'NOTE' ? 'Note' : 'Highlight',
+          isNote: r.type === 'NOTE',
+          excerpt: r.excerpt,
+          inThisEdition: r.editionId === editionId,
+        }));
 
   const filtered = tab === 'quotes' ? annotations.filter((a) => a.kind === 'QUOTE') : annotations;
 
@@ -65,6 +92,17 @@ export function AnnotationsDrawer({
           className="w-full rounded-lg border border-paper-200 bg-paper-100 py-1.5 pl-8 pr-2 text-xs text-paper-900 focus:border-moss-600 focus:outline-none"
         />
       </div>
+      {canSearchByMeaning && (
+        <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-paper-700">
+          <input
+            type="checkbox"
+            checked={byMeaning}
+            onChange={(e) => setByMeaning(e.target.checked)}
+            className="h-4 w-4 accent-moss-600"
+          />
+          Search by meaning, across all your books
+        </label>
+      )}
 
       {/* Tabs */}
       {!isSearching && (
@@ -99,28 +137,27 @@ export function AnnotationsDrawer({
             <div className="py-12 text-center text-xs text-paper-700">Searching…</div>
           ) : searchResults.isError ? (
             <div className="py-12 text-center text-xs text-red-700">Search failed. Please try again.</div>
-          ) : !searchResults.data || searchResults.data.length === 0 ? (
+          ) : results.length === 0 ? (
             <div className="py-12 text-center text-xs text-paper-700">
               No results for &quot;{searchQuery}&quot;.
             </div>
           ) : (
             <ul className="flex flex-col gap-3">
-              {searchResults.data.map((result) => {
-                const localMatch =
-                  result.editionId === editionId ? annotations.find((a) => a.id === result.id) : undefined;
+              {results.map((result) => {
+                const localMatch = result.inThisEdition ? annotations.find((a) => a.id === result.id) : undefined;
                 return (
                   <li
-                    key={`${result.type}-${result.id}`}
+                    key={result.key}
                     className="rounded-lg border border-paper-200 bg-paper-100/70 p-3"
                   >
                     <div className="mb-1.5 flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1 rounded bg-paper-200 px-1.5 py-0.5 text-[10px] font-bold text-paper-700">
-                        {result.type === 'NOTE' ? (
+                        {result.isNote ? (
                           <StickyNote className="h-2.5 w-2.5" />
                         ) : (
                           <Highlighter className="h-2.5 w-2.5" />
                         )}
-                        {result.type === 'NOTE' ? 'Note' : 'Highlight'}
+                        {result.label}
                       </span>
                       {localMatch && (
                         <button

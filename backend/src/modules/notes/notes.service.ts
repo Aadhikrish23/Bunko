@@ -2,6 +2,7 @@ import type { Note } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
 import type { CreateNoteInput, UpdateNoteInput } from './notes.schema';
+import { scheduleAiIndex } from '../ai/ai-index';
 
 export interface NoteDto {
   id: string;
@@ -94,16 +95,19 @@ export async function createNote(
       body: input.body,
     },
   });
+  scheduleAiIndex(userId);
   return toNoteDto(note);
 }
 
 export async function updateNote(userId: string, id: string, input: UpdateNoteInput): Promise<NoteDto> {
   await requireOwnNote(userId, id);
   const updated = await prisma.note.update({ where: { id }, data: { body: input.body } });
+  scheduleAiIndex(userId);
   return toNoteDto(updated);
 }
 
 export async function deleteNote(userId: string, id: string): Promise<void> {
   await requireOwnNote(userId, id);
   await prisma.note.delete({ where: { id } });
+  scheduleAiIndex(userId);
 }

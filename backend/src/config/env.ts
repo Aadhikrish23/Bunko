@@ -29,6 +29,11 @@ const envSchema = z.object({
   MAPPING_CONFIDENCE_THRESHOLD: z.coerce.number().default(0.6),
   GOOGLE_BOOKS_API_KEY: z.string().optional(),
   HARDCOVER_API_KEY: z.string().optional(),
+  // Phase 10 AI layer (ARCHITECTURE.md §8). Unset = AI features report
+  // "unavailable" rather than failing.
+  AI_SERVICE_URL: z.string().url().optional(),
+  AI_SERVICE_TOKEN: z.string().min(16).optional(),
+  AI_DAILY_GENERATION_LIMIT: z.coerce.number().int().min(0).default(30),
 });
 
 export const env = envSchema.parse(process.env);

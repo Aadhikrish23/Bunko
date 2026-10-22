@@ -998,6 +998,148 @@ paths:
         "204": { description: "Resolved; repeating it is a no-op" }
         "404": { description: "Conflict not found" }
 
+  /ai/status:
+    get:
+      summary: "AI availability on this server and the caller's consent (T-078)"
+      responses:
+        "200":
+          description: "Status"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AiStatus" }
+
+  /ai/consent:
+    put:
+      summary: "Set the caller's AI consent (SRS §20.4)"
+      description: "Both default to off. generative requires semanticSearch. Turning semanticSearch off deletes the caller's embeddings immediately; turning it on starts indexing. Stores the current policy version."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [semanticSearch, generative]
+              properties:
+                semanticSearch: { type: boolean }
+                generative: { type: boolean }
+      responses:
+        "200":
+          description: "Updated status"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AiStatus" }
+        "400": { description: "generative without semanticSearch" }
+
+  /ai/search:
+    get:
+      summary: "Semantic search over the caller's own highlights, notes, and reviews (T-081)"
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        "200":
+          description: "Ranked excerpts"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      results: { type: array, items: { $ref: "#/components/schemas/AiExcerpt" } }
+        "403": { description: "Semantic search consent not given" }
+        "503": { description: "AI_UNAVAILABLE" }
+
+  /ai/ask:
+    post:
+      summary: "Answer a question from the caller's own notes, with citations (T-082)"
+      description: "Requires generative consent; counts toward the daily generation cap."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, minLength: 1, maxLength: 1000 }
+      responses:
+        "200":
+          description: "Generated answer"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AiAnswer" }
+        "403": { description: "Generated insights consent not given" }
+        "429": { description: "Daily generation limit reached" }
+        "503": { description: "AI_UNAVAILABLE" }
+
+  /ai/works/{workId}/summary:
+    post:
+      summary: "Summarize the caller's thoughts on one book (T-083)"
+      parameters:
+        - in: path
+          name: workId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: "Generated summary"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AiSummary" }
+        "400": { description: "Nothing of the caller's to summarize yet" }
+        "403": { description: "Generated insights consent not given" }
+        "404": { description: "Work not in the caller's library" }
+        "429": { description: "Daily generation limit reached" }
+        "503": { description: "AI_UNAVAILABLE" }
+
+  /ai/insights:
+    post:
+      summary: "Patterns in the caller's reading (T-084, SRS §20.3)"
+      responses:
+        "200":
+          description: "Generated insights, labelled as interpretations"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AiInsights" }
+        "403": { description: "Generated insights consent not given" }
+        "429": { description: "Daily generation limit reached" }
+        "503": { description: "AI_UNAVAILABLE" }
+
+  /ai/recommendations:
+    post:
+      summary: "Books to read next, based on the caller's own reading (T-085, SRS §20.2)"
+      responses:
+        "200":
+          description: "Generated recommendations; never books already in the library"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AiRecommendations" }
+        "403": { description: "Generated insights consent not given" }
+        "429": { description: "Daily generation limit reached" }
+        "503": { description: "AI_UNAVAILABLE" }
+
   /editions/{editionId}/annotations:
     get:
       summary: List the caller's highlights and quotes for an edition (SRS §13.2, §13.3)
@@ -1582,6 +1724,77 @@ components:
         createdAt: { type: string, format: date-time }
         server: { $ref: "#/components/schemas/PositionSnapshot" }
         device: { $ref: "#/components/schemas/PositionSnapshot" }
+
+    AiStatus:
+      type: object
+      properties:
+        available:
+          type: object
+          properties:
+            semanticSearch: { type: boolean }
+            generative: { type: boolean }
+        consent:
+          type: object
+          properties:
+            semanticSearch: { type: boolean }
+            generative: { type: boolean }
+            policyVersion: { type: string, nullable: true }
+        currentPolicyVersion: { type: string }
+        dailyGenerationLimit: { type: integer }
+
+    AiExcerpt:
+      type: object
+      properties:
+        sourceType: { type: string, enum: [ANNOTATION, NOTE, REVIEW] }
+        sourceId: { type: string, format: uuid }
+        workId: { type: string, format: uuid }
+        title: { type: string }
+        excerpt: { type: string }
+        score: { type: number }
+
+    AiAnswer:
+      type: object
+      properties:
+        answer: { type: string }
+        citations: { type: array, items: { $ref: "#/components/schemas/AiExcerpt" } }
+        coveredByNotes: { type: boolean }
+        model: { type: string, nullable: true }
+        generated: { type: boolean, enum: [true], description: "Always true: an AI interpretation, not a fact (SRS §20.3)" }
+
+    AiSummary:
+      type: object
+      properties:
+        summary: { type: string }
+        themes: { type: array, items: { type: string } }
+        model: { type: string }
+        generated: { type: boolean, enum: [true] }
+
+    AiInsights:
+      type: object
+      properties:
+        insights:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              detail: { type: string }
+        model: { type: string }
+        generated: { type: boolean, enum: [true] }
+
+    AiRecommendations:
+      type: object
+      properties:
+        recommendations:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              author: { type: string }
+              reason: { type: string }
+        model: { type: string }
+        generated: { type: boolean, enum: [true] }
 
     SearchResult:
       type: object

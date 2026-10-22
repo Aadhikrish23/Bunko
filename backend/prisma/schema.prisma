@@ -3,12 +3,15 @@
 // file only (`npm run prisma:migrate`).
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // pgvector for the AI layer's embedding index (Phase 10, T-080).
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 model User {
@@ -38,6 +41,8 @@ model User {
   syncEvents        SyncEvent[]
   bookmarks         Bookmark[]
   preferences       UserPreference[]
+  aiConsent         AiConsent?
+  aiEmbeddings      AiEmbedding[]
 }
 
 model Author {
@@ -510,4 +515,40 @@ model UserPreference {
   updatedByDeviceId String?
 
   @@id([userId, key])
+}
+
+// SRS §20.4 / §38.5 — what the user has agreed to (Phase 10, T-078). Both
+// consents are off until the user turns them on; see docs/AI_DATA_POLICY.md.
+model AiConsent {
+  userId         String   @id
+  user           User     @relation(fields: [userId], references: [id])
+  semanticSearch Boolean  @default(false) // local embeddings, nothing leaves Bunko
+  generative     Boolean  @default(false) // excerpts sent to the Claude API
+  policyVersion  String
+  updatedAt      DateTime @updatedAt
+}
+
+// One embedded excerpt of a user's own content (T-080). Written only by
+// ai-service (raw SQL — Prisma can't write vector columns); the Express
+// API only ever deletes from it, when consent is revoked.
+model AiEmbedding {
+  id          String                     @id @default(uuid())
+  userId      String
+  user        User                       @relation(fields: [userId], references: [id])
+  sourceType  AiSourceType
+  sourceId    String
+  workId      String
+  content     String
+  contentHash String
+  embedding   Unsupported("vector(384)")
+  updatedAt   DateTime                   @default(now())
+
+  @@unique([sourceType, sourceId])
+  @@index([userId])
+}
+
+enum AiSourceType {
+  ANNOTATION
+  NOTE
+  REVIEW
 }

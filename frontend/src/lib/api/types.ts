@@ -290,6 +290,50 @@ export interface SyncDevice {
   current: boolean;
 }
 
+export interface AiStatus {
+  available: { semanticSearch: boolean; generative: boolean };
+  consent: { semanticSearch: boolean; generative: boolean; policyVersion: string | null };
+  currentPolicyVersion: string;
+  dailyGenerationLimit: number;
+}
+
+export interface AiExcerpt {
+  sourceType: 'ANNOTATION' | 'NOTE' | 'REVIEW';
+  sourceId: string;
+  workId: string;
+  title: string;
+  excerpt: string;
+  score?: number;
+}
+
+// Everything generated carries `generated: true` (SRS §20.3 labelling).
+export interface AiAnswer {
+  answer: string;
+  citations: AiExcerpt[];
+  coveredByNotes: boolean;
+  model: string | null;
+  generated: true;
+}
+
+export interface AiSummary {
+  summary: string;
+  themes: string[];
+  model: string;
+  generated: true;
+}
+
+export interface AiInsights {
+  insights: Array<{ title: string; detail: string }>;
+  model: string;
+  generated: true;
+}
+
+export interface AiRecommendations {
+  recommendations: Array<{ title: string; author: string; reason: string }>;
+  model: string;
+  generated: true;
+}
+
 export interface SearchResult {
   type: 'ANNOTATION' | 'NOTE';
   id: string;

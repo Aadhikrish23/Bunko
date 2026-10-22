@@ -56,6 +56,26 @@ services:
       exit 0
       "
 
+  # Phase 10 AI layer — optional. Start with `docker compose --profile ai up`
+  # after creating its DB role (ai-service/scripts/create_ai_role.sql).
+  # Reached only by the Express API, never by browsers (ARCHITECTURE.md §8).
+  ai-service:
+    profiles: ["ai"]
+    build: ./ai-service
+    environment:
+      AI_DATABASE_URL: ${AI_DATABASE_URL:-postgresql://bunko_ai:change-me@postgres:5432/bunko}
+      # Required — the service refuses to start without a 16+ char token.
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - ai-models:/home/bunko/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   minio-data:
+  ai-models:

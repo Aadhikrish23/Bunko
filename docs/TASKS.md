@@ -882,6 +882,103 @@ Depends on: T-070, T-075 · SRS: §21.2, §30
 
 ---
 
+## Phase 10 — AI Layer (Future v2+)
+
+Scoped per `IMPLEMENTATION_PLAN.md` §9, SRS §20, §38.5, and
+`ARCHITECTURE.md` §8. The plan is explicit that privacy controls are
+part of this phase, not polish after it.
+
+### T-077 — AI architecture & data-processing design
+Depends on: none · SRS: §20, §20.4, §38.5
+
+Decision (full rationale in `ARCHITECTURE.md` §8 and the in-app
+disclosure, mirrored in `docs/AI_DATA_POLICY.md`):
+
+- **Two separate, opt-in consents, both off by default.** *Semantic
+  search* runs entirely inside Bunko: a local embedding model in
+  `ai-service` indexes the reader's own highlights, notes, and reviews
+  into pgvector — nothing leaves Bunko's infrastructure. *Generated
+  insights* (assistant answers, book summaries, reading insights,
+  recommendations) send the minimum relevant excerpts of the reader's own
+  data to Anthropic's Claude API and return an interpretation. Generated
+  insights need semantic search on (they retrieve through it).
+- **Revoking is real:** turning semantic search off deletes that user's
+  embeddings; nothing is retained by Bunko from generation requests
+  beyond the response shown.
+- **Every generated output is labelled** as an AI interpretation, not a
+  fact (§20.3), and grounded answers cite the notes they used.
+- **Boundaries** (`ARCHITECTURE.md` §8): only the Express API talks to
+  `ai-service`, over internal HTTP with a shared token; consent, auth,
+  user-scoping, and a per-user daily generation cap live in Express.
+  `ai-service` connects with its own least-privilege DB role.
+- **Degrades cleanly:** with no `ai-service` configured, or no
+  `ANTHROPIC_API_KEY` in it, the app reports the feature unavailable
+  instead of failing.
+
+- [x] Decision recorded in `ARCHITECTURE.md` §8 and `docs/AI_DATA_POLICY.md`
+- [x] In-app disclosure text states what is processed, where, and how to revoke
+
+### T-078 — AI consent schema & API
+Depends on: T-077 · SRS: §20.4, §38.5
+
+- [x] `AiConsent` model + migration (per user; semantic search, generated insights, policy version)
+- [x] `GET /ai/status` (availability + consent), `PUT /ai/consent` — generated insights require semantic search; revoking semantic search deletes the user's embeddings
+- [x] `openapi.yaml` updated
+- [ ] Integration tests — *written (`backend/tests/ai.spec.ts`), not yet run: deferred to the end-of-project test pass*
+
+### T-079 — `ai-service` scaffold
+Depends on: T-077 · SRS: §20
+
+- [x] `ai-service/` (Python 3.12, FastAPI): config, internal-token auth, health, Postgres access, Dockerfile, compose service
+- [x] Least-privilege DB role script (read-only on the content it needs, write only to its own table)
+- [x] pytest suite for the pieces that need neither a database nor a model
+
+### T-080 — Embedding index
+Depends on: T-078, T-079 · SRS: §20.1
+
+- [x] `AiEmbedding` table (pgvector, migration enables the extension) — one row per highlight/quote, note, and review, with a content hash
+- [x] `ai-service` indexes a user incrementally (only new/changed content re-embedded; removed content dropped); purge on revoke
+- [x] Express re-indexes after annotation/note/review changes (debounced, only with consent) and on first consent
+
+### T-081 — Semantic search
+Depends on: T-080 · SRS: §20.1 ("Show me the quotes I saved about courage")
+
+- [x] `GET /ai/search?q=` (semantic-search consent required) → ranked excerpts with their book
+- [x] "Search by meaning" option in the annotations drawer
+
+### T-082 — Personal reading assistant
+Depends on: T-080 · SRS: §20.1
+
+- [x] `POST /ai/ask` — answers from the reader's own retrieved notes/highlights/reviews, cites them, says so when they don't cover the question
+- [x] Assistant page; answers labelled as AI interpretations
+
+### T-083 — "Summarize my thoughts on this book"
+Depends on: T-082 · SRS: §20.1
+
+- [x] `POST /ai/works/:workId/summary` from that book's highlights, notes, review, and sessions' reflections
+- [x] Button on the book page; labelled output
+
+### T-084 — Reading insights
+Depends on: T-082 · SRS: §20.3
+
+- [x] `POST /ai/insights` — patterns over genres, authors, pace, ratings, and recurring note themes, built from reading totals (sessions, minutes, days, books finished — queried by `ai-service` directly) plus a sample of notes
+- [x] Shown on the assistant page with the §20.3 label
+
+### T-085 — Recommendations
+Depends on: T-082 · SRS: §20.2
+
+- [x] `POST /ai/recommendations` — structured `{ title, author, reason }` items based primarily on the reader's own completed books, ratings, reviews, genres, and shelves; excludes books already in the library
+- [x] Shown on the assistant page; each links to adding the book via the normal metadata search
+
+### T-086 — AI settings & limits
+Depends on: T-078 · SRS: §20.4, §38.5
+
+- [x] Settings card with the two consents and the disclosure; revoking explains what's deleted
+- [x] Per-user daily cap on generation requests (`AI_DAILY_GENERATION_LIMIT`), `RATE_LIMITED` past it
+- [x] Frontend tests for the client-side pieces
+
+---
+
 ## Ticket Count Summary
 
 | Phase | Tickets | Status |
@@ -897,9 +994,8 @@ Depends on: T-070, T-075 · SRS: §21.2, §30
 | 7 — Reviews & Reading Insights | T-050 – T-057 (8) | **Implemented — backend integration tests written, not yet run** |
 | 8 — Soundtrack | T-058 – T-064 (7) | **Implemented — backend integration tests written, not yet run** |
 | 9 — Offline & Sync | T-065 – T-076 (12) | **Implemented — backend integration tests written, not yet run** |
+| 10 — AI Layer | T-077 – T-086 (10) | **Implemented — backend integration tests written, not yet run** |
 
-Phase 10 (AI) tickets are intentionally not written yet — see
-`AGENTS.md` §3. Do not pre-create them. When Phase 10 (AI Layer)
-begins, its tickets will scaffold a separate `ai-service/`
-(Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module inside
-`backend/`.
+All ten roadmap phases are ticketed. Phase 10 lives in a separate
+`ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module
+inside `backend/`.

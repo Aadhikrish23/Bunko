@@ -8,6 +8,7 @@ export type ErrorCode =
   | 'FILE_TOO_LARGE'
   | 'UNSUPPORTED_FILE'
   | 'RATE_LIMITED'
+  | 'AI_UNAVAILABLE'
   | 'INTERNAL_ERROR';
 
 export const ERROR_STATUS: Record<ErrorCode, number> = {
@@ -19,6 +20,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   FILE_TOO_LARGE: 413,
   UNSUPPORTED_FILE: 422,
   RATE_LIMITED: 429,
+  AI_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 };
 

@@ -1,0 +1,110 @@
+import { useState } from 'react';
+import { Card } from '../../components/ui/Card';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { ErrorBanner } from '../../components/ui/ErrorBanner';
+import { useAiStatus, useSetAiConsent } from '../../lib/api/ai';
+import { errorMessage } from '../../lib/error-message';
+import { GENERATIVE_DISCLOSURE, SEMANTIC_SEARCH_DISCLOSURE } from './ai-disclosure';
+import { revokeWarning, toggleConsent, type Consent } from './consent-logic';
+
+function Toggle({
+  label,
+  description,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-t border-paper-200 pt-3 first:border-0 first:pt-0">
+      <div>
+        <p className="text-sm font-medium text-paper-900">{label}</p>
+        <p className="mt-1 text-xs leading-relaxed text-paper-600">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className="focus-visible:focus-ring flex min-h-[44px] shrink-0 items-center rounded-full disabled:opacity-50"
+      >
+        <span className={`relative h-6 w-11 rounded-full transition-colors ${checked ? 'bg-moss-600' : 'bg-paper-300'}`}>
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-paper-50 shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+          />
+        </span>
+      </button>
+    </div>
+  );
+}
+
+// SRS §20.4 / §38.5: both off by default, each with a plain statement of
+// what it does with the reader's data, and revoking explained up front.
+export function AiSettingsCard() {
+  const status = useAiStatus();
+  const setConsent = useSetAiConsent();
+  const [pending, setPending] = useState<{ next: Consent; warning: string } | null>(null);
+
+  const current: Consent = status.data
+    ? { semanticSearch: status.data.consent.semanticSearch, generative: status.data.consent.generative }
+    : { semanticSearch: false, generative: false };
+  const available = status.data?.available;
+
+  function change(key: keyof Consent, on: boolean) {
+    const next = toggleConsent(current, key, on);
+    const warning = revokeWarning(current, next);
+    if (warning) setPending({ next, warning });
+    else setConsent.mutate(next);
+  }
+
+  return (
+    <Card className="max-w-md p-5">
+      <h2 className="mb-1 font-display text-lg text-paper-900">AI features</h2>
+      <p className="mb-4 text-sm text-paper-600">Off unless you turn them on. Each works only with your own data.</p>
+      {status.isError && <ErrorBanner message={errorMessage(status.error, 'Could not load AI settings.')} />}
+      {setConsent.isError && <ErrorBanner message={errorMessage(setConsent.error, 'Could not save.')} />}
+      {status.data && (
+        <div className="flex flex-col gap-3">
+          <Toggle
+            label="Search by meaning"
+            description={SEMANTIC_SEARCH_DISCLOSURE}
+            checked={current.semanticSearch}
+            disabled={setConsent.isPending}
+            onChange={(on) => change('semanticSearch', on)}
+          />
+          <Toggle
+            label="Generated insights"
+            description={`${GENERATIVE_DISCLOSURE} Limited to ${status.data.dailyGenerationLimit} requests a day.`}
+            checked={current.generative}
+            disabled={setConsent.isPending}
+            onChange={(on) => change('generative', on)}
+          />
+          {available && (!available.semanticSearch || (!available.generative && current.generative)) && (
+            <p className="text-xs text-ember-600">
+              {available.semanticSearch
+                ? 'Generated insights aren’t set up on this server yet.'
+                : 'AI features aren’t set up on this server yet — your choice is saved for when they are.'}
+            </p>
+          )}
+        </div>
+      )}
+      {pending && (
+        <ConfirmDialog
+          title="Turn this off?"
+          message={pending.warning}
+          confirmLabel="Turn off"
+          isConfirming={setConsent.isPending}
+          onConfirm={() => setConsent.mutate(pending.next, { onSuccess: () => setPending(null) })}
+          onClose={() => setPending(null)}
+        />
+      )}
+    </Card>
+  );
+}

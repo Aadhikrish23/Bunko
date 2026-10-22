@@ -36,10 +36,10 @@ until each phase actually begins, so this plan describes *what* and
 | 7. Reviews & Reading Insights | Fast-Follow v1.1 | 8 (T-050–T-057) | Ready — `TASKS.md` |
 | 8. Soundtrack | Future v2+ | 7 (T-058–T-064) | Ready — `TASKS.md` |
 | 9. Offline & Sync | Future v2+ | 12 (T-065–T-076) | Ready — `TASKS.md` |
-| 10. AI Layer | Future v2+ | ~10 (est.) | Scoped below, not ticketed |
+| 10. AI Layer | Future v2+ | 10 (T-077–T-086) | Ready — `TASKS.md` |
 
 **MVP total: 44 tickets, all written and ready.**
-**Post-MVP total: ~46 tickets, estimated — to be written per-phase.**
+**Post-MVP total: 45 tickets (T-042–T-086), all written.**
 
 ## 3. Dependency & Sequencing Diagram
 

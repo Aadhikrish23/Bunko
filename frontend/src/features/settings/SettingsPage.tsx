@@ -9,6 +9,7 @@ import type { Profile } from '../../lib/api/types';
 import { useAuth } from '../../lib/auth-context';
 import { errorMessage } from '../../lib/error-message';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AiSettingsCard } from '../ai/AiSettingsCard';
 import { DevicesList } from '../sync/DevicesList';
 import { OfflineBooksList } from '../sync/OfflineBooksList';
 
@@ -69,6 +70,8 @@ export function SettingsPage() {
         <h2 className="mb-3 font-display text-lg text-paper-900">Your devices</h2>
         <DevicesList />
       </Card>
+
+      <AiSettingsCard />
 
       <Card className="max-w-md p-5">
         <h2 className="mb-2 font-display text-lg text-paper-900">Reading soundtrack</h2>

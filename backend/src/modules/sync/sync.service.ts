@@ -6,6 +6,7 @@ import { createAnnotation, updateAnnotation } from '../annotations/annotations.s
 import { createBookmark } from '../bookmarks/bookmarks.service';
 import { upsertCanonicalPosition, type CanonicalPositionData } from '../continuity/canonical-position';
 import { createNote, updateNote } from '../notes/notes.service';
+import { scheduleAiIndex } from '../ai/ai-index';
 import { setPreference } from '../preferences/preferences.service';
 import { canonicalPositionForSession } from '../reading-sessions/reading-sessions.service';
 import { payloadSchemas, type SyncEventInput } from './sync.schema';
@@ -350,6 +351,8 @@ export async function ingestEvents(
   }
 
   await prisma.deviceSession.updateMany({ where: { userId, deviceId }, data: { lastSyncAt: now, lastSeenAt: now } });
+  // Replayed deletes bypass the services' own re-index hooks.
+  scheduleAiIndex(userId);
   return results;
 }
 

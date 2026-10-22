@@ -1,4 +1,4 @@
-import { BookOpen, LibraryBig, LogOut, NotebookPen, Rows3, Settings as SettingsIcon, TrendingUp } from 'lucide-react';
+import { BookOpen, LibraryBig, LogOut, NotebookPen, Rows3, Settings as SettingsIcon, Sparkles, TrendingUp } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { getSyncStatus, subscribeSyncStatus } from '../../lib/offline/outbox';
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/shelves', label: 'Shelves', icon: Rows3 },
   { to: '/journal', label: 'Journal', icon: NotebookPen },
   { to: '/statistics', label: 'Statistics', icon: TrendingUp },
+  { to: '/assistant', label: 'Assistant', icon: Sparkles },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 

@@ -491,6 +491,42 @@ model UserPreference {
 
   @@id([userId, key])
 }
+
+// SRS §20.4 / §38.5 — what the user has agreed to (Phase 10, T-078). Both
+// consents are off until the user turns them on; see docs/AI_DATA_POLICY.md.
+model AiConsent {
+  userId         String   @id
+  user           User     @relation(fields: [userId], references: [id])
+  semanticSearch Boolean  @default(false) // local embeddings, nothing leaves Bunko
+  generative     Boolean  @default(false) // excerpts sent to the Claude API
+  policyVersion  String
+  updatedAt      DateTime @updatedAt
+}
+
+// One embedded excerpt of a user's own content (T-080). Written only by
+// ai-service (raw SQL — Prisma can't write vector columns); the Express
+// API only ever deletes from it, when consent is revoked. See §6.
+model AiEmbedding {
+  id          String                     @id @default(uuid())
+  userId      String
+  user        User                       @relation(fields: [userId], references: [id])
+  sourceType  AiSourceType
+  sourceId    String
+  workId      String
+  content     String
+  contentHash String
+  embedding   Unsupported("vector(384)")
+  updatedAt   DateTime                   @default(now())
+
+  @@unique([sourceType, sourceId])
+  @@index([userId])
+}
+
+enum AiSourceType {
+  ANNOTATION
+  NOTE
+  REVIEW
+}
 ```
 
 ## 3. Key Relationships (matches `SRS.md` §27.2)
@@ -518,6 +554,8 @@ User 1 --- N DeviceSession   (one per user+deviceId)
 User 1 --- N SyncEvent       (one per user+clientEventId)
 Copy 1 --- N Bookmark
 User 1 --- N UserPreference  (one per user+key)
+User 1 --- 0..1 AiConsent
+User 1 --- N AiEmbedding     (one per source row; deleted on consent revoke)
 ```
 
 ## 4. External Metadata Source (SRS §16)
@@ -543,8 +581,8 @@ is deliberately nullable and non-unique-alone:
 
 `Annotation` (Highlight/Quote) and `Note` shipped in Phase 6; `Review`
 in Phase 7; `Soundtrack` and `SoundtrackMapping` in Phase 8;
-`DeviceSession`, `SyncEvent`, `Bookmark`, and `UserPreference` in Phase 9 —
-see §2 above.
+`DeviceSession`, `SyncEvent`, `Bookmark`, and `UserPreference` in Phase 9;
+`AiConsent` and `AiEmbedding` in Phase 10 — see §2 above.
 
 - `Tag`, `BookTag` (MVP uses `Shelf` only; tags are Phase 6/7 polish —
   `Annotation.tags` on quotes is the one Phase 6 exception, scoped to
@@ -553,13 +591,19 @@ see §2 above.
 Adding these tables before their phase begins is scope creep — see
 `AGENTS.md` §3.
 
-## 6. Future: Vector Search (Phase 10 — not implemented in MVP)
+## 6. Vector Search (Phase 10)
 
-The local and production Postgres images are `pgvector/pgvector:pg16`
-rather than plain `postgres:16`, so the extension is available without
-a later migration project (`ARCHITECTURE.md` §8). **Do not** run
-`CREATE EXTENSION vector` or add embedding columns during MVP — this
-is purely so the option exists when Phase 10 begins per `SRS.md` §20.
+The Postgres images are `pgvector/pgvector:pg16`, and the Phase 10
+migration enables the extension through Prisma's `postgresqlExtensions`
+preview feature (`extensions = [vector]` in the datasource), so it's part
+of the schema rather than a hand-run step. `AiEmbedding.embedding` is
+`vector(384)` — it must match the ai-service embedding model's
+dimensions. There's deliberately no ANN index yet: every search is scoped
+to one user's own rows (`@@index([userId])`), so an exact scan is fast at
+this scale; add an HNSW index only if a single library grows large
+enough to need it. Prisma can't write `Unsupported` vector columns, so
+only ai-service inserts rows (raw SQL); the API only deletes them, when
+a user revokes consent (`docs/AI_DATA_POLICY.md`).
 
 ## 7. Storage Quotas (SRS §38.6)
 

@@ -7,6 +7,7 @@ import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { useDeleteWork, useUpdateWorkStatus, useWork } from '../../lib/api/works';
 import { errorMessage } from '../../lib/error-message';
+import { BookSummaryPanel } from '../ai/BookSummaryPanel';
 import { NotesPanel } from '../notes/NotesPanel';
 import { ReviewPanel } from '../reviews/ReviewPanel';
 import { BookSoundtrackPanel } from '../soundtrack/BookSoundtrackPanel';
@@ -160,6 +161,7 @@ export function BookDetailPage() {
       <Card className="p-5">
         <h2 className="mb-3 font-display text-lg text-paper-900">Notes</h2>
         <NotesPanel workId={data.id} />
+        <BookSummaryPanel workId={data.id} />
       </Card>
 
       <Card className="p-5">

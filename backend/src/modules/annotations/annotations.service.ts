@@ -2,6 +2,7 @@ import type { Annotation } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
 import type { CreateAnnotationInput, UpdateAnnotationInput } from './annotations.schema';
+import { scheduleAiIndex } from '../ai/ai-index';
 
 export interface AnnotationDto {
   id: string;
@@ -102,6 +103,7 @@ export async function createAnnotation(
       tags: input.tags ?? [],
     },
   });
+  scheduleAiIndex(userId);
   return toAnnotationDto(annotation);
 }
 
@@ -119,10 +121,12 @@ export async function updateAnnotation(
       ...(input.tags !== undefined ? { tags: input.tags } : {}),
     },
   });
+  scheduleAiIndex(userId);
   return toAnnotationDto(updated);
 }
 
 export async function deleteAnnotation(userId: string, id: string): Promise<void> {
   await requireOwnAnnotation(userId, id);
   await prisma.annotation.delete({ where: { id } });
+  scheduleAiIndex(userId);
 }
