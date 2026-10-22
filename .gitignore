@@ -53,3 +53,6 @@ docker-compose.override.yml
 # paths, live-session bookkeeping). DESIGN.md, PRODUCT.md, and
 # .impeccable/design.json are real, committed deliverables.
 .impeccable/live/
+
+# Local-only QA logins for the dev database (T-105)
+docs/qa/test-accounts.md
