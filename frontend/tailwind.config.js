@@ -26,6 +26,9 @@ export default {
           300: '#D8CBAF',
           400: '#B7A98A',
           500: '#93855F',
+          // Used across the app for secondary text but missing until T-105 R3, so those
+          // classes rendered nothing. About 5:1 on paper-50.
+          600: '#716654',
           700: '#5B5347',
           800: '#3D3830',
           900: '#26221D',
@@ -35,10 +38,13 @@ export default {
         moss: {
           50: '#EEF3EE',
           100: '#D6E4D8',
+          200: '#B3CBB5',
           300: '#8FB08F',
+          400: '#6F9575',
           500: '#4F7A5C',
           600: '#3E6249',
           700: '#2F4B38',
+          800: '#253B2C',
           900: '#1B2B20',
         },
         // "ember" — a warm secondary accent used sparingly (streaks,

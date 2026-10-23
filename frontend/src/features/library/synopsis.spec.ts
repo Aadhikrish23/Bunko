@@ -24,4 +24,10 @@ test.describe('cleanSynopsis (R2-27)', () => {
       'I AM NOT A MONSTER. I was born in the north and raised by wolves, as it happens, and nobody ever believed me.',
     );
   });
+
+  test('markdown emphasis is shown as plain text (R3-05)', () => {
+    const raw = `**From the *New York Times* bestselling author of *Jonathan Strange & Mr. Norrell*, an intoxicating, hypnotic novel.** ${story}`;
+    expect(cleanSynopsis(raw)).toBe(`From the New York Times bestselling author of Jonathan Strange & Mr. Norrell, an intoxicating, hypnotic novel. ${story}`);
+    expect(cleanSynopsis(`${story} 2 * 3 * 4 stays maths.`)).toBe(`${story} 2 * 3 * 4 stays maths.`);
+  });
 });

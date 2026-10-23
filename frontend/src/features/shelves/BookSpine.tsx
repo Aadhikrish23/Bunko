@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { getSpineStyle } from './spine-style';
+import { languageCode } from '../../lib/language-code';
 
 interface BookSpineProps {
   workId: string;
@@ -159,9 +160,11 @@ export function BookSpine({
           )}
 
           {/* Added Language Badge Overlay */}
-          {language && (
-            <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-amber-300 backdrop-blur-sm border border-amber-400/30">
-              {language.slice(0, 3)}
+          {languageCode(language) && (
+            <span
+              title={language ?? undefined}
+              className="absolute bottom-1 right-1 rounded bg-black/75 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-amber-300 backdrop-blur-sm border border-amber-400/30">
+              {languageCode(language)}
             </span>
           )}
         </button>
@@ -251,9 +254,9 @@ export function BookSpine({
         {/* Top Gold Foil Band */}
         <div className="relative z-10 w-full flex flex-col items-center gap-0.5 border-y border-amber-300/40 bg-black/40 py-0.5 shadow-inner">
           <div className="h-[1px] w-full bg-amber-400/60" />
-          {originalLanguage && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200/90 drop-shadow">
-              {originalLanguage.slice(0, 3)}
+          {languageCode(originalLanguage) && (
+            <span title={`Original language: ${originalLanguage}`} className="text-[10px] font-bold uppercase tracking-wider text-amber-200/90 drop-shadow">
+              {languageCode(originalLanguage)}
             </span>
           )}
           <div className="h-[1px] w-full bg-amber-400/60" />

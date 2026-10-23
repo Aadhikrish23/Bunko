@@ -44,3 +44,5 @@ export const logSessionSchema = z
   .strict();
 
 export type LogSessionInput = z.infer<typeof logSessionSchema>;
+
+export const openSessionQuerySchema = z.object({ copyId: z.string().uuid() }).strict();

@@ -44,6 +44,28 @@ export async function pauseSessionHandler(
   }
 }
 
+export async function deleteSessionHandler(
+  req: Request<{ sessionId: string }>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await sessionsService.deleteSession(requireUserId(req), req.params.sessionId);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function openSessionHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const dto = await sessionsService.getOpenSession(requireUserId(req), String(req.query.copyId));
+    sendOk(res, dto);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function pauseActiveSessionHandler(
   req: Request,
   res: Response,

@@ -95,11 +95,12 @@ export function AddBookDialog({
         title: manualTitle.trim(),
         authors: manualAuthor.trim() ? [manualAuthor.trim()] : [],
         description: manualDescription.trim() || null,
-        originalLanguage: manualOriginalLang.trim() || 'English',
+        originalLanguage: manualOriginalLang.trim() || null,
         language: manualReadingLang.trim() || 'English',
         partsCount: manualPartsCount ? parseInt(manualPartsCount, 10) : null,
         chaptersCount: manualChaptersCount ? parseInt(manualChaptersCount, 10) : null,
       });
+      if (addAs !== 'WANT_TO_READ') await updateStatus.mutateAsync({ workId: work.id, status: addAs });
       onAdded(work.id);
     } catch (err) {
       setError(errorMessage(err, 'Could not add this book.'));
@@ -120,12 +121,9 @@ export function AddBookDialog({
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-serif text-lg font-bold text-paper-900 leading-snug">{selectedCandidate.title}</h3>
-                  <span className="shrink-0 rounded bg-paper-200/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-paper-700">
-                    {selectedCandidate.externalSource.replace('-', ' ')}
-                  </span>
                 </div>
                 <p className="text-sm font-medium text-paper-700">
-                  {selectedCandidate.authors.join(', ') || 'Unknown Author'}
+                  {selectedCandidate.authors.join(', ') || 'Unknown author'}
                   {selectedCandidate.firstPublishYear ? ` · ${selectedCandidate.firstPublishYear}` : ''}
                 </p>
 
@@ -149,28 +147,7 @@ export function AddBookDialog({
               </div>
             </div>
 
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1 text-sm font-medium text-paper-800">Add it as</legend>
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['WANT_TO_READ', 'Want to read'],
-                    ['READING', 'Reading now'],
-                    ['FINISHED', 'Already read'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <label
-                    key={value}
-                    className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-moss-500 ${
-                      addAs === value ? 'border-moss-600 bg-moss-100 text-moss-800' : 'border-paper-300 text-paper-700 hover:bg-paper-100'
-                    }`}
-                  >
-                    <input type="radio" name="add-as" value={value} checked={addAs === value} onChange={() => setAddAs(value)} className="sr-only" />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <AddAsChooser value={addAs} onChange={setAddAs} />
 
             <div className="flex gap-2 pt-2 border-t border-paper-200">
               <Button variant="secondary" onClick={() => setSelectedCandidate(null)}>
@@ -232,12 +209,9 @@ export function AddBookDialog({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <p className="font-serif text-sm font-bold text-paper-900 leading-tight">{candidate.title}</p>
-                          <span className="shrink-0 rounded bg-paper-200/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-paper-600">
-                            {candidate.externalSource.replace('-', ' ')}
-                          </span>
                         </div>
                         <p className="mt-0.5 truncate text-xs font-medium text-paper-600">
-                          {candidate.authors.join(', ') || 'Unknown Author'}
+                          {candidate.authors.join(', ') || 'Unknown author'}
                           {candidate.firstPublishYear ? ` · ${candidate.firstPublishYear}` : ''}
                         </p>
 
@@ -301,13 +275,13 @@ export function AddBookDialog({
             />
             <div className="grid grid-cols-2 gap-2">
               <Input
-                label="Original Language"
+                label="Original language"
                 value={manualOriginalLang}
                 onChange={(e) => setManualOriginalLang(e.target.value)}
                 placeholder="e.g. Japanese"
               />
               <Input
-                label="Your Added Language"
+                label="Language you read it in"
                 value={manualReadingLang}
                 onChange={(e) => setManualReadingLang(e.target.value)}
                 placeholder="e.g. English"
@@ -315,14 +289,14 @@ export function AddBookDialog({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input
-                label="Parts Count (optional)"
+                label="Parts (optional)"
                 type="number"
                 value={manualPartsCount}
                 onChange={(e) => setManualPartsCount(e.target.value)}
                 placeholder="e.g. 2"
               />
               <Input
-                label="Chapters Count (optional)"
+                label="Chapters (optional)"
                 type="number"
                 value={manualChaptersCount}
                 onChange={(e) => setManualChaptersCount(e.target.value)}
@@ -330,7 +304,7 @@ export function AddBookDialog({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-paper-700 mb-1">Book Summary (optional)</label>
+              <label className="block text-xs font-medium text-paper-700 mb-1">Summary (optional)</label>
               <textarea
                 value={manualDescription}
                 onChange={(e) => setManualDescription(e.target.value)}
@@ -339,6 +313,7 @@ export function AddBookDialog({
                 className="focus-visible:focus-ring w-full rounded-md border border-paper-300 bg-paper-50 p-2 text-xs text-paper-900 placeholder:text-paper-400"
               />
             </div>
+            <AddAsChooser value={addAs} onChange={setAddAs} />
             <div className="flex gap-2 pt-2">
               <Button variant="secondary" onClick={() => setShowManual(false)}>
                 Back to search
@@ -351,5 +326,33 @@ export function AddBookDialog({
         )}
       </div>
     </Modal>
+  );
+}
+
+/** Which status a new book starts with: added and set in one step. */
+function AddAsChooser({ value, onChange }: { value: ReadingStatus; onChange: (status: ReadingStatus) => void }) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1 text-sm font-medium text-paper-800">Add it as</legend>
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ['WANT_TO_READ', 'Want to read'],
+            ['READING', 'Reading now'],
+            ['FINISHED', 'Already read'],
+          ] as const
+        ).map(([status, label]) => (
+          <label
+            key={status}
+            className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-moss-500 ${
+              value === status ? 'border-moss-600 bg-moss-100 text-moss-800' : 'border-paper-300 text-paper-700 hover:bg-paper-100'
+            }`}
+          >
+            <input type="radio" name="add-as" value={status} checked={value === status} onChange={() => onChange(status)} className="sr-only" />
+            {label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

@@ -279,3 +279,52 @@ test.describe('reading time and session hand-offs (R2-04 – R2-06, R2-22)', () 
     expect(await status(reread)).toBe('FINISHED');
   });
 });
+
+test.describe('GET /reading-sessions/open (R3-06)', () => {
+  test('finds the session still open for a copy after a page refresh, and nothing once it ends', async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest, 'PHYSICAL');
+    const none = await authedRequest.get(`/api/v1/reading-sessions/open?copyId=${copyId}`);
+    expect(none.status()).toBe(200);
+    expect((await none.json()).data).toBeNull();
+
+    const started = (await (await authedRequest.post('/api/v1/reading-sessions', { data: { copyId } })).json()).data;
+    const open = (await (await authedRequest.get(`/api/v1/reading-sessions/open?copyId=${copyId}`)).json()).data;
+    expect(open).toMatchObject({ id: started.id, status: 'ACTIVE' });
+
+    await authedRequest.post(`/api/v1/reading-sessions/${started.id}/end`, { data: { endPosition: 'p. 20' } });
+    expect((await (await authedRequest.get(`/api/v1/reading-sessions/open?copyId=${copyId}`)).json()).data).toBeNull();
+  });
+
+  test('needs a copy id', async ({ authedRequest }) => {
+    expect((await authedRequest.get('/api/v1/reading-sessions/open')).status()).toBe(400);
+  });
+});
+
+test.describe('DELETE /reading-sessions/:id (R3-09)', () => {
+  test('removes a finished session from the journal and keeps its highlights', async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest, 'PHYSICAL');
+    const logged = (await (await authedRequest.post('/api/v1/reading-sessions/log', { data: { copyId, minutes: 1 } })).json()).data;
+    const note = await prisma.note.create({
+      data: {
+        userId: (await prisma.readingSession.findUniqueOrThrow({ where: { id: logged.id } })).userId,
+        workId: (await prisma.copy.findUniqueOrThrow({ where: { id: copyId }, include: { edition: true } })).edition.workId,
+        scope: 'SESSION',
+        body: 'kept',
+        sessionId: logged.id,
+      },
+    });
+
+    expect((await authedRequest.delete(`/api/v1/reading-sessions/${logged.id}`)).status()).toBe(204);
+    const journal = (await (await authedRequest.get('/api/v1/journal')).json()).data;
+    expect(journal.some((e: { id: string }) => e.id === logged.id)).toBe(false);
+    expect((await prisma.note.findUniqueOrThrow({ where: { id: note.id } })).sessionId).toBeNull();
+  });
+
+  test("an open session is ended, not deleted; another reader's session is not found", async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest);
+    const open = (await (await authedRequest.post('/api/v1/reading-sessions', { data: { copyId } })).json()).data;
+    expect((await authedRequest.delete(`/api/v1/reading-sessions/${open.id}`)).status()).toBe(409);
+    expect((await authedRequest.delete('/api/v1/reading-sessions/00000000-0000-0000-0000-000000000000')).status()).toBe(404);
+  });
+});
+

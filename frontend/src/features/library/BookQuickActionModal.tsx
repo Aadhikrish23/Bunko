@@ -32,6 +32,7 @@ export function BookQuickActionModal({ workId, onClose }: BookQuickActionModalPr
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [copyAdded, setCopyAdded] = useState(false);
 
   const work = workQuery.data;
   const digitalEdition = work?.editions.find((e) => (e.format === 'EPUB' || e.format === 'PDF') && Boolean(e.copyId));
@@ -59,7 +60,16 @@ export function BookQuickActionModal({ workId, onClose }: BookQuickActionModalPr
   }
 
   if (adding && work) {
-    return <AddEditionDialog workId={work.id} onClose={() => setAdding(false)} onAdded={() => setAdding(false)} />;
+    return (
+      <AddEditionDialog
+        workId={work.id}
+        onClose={() => setAdding(false)}
+        onAdded={() => {
+          setAdding(false);
+          setCopyAdded(true);
+        }}
+      />
+    );
   }
 
   return (
@@ -91,6 +101,11 @@ export function BookQuickActionModal({ workId, onClose }: BookQuickActionModalPr
                 </div>
               </div>
 
+              {copyAdded && (
+                <p role="status" className="text-sm text-moss-700">
+                  Copy added. You can start reading it now.
+                </p>
+              )}
               {error && <ErrorBanner message={error} />}
               {conflict && (
                 <SessionConflict

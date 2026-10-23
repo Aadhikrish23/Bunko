@@ -5,6 +5,7 @@ import * as controller from './reading-sessions.controller';
 import {
   endSessionSchema,
   logSessionSchema,
+  openSessionQuerySchema,
   reportProgressSchema,
   sessionIdParamsSchema,
   startSessionSchema,
@@ -22,11 +23,18 @@ readingSessionsRouter.patch(
   controller.reportProgressHandler,
 );
 readingSessionsRouter.post('/pause-active', authMiddleware, controller.pauseActiveSessionHandler);
+readingSessionsRouter.get('/open', authMiddleware, validate(openSessionQuerySchema, 'query'), controller.openSessionHandler);
 readingSessionsRouter.post(
   '/:sessionId/pause',
   authMiddleware,
   validate(sessionIdParamsSchema, 'params'),
   controller.pauseSessionHandler,
+);
+readingSessionsRouter.delete(
+  '/:sessionId',
+  authMiddleware,
+  validate(sessionIdParamsSchema, 'params'),
+  controller.deleteSessionHandler,
 );
 readingSessionsRouter.post(
   '/:sessionId/end',

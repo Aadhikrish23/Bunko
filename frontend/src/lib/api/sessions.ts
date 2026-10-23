@@ -1,8 +1,17 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { endAllLocalSessions, endLocalSession, isOfflineSessionId, recordLocalProgress } from '../offline/local-sessions';
 import { onlineOr } from '../offline/online-or';
 import { api } from './client';
 import type { ReadingSession } from './types';
+
+/** The session still open for a copy (survives a page refresh), or null. */
+export function useOpenSession(copyId: string | undefined) {
+  return useQuery({
+    queryKey: ['open-session', copyId],
+    queryFn: () => api.get<ReadingSession | null>('/reading-sessions/open', { copyId: copyId! }),
+    enabled: Boolean(copyId),
+  });
+}
 
 export function useStartSession() {
   return useMutation({
@@ -69,6 +78,7 @@ export function useEndSession() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['journal'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['open-session'] });
     },
   });
 }

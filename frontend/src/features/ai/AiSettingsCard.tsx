@@ -84,7 +84,7 @@ export function AiSettingsCard() {
             onChange={(on) => change('semanticSearch', on)}
           />
           <Toggle
-            label="Generated insights"
+            label="Assistant and book summaries"
             description={`${GENERATIVE_DISCLOSURE} Limited to ${status.data.dailyGenerationLimit} requests a day.`}
             checked={current.generative}
             disabled={setConsent.isPending}
@@ -103,7 +103,7 @@ export function AiSettingsCard() {
               (!available.translation && current.translation)) && (
               <p className="text-xs text-ember-600">
                 {available.semanticSearch
-                  ? 'Generated insights and translation aren’t set up on this server yet.'
+                  ? 'The Assistant, book summaries and translation aren’t set up on this server yet.'
                   : 'AI features aren’t set up on this server yet — your choice is saved for when they are.'}
               </p>
             )}

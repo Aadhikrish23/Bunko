@@ -28,8 +28,10 @@ export function ReviewPanel({ workId }: { workId: string }) {
   useEffect(() => {
     if (review.data === undefined) return;
     const fresh = toDraft(review.data);
-    setDraft((current) => (current.body.trim() !== savedBodyRef.current.trim() ? { ...fresh, body: current.body } : fresh));
+    // Captured now: the updater runs later, after the ref below has moved on.
+    const previouslySaved = savedBodyRef.current;
     savedBodyRef.current = fresh.body;
+    setDraft((current) => (current.body.trim() !== previouslySaved.trim() ? { ...fresh, body: current.body } : fresh));
   }, [review.data]);
 
   if (review.isLoading) {
@@ -166,21 +168,24 @@ export function ReviewPanel({ workId }: { workId: string }) {
         <p className="text-xs text-paper-600">Private: only you can see your ratings, reviews and notes, so spoil away.</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" onClick={handleSave} isLoading={upsert.isPending} disabled={!isDirty || isEmptyDraft(draft)}>
-          {review.data ? 'Save changes' : 'Save review'}
-        </Button>
-        {review.data && (
-          <Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)}>
-            Remove review
+      {/* Stars and marks save themselves; these buttons are for the written review. */}
+      {(draft.body.trim() || review.data?.body) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={handleSave} isLoading={upsert.isPending} disabled={!isDirty || isEmptyDraft(draft)}>
+            {review.data?.body ? 'Save changes' : 'Save review'}
           </Button>
-        )}
-        {justSaved && !isDirty && (
-          <span role="status" className="text-sm text-moss-700">
-            Saved.
-          </span>
-        )}
-      </div>
+          {review.data?.body && (
+            <Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)}>
+              Remove review
+            </Button>
+          )}
+          {justSaved && !isDirty && (
+            <span role="status" className="text-sm text-moss-700">
+              Saved.
+            </span>
+          )}
+        </div>
+      )}
 
       {confirmDelete && (
         <ConfirmDialog

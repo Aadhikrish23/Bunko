@@ -1,10 +1,10 @@
 import { BookOpen, Check, NotebookPen } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { Input } from '../../components/ui/Input';
 import { useCreateNote } from '../../lib/api/notes';
-import { useEndSession, usePauseActiveSession, useStartSession } from '../../lib/api/sessions';
+import { useEndSession, useOpenSession, usePauseActiveSession, useStartSession } from '../../lib/api/sessions';
 import { ApiError } from '../../lib/api/client';
 import { errorMessage } from '../../lib/error-message';
 import { SessionConflict } from './SessionConflict';
@@ -15,6 +15,23 @@ import { NoteComposerModal } from '../notes/NoteComposerModal';
 // lifecycle explicitly.
 export function PhysicalSessionPanel({ copyId, workId }: { copyId: string; workId: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<Date | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  // A session started before a refresh (or on another page) is still running (R3-06).
+  const openSession = useOpenSession(copyId);
+  useEffect(() => {
+    const open = openSession.data;
+    if (open && !sessionId && !summary) {
+      setSessionId(open.id);
+      setStartedAt(new Date(open.startTime));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSession.data]);
+  useEffect(() => {
+    if (!sessionId) return;
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, [sessionId]);
   const [isEnding, setIsEnding] = useState(false);
   const [endPosition, setEndPosition] = useState('');
   const [reflection, setReflection] = useState('');
@@ -35,6 +52,8 @@ export function PhysicalSessionPanel({ copyId, workId }: { copyId: string; workI
       if (takeOver) await pauseActiveSession.mutateAsync();
       const session = await startSession.mutateAsync({ copyId });
       setSessionId(session.id);
+      setStartedAt(new Date(session.startTime));
+      setNow(Date.now());
       setSummary(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setConflict(err.message);
@@ -53,6 +72,7 @@ export function PhysicalSessionPanel({ copyId, workId }: { copyId: string; workI
       });
       setSummary({ durationSeconds: session.durationSeconds });
       setSessionId(null);
+      setStartedAt(null);
       setIsEnding(false);
       setEndPosition('');
       setReflection('');
@@ -89,7 +109,11 @@ export function PhysicalSessionPanel({ copyId, workId }: { copyId: string; workI
   if (!isEnding) {
     return (
       <div className="flex flex-col gap-2">
-        <p className="text-sm text-paper-600">Session in progress…</p>
+        <p className="text-sm text-paper-700" role="status">
+          {startedAt
+            ? `Reading for ${Math.max(0, Math.round((now - startedAt.getTime()) / 60_000))} min · started ${startedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+            : 'Session in progress…'}
+        </p>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setIsEnding(true)}>
             End Session

@@ -4,7 +4,7 @@ import { IntentTargetType } from '../../../intent/IntentTargetType';
 import { BookIntent } from '../intent/BookIntent';
 import { toStatus, isPausedWord } from '../data/status';
 import { statedScore } from '../pipeline/patterns';
-import { matchShelf, titleScore } from '../text/match';
+import { mainTitle, matchShelf, norm, titleScore } from '../text/match';
 
 // Plain one-step commands, read without the model: "add piranesi", "rate dune 4",
 // "finished circe", "note for dune: ...", "put dune on my sci-fi shelf". Deliberately strict:
@@ -177,6 +177,14 @@ function parseSingle(clause: string, ownedTitles: string[] = [], shelfNames: str
       rest = rest.split(/\s*[,;]\s*/)[0] ?? rest;
     }
     rest = rest.replace(/\s+(?:last night|today|yesterday|this morning|this week|finally|at last)$/i, '');
+    // "Klara and the Sun around halfway": one of their titles, then how far they got.
+    rest = rest.replace(/\s+(?:around|about|at|after|just past|past|only)?\s*(?:halfway(?: through)?|midway|the (?:start|beginning|middle|end)|(?:page|p\.)\s*\d+|\d+\s*(?:pages|chapters|%)(?: in)?|chapter \d+)$/i, '');
+    const said = norm(rest);
+    const ownedLead = ownedTitles
+      .map((t) => ({ t, key: norm(mainTitle(t)) }))
+      .filter(({ key }) => key.length >= 3 && said.startsWith(`${key} `))
+      .sort((a, b) => b.key.length - a.key.length)[0];
+    if (ownedLead) rest = ownedLead.t;
     const status = toStatus(verb.replace(/^'m /, ''));
     if (!status) return undefined;
     const out = [intent(BookIntent.SetStatus, [bookT(clean(rest))], [{ type: IntentParameterType.Status, value: status }])];

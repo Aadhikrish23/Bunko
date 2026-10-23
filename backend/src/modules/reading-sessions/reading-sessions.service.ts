@@ -165,6 +165,36 @@ export async function pauseSession(userId: string, sessionId: string, now = new 
   return toSessionDto(updated);
 }
 
+/**
+ * Removes a finished session the reader logged by mistake (R3-09). Only ENDED sessions: an
+ * open one is closed, not deleted. Highlights and notes made during it stay, unlinked.
+ */
+export async function deleteSession(userId: string, sessionId: string): Promise<void> {
+  const session = await requireOwnSession(userId, sessionId);
+  if (session.status !== 'ENDED') {
+    throw new AppError('CONFLICT', 'End this reading session before deleting it');
+  }
+  await prisma.$transaction([
+    prisma.annotation.updateMany({ where: { sessionId }, data: { sessionId: null } }),
+    prisma.note.updateMany({ where: { sessionId }, data: { sessionId: null } }),
+    prisma.readingSession.delete({ where: { id: sessionId } }),
+  ]);
+}
+
+/**
+ * The session still open for a copy (active, or paused within the grace window), so a page
+ * can show "in progress" again after a refresh. Null when there isn't one.
+ */
+export async function getOpenSession(userId: string, copyId: string, now = new Date()): Promise<SessionDto | null> {
+  const session = await prisma.readingSession.findFirst({
+    where: { userId, copyId, status: { in: ['ACTIVE', 'PAUSED'] } },
+    orderBy: { updatedAt: 'desc' },
+  });
+  if (!session) return null;
+  if (session.status === 'PAUSED' && !isWithinGraceWindow(session.updatedAt, now)) return null;
+  return toSessionDto(session);
+}
+
 export async function pauseActiveSession(userId: string): Promise<SessionDto | null> {
   const activeSession = await prisma.readingSession.findFirst({ where: { userId, status: 'ACTIVE' } });
   if (!activeSession) return null;

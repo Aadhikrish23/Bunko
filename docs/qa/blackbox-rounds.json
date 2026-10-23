@@ -841,6 +841,304 @@
           "status": "Won't fix (needs approval)"
         }
       ]
+    },
+    {
+      "round": 3,
+      "date": "2026-10-23",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100; assistant model not configured (no NVIDIA_API_KEY). The seeded account's password reached the tester in a follow-up message, which its safety check refused to type, so it tested with a fresh account that had no EPUB: the reader was not tested this round.",
+      "scores": {
+        "first_impression_onboarding": {
+          "score": 7,
+          "reason": "Quick, warm sign-up and a helpful 3-step welcome; no Goodreads/StoryGraph import and wrong metadata in the first search."
+        },
+        "library_adding_finding_books": {
+          "score": 5,
+          "reason": "Own-library search and filters work; catalogue search ~5s and original language plainly wrong (Piranesi 'Written in Japanese')."
+        },
+        "book_page_and_details": {
+          "score": 5,
+          "reason": "Rating, favourite, shelves, notes, editions work; saved review blank after a refresh; description shows raw markdown."
+        },
+        "reading_experience": {
+          "score": null,
+          "reason": "Not tested: no readable EPUB on the tester's account."
+        },
+        "tracking_journal_statistics": {
+          "score": 7,
+          "reason": "Paper logging pleasant and validated, clean journal and stats; a timed session vanished on refresh, entries can't be edited or deleted, 'No genre: 5'."
+        },
+        "shelves_organizing": {
+          "score": 6,
+          "reason": "Charming bookcase and add-books works; 'JAP' spine badge, nearly invisible Covers/Spines and Add books controls, no rename."
+        },
+        "notes_highlights_reviews": {
+          "score": 5,
+          "reason": "Notes persist; a review that disappears on reload (with Save enabled) breaks trust."
+        },
+        "assistant_chat": {
+          "score": 6,
+          "reason": "Plain commands, undo, history all work; natural phrasing misread, odd alternatives, added an Indonesian edition of Circe."
+        },
+        "look_and_feel": {
+          "score": 7,
+          "reason": "Crafted for readers with good mobile nav; developer-ish copy and low-contrast controls."
+        },
+        "speed_reliability": {
+          "score": 6,
+          "reason": "No errors or sign-outs; state that only appears after in-app navigation and 5-10s searches/replies."
+        },
+        "overall": {
+          "score": 6,
+          "reason": "Bones and taste are there; data vanishing on refresh and wrong metadata stop a recommendation."
+        }
+      },
+      "praise": [
+        "The paper-reading flow: friendly page-order check, 'Logged 30 min of Piranesi, pages 1-42', 'Session saved - 1 min. Nice reading.'",
+        "The Shelves bookcase: wooden racks, serif spines, drag and keyboard rearranging.",
+        "The Assistant's plain commands, a clear undo that says what it reversed, history that survives a refresh.",
+        "Warm, calm design that adapts well to a phone: bottom tab bar, no horizontal scroll.",
+        "Honest privacy copy ('Private: only you can see your ratings, reviews and notes, so spoil away.').",
+        "The first-run three-step welcome."
+      ],
+      "issues": [
+        {
+          "id": "R3-01",
+          "area": "notes_highlights_reviews",
+          "severity": "major",
+          "title": "Saved review is blank after a page refresh, and Save invites wiping it",
+          "steps": "Write a review, Save changes ('Saved.'), refresh the page.",
+          "expected": "Review text still there.",
+          "actual": "Box empty with Save enabled; in-app navigation shows it again.",
+          "root_cause": "Regression from R2-10: the panel moved its 'last saved text' marker before React ran the state update, so on a fresh load the update compared against the new text and kept the empty draft.",
+          "fix": "The previous value is captured before the marker moves; verified: text survives a refresh and Save stays disabled until edited.",
+          "files": [
+            "frontend/src/features/reviews/ReviewPanel.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-02",
+          "area": "shelves_organizing",
+          "severity": "major",
+          "title": "Spine language badge reads 'JAP'",
+          "steps": "Shelves > Spines, a book marked Japanese.",
+          "expected": "A neutral code or no badge.",
+          "actual": "'JAP' on the spine, an ethnic slur.",
+          "root_cause": "Spines printed the first three letters of the language name.",
+          "fix": "Two-letter ISO codes (JA, TA, ID); no badge when the language isn't known.",
+          "files": [
+            "frontend/src/lib/language-code.ts",
+            "frontend/src/features/shelves/BookSpine.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-03",
+          "area": "library_adding_finding_books",
+          "severity": "major",
+          "title": "Original language wrong in search results and on the book",
+          "steps": "Add a book > search 'piranesi', 'Convenience Store Woman'.",
+          "expected": "Piranesi original English; Murata original Japanese.",
+          "actual": "Every Open Library result 'Orig: Japanese'; Google Books Murata 'Orig: English'; carried into Shelves and Statistics.",
+          "root_cause": "Book search filled in 'Japanese' as the original language whenever a catalogue didn't give one (Google's edition language was also used as the original).",
+          "fix": "Original language is left empty unless known; a migration clears the guessed value on existing books (where the edition isn't Japanese and the title has no Japanese script).",
+          "files": [
+            "backend/src/modules/metadata/metadata.service.ts",
+            "backend/prisma/migrations/20261023090000_clear_guessed_original_language"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-04",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Assistant added a foreign-language edition of Circe",
+          "steps": "'I just finished Circe by Madeline Miller, 4 stars'.",
+          "expected": "The English edition.",
+          "actual": "Indonesian description, 'IND' spine, Indonesian in Statistics.",
+          "root_cause": "Two editions with the same title and author were de-duplicated first-come, and the Indonesian one arrived first.",
+          "fix": "De-duplication and ranking prefer the reader's language for Latin-script queries (other scripts unaffected).",
+          "files": [
+            "backend/src/modules/metadata/metadata.service.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-05",
+          "area": "book_page_and_details",
+          "severity": "minor",
+          "title": "Description shows raw markdown",
+          "steps": "Piranesi's book page.",
+          "expected": "Formatted or plain text.",
+          "actual": "'**From the *New York Times* bestselling author...**' with asterisks.",
+          "root_cause": "Some catalogues send markdown emphasis.",
+          "fix": "Shown as plain text (bold/italic markers removed; arithmetic asterisks left alone).",
+          "files": [
+            "frontend/src/features/library/synopsis.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-06",
+          "area": "tracking_journal_statistics",
+          "severity": "minor",
+          "title": "Active paper session disappears on refresh",
+          "steps": "Start a reading session, refresh.",
+          "expected": "Still in progress, with elapsed time.",
+          "actual": "'Start a reading session' again; no timer while running.",
+          "root_cause": "The paper-session panel only remembered its session in page state.",
+          "fix": "GET /reading-sessions/open restores it after a refresh; the panel shows 'Reading for N min · started 4:05 PM'.",
+          "files": [
+            "backend/src/modules/reading-sessions/*",
+            "frontend/src/lib/api/sessions.ts",
+            "frontend/src/features/library/PhysicalSessionPanel.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-07",
+          "area": "assistant_chat",
+          "severity": "minor",
+          "title": "Natural phrasing becomes part of the title",
+          "steps": "'gave up on Klara and the Sun around halfway, it just wasn't for me'.",
+          "expected": "Klara and the Sun marked DNF.",
+          "actual": "'I couldn't find a book called Klara and the Sun around halfway' with unrelated alternatives.",
+          "root_cause": "After the comma was cut, 'around halfway' stayed in the title.",
+          "fix": "How-far phrases (halfway, page 120, 40%...) are dropped, and when one of the reader's titles opens the phrase, that title is used.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/conversation/quickCommands.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-08",
+          "area": "shelves_organizing",
+          "severity": "minor",
+          "title": "Shelf controls nearly invisible on dark wood",
+          "steps": "Shelves: Covers/Spines toggle and Add books.",
+          "expected": "Readable controls.",
+          "actual": "Dark text on dark brown.",
+          "root_cause": "The controls used wood-100, a colour step the palette doesn't define, so the class produced nothing; paper-600 and some moss steps (used in 36 files) were missing too.",
+          "fix": "Undefined shades replaced; paper-600, moss-200/400/800 added to the palette and DESIGN.md.",
+          "files": [
+            "frontend/src/features/shelves/ShelvesPage.tsx",
+            "frontend/tailwind.config.js",
+            "DESIGN.md"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-09",
+          "area": "tracking_journal_statistics",
+          "severity": "minor",
+          "title": "Journal entries can't be edited or deleted",
+          "steps": "Try to remove an accidental 1-minute session.",
+          "expected": "Edit or delete per entry.",
+          "actual": "Entries only link to the book.",
+          "root_cause": "No delete for sessions.",
+          "fix": "Delete (with confirmation) on each journal entry: DELETE /reading-sessions/:id, finished sessions only; highlights and notes from it stay.",
+          "files": [
+            "backend/src/modules/reading-sessions/*",
+            "frontend/src/features/journal/JournalPage.tsx",
+            "frontend/src/lib/api/journal.ts"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R3-10",
+          "area": "first_impression_onboarding",
+          "severity": "minor",
+          "title": "No Goodreads/StoryGraph import",
+          "steps": "Settings and empty Library.",
+          "expected": "CSV import.",
+          "actual": "None.",
+          "root_cause": "Importing other platforms is SRS §37 (needs product approval).",
+          "fix": "Not built.",
+          "files": [],
+          "status": "Won't fix (needs approval)"
+        },
+        {
+          "id": "R3-11",
+          "area": "assistant_chat",
+          "severity": "polish",
+          "title": "Contradictory status confirmation",
+          "steps": "'started The Left Hand of Darkness yesterday'.",
+          "expected": "'Added as Reading.'",
+          "actual": "'I've added ... as Want to Read. I've marked ... as Reading.'",
+          "root_cause": "The merged 'added as X' reply didn't match authors with initials ('Ursula K. Le Guin').",
+          "fix": "The author part may contain periods; one sentence now.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/pipeline/replies.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-12",
+          "area": "look_and_feel",
+          "severity": "polish",
+          "title": "Developer-ish or inconsistent wording",
+          "steps": "Shelves, Add book, Settings.",
+          "expected": "Consistent reader language.",
+          "actual": "'Catalog Racks & Collections:', 'All Volumes' vs 'All Books', 'To Read', 'Parts Count', 'Your Added Language', source badges, 'search vectors', consent named differently on two pages.",
+          "root_cause": "Labels written from the code's point of view.",
+          "fix": "'Your shelves', 'All books', 'Want to Read', 'Parts'/'Chapters', 'Language you read it in', no source badges, 'a private search index', and the setting renamed 'Assistant and book summaries' to match the Assistant page.",
+          "files": [
+            "frontend/src/features/shelves/ShelvesPage.tsx",
+            "frontend/src/features/library/AddBookDialog.tsx",
+            "frontend/src/features/ai/ai-disclosure.ts",
+            "frontend/src/features/ai/AiSettingsCard.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R3-13",
+          "area": "library_adding_finding_books",
+          "severity": "polish",
+          "title": "Manual add lacks status; adding a copy gives no feedback",
+          "steps": "Add custom book manually; Add a copy > Physical copy.",
+          "expected": "Status choice; confirmation.",
+          "actual": "Silently Want to Read; no feedback.",
+          "root_cause": "The manual form had no status choice; adding a copy closed silently.",
+          "fix": "'Add it as' on the manual form too; 'Copy added. You can start reading it now.' (Page count isn't stored on a work.)",
+          "files": [
+            "frontend/src/features/library/AddBookDialog.tsx",
+            "frontend/src/features/library/BookQuickActionModal.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R3-14",
+          "area": "tracking_journal_statistics",
+          "severity": "polish",
+          "title": "Statistics filler",
+          "steps": "Statistics with no EPUBs and no genres.",
+          "expected": "Caveats only when relevant.",
+          "actual": "'EPUB pages are estimated' with no EPUBs; a lone 'No genre: 5' bar.",
+          "root_cause": "Caveat always shown; an all-unknown breakdown drew one bar.",
+          "fix": "The EPUB caveat appears only with EPUB reading; 'None of your books has a genre recorded yet.' (Yearly goals and a ratings chart aren't in the SRS.)",
+          "files": [
+            "frontend/src/features/statistics/StatisticsPage.tsx",
+            "frontend/src/features/statistics/BreakdownList.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R3-15",
+          "area": "book_page_and_details",
+          "severity": "polish",
+          "title": "Review buttons shown with only a rating",
+          "steps": "Rate a book with no review text.",
+          "expected": "'Remove review' hidden until a review exists.",
+          "actual": "Both buttons present.",
+          "root_cause": "The review buttons showed whenever a review row existed, including rating-only.",
+          "fix": "They appear only once there is review text.",
+          "files": [
+            "frontend/src/features/reviews/ReviewPanel.tsx"
+          ],
+          "status": "Fixed"
+        }
+      ]
     }
   ]
 }

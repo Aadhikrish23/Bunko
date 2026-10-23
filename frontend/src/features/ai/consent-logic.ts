@@ -19,7 +19,7 @@ export function revokeWarning(current: Consent, next: Consent): string | null {
   if (current.semanticSearch && !next.semanticSearch) {
     warnings.push(
       next.generative || current.generative
-        ? 'This deletes your search index and turns off generated insights.'
+        ? 'This deletes your search index and turns off the Assistant and book summaries.'
         : 'This deletes your search index. Turning it back on rebuilds it.',
     );
   }

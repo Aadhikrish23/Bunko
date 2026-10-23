@@ -7,12 +7,15 @@ interface BreakdownListProps {
   title: string;
   entries: BreakdownEntry[];
   formatLabel: (label: string | null) => string;
+  /** Said instead of a lone "unknown" bar when no book has this recorded. */
+  noneRecorded?: string;
 }
 
 // A ranked list of horizontal bars, one hue for every row: the bars show
 // magnitude, not identity, so they never take a categorical palette.
 // Values sit at the bar tip in a text token.
-export function BreakdownList({ title, entries, formatLabel }: BreakdownListProps) {
+export function BreakdownList({ title, entries, formatLabel, noneRecorded }: BreakdownListProps) {
+  const nothingKnown = entries.length > 0 && entries.every((entry) => entry.label === null);
   const shown = entries.slice(0, MAX_ROWS);
   const hidden = entries.length - shown.length;
   const max = shown[0]?.count ?? 0;
@@ -22,6 +25,8 @@ export function BreakdownList({ title, entries, formatLabel }: BreakdownListProp
       <h3 className="text-sm font-semibold text-paper-900">{title}</h3>
       {shown.length === 0 ? (
         <p className="text-sm text-paper-600">No books yet.</p>
+      ) : nothingKnown && noneRecorded ? (
+        <p className="text-sm text-paper-600">{noneRecorded}</p>
       ) : (
         <ul className="flex flex-col gap-2.5">
           {shown.map((entry) => {

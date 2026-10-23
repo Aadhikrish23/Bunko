@@ -39,6 +39,20 @@ test.describe('rankByTitleMatch', () => {
     expect(ranked[0]!.title).toBe('Tomorrow, and Tomorrow, and Tomorrow');
   });
 
+  test('among equal titles, the reader\'s language comes first (R3-04)', () => {
+    const ranked = rankByTitleMatch('circe', [
+      { title: 'Circe', language: 'Indonesian', id: 'id' },
+      { title: 'Circe', language: 'English', id: 'en' },
+    ] as never[]);
+    expect(ranked.map((r: { id: string }) => r.id)).toEqual(['en', 'id']);
+    // A query in another script isn't steered towards English.
+    const tamil = rankByTitleMatch('பொன்னியின் செல்வன்', [
+      { title: 'பொன்னியின் செல்வன்', language: 'Tamil', id: 'ta' },
+      { title: 'பொன்னியின் செல்வன்', language: 'English', id: 'en' },
+    ] as never[]);
+    expect(tamil.map((r: { id: string }) => r.id)).toEqual(['ta', 'en']);
+  });
+
   test('keeps the provider order among equally good matches', () => {
     const ranked = rankByTitleMatch('piranesi', [{ title: 'Piranesi', id: 1 }, { title: 'Piranesi', id: 2 }] as never[]);
     expect(ranked.map((r: { id: number }) => r.id)).toEqual([1, 2]);

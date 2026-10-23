@@ -1,13 +1,15 @@
-import { Highlighter, NotebookPen, Plus, Quote, StickyNote } from 'lucide-react';
+import { Highlighter, NotebookPen, Plus, Quote, StickyNote, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { BookCover } from '../library/BookCover';
 import { LogSessionDialog } from './LogSessionDialog';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
-import { useJournal } from '../../lib/api/journal';
+import { useDeleteSession, useJournal } from '../../lib/api/journal';
+import type { JournalEntry } from '../../lib/api/types';
 import { errorMessage } from '../../lib/error-message';
 
 function formatDate(iso: string): string {
@@ -26,6 +28,8 @@ const FORMAT = { PHYSICAL: 'Paper', EPUB: 'EPUB', PDF: 'PDF' } as const;
 export function JournalPage() {
   const journal = useJournal();
   const [logging, setLogging] = useState(false);
+  const deleteSession = useDeleteSession();
+  const [deleting, setDeleting] = useState<JournalEntry | null>(null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -39,6 +43,17 @@ export function JournalPage() {
         </Button>
       </div>
       {logging && <LogSessionDialog onClose={() => setLogging(false)} />}
+      {deleteSession.isError && <ErrorBanner message={errorMessage(deleteSession.error, 'Could not delete that session.')} />}
+      {deleting && (
+        <ConfirmDialog
+          title="Delete this session?"
+          message={`${formatDuration(deleting.durationSeconds)} of ${deleting.book.title} on ${formatDate(deleting.startTime)} will be removed from your journal and statistics. Highlights and notes from it stay.`}
+          confirmLabel="Delete"
+          isConfirming={deleteSession.isPending}
+          onConfirm={() => deleteSession.mutate(deleting.id, { onSettled: () => setDeleting(null) })}
+          onClose={() => setDeleting(null)}
+        />
+      )}
 
       {journal.isLoading && <PageSpinner />}
       {journal.isError && <ErrorBanner message={errorMessage(journal.error, 'Could not load your journal.')} />}
@@ -66,7 +81,7 @@ export function JournalPage() {
               <Link to={`/library/${entry.book.workId}`} className="focus-visible:focus-ring w-10 shrink-0 rounded-md" aria-hidden="true" tabIndex={-1}>
                 <BookCover title={entry.book.title} coverImageUrl={entry.book.coverImageUrl} />
               </Link>
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <Link
                   to={`/library/${entry.book.workId}`}
                   className="focus-visible:focus-ring rounded font-display text-base text-paper-900 hover:text-moss-700"
@@ -112,6 +127,15 @@ export function JournalPage() {
                   </ul>
                 )}
               </div>
+              <button
+                type="button"
+                onClick={() => setDeleting(entry)}
+                aria-label={`Delete this session of ${entry.book.title}`}
+                title="Delete this session"
+                className="focus-visible:focus-ring h-8 w-8 shrink-0 self-start rounded-md p-2 text-paper-500 hover:bg-paper-100 hover:text-ember-600"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
             </li>
           ))}
         </ol>

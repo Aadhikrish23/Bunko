@@ -106,7 +106,7 @@ A single warm neutral scale carries almost every surface; one accent (moss) does
 - **Aged Oak** (`#C9A877` light / `#9C6B3E` mid / `#7A4E2B` dark / `#3B2417` deepest): Shelves-view only. Bookcase frame, shelf plank, shelf-back recess, rack labels. Never appears outside the bookcase — if a future screen needs wood tones, that's a signal it's trying to BE a bookcase, not borrow its palette.
 
 ### Neutral
-- **Warm Paper** (`#FBF8F3` bg → `#F4EEE3` surface → `#E8DFCF` border → `#B7A98A` muted → `#5B5347` soft text → `#26221D` text): the base everything sits on. `paper-50` is the page background and default card fill; `paper-900` is primary text. No pure white, no pure black, anywhere in the chrome.
+- **Warm Paper** (`#FBF8F3` bg → `#F4EEE3` surface → `#E8DFCF` border → `#B7A98A` muted → `#716654` quiet text (`paper-600`, secondary lines and captions, ~5:1) → `#5B5347` soft text → `#26221D` text): the base everything sits on. `paper-50` is the page background and default card fill; `paper-900` is primary text. No pure white, no pure black, anywhere in the chrome.
 
 ### Data marks (Statistics dashboard only)
 - **Chart Moss** (`#358051` bar / `#4E9867` hover): moss-500's exact lightness and hue with chroma raised from 0.067 to 0.105 (OKLCH). Plain moss-500 sits below the 0.10 chroma floor where a data mark starts reading as recessive gray chrome. Both validated ≥ 3:1 against `paper-50`. Data marks only (bars, meters) — buttons, links, and focus rings stay on moss. Gridlines are `paper-200` hairlines; axis and value text use text tokens (`paper-700`/`paper-900`), never the bar color.

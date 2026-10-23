@@ -6,6 +6,7 @@ import { parseCommands, splitBookList } from '../src/modules/assistant/domains/b
 import { statedScore, wasAskedFor } from '../src/modules/assistant/domains/books/pipeline/patterns';
 import { toStars } from '../src/modules/assistant/domains/books/actions/reviewTools';
 import { UNDO_ASK } from '../src/modules/assistant/domains/books/pipeline/undo';
+import { tidyReply } from '../src/modules/assistant/domains/books/pipeline/replies';
 
 // T-103: the books pack's pure pieces. No server or database.
 
@@ -108,7 +109,7 @@ test.describe('plain commands', () => {
     const two = parseCommands("ok i started tomorrow and tomorrow and tomorrow. and dnf circe tbh, couldnt get into it", owned)!;
     expect(two.map((i) => [i.type, i.targets[0]!.name])).toEqual([
       ['SetStatus', 'Tomorrow, and Tomorrow, and Tomorrow'],
-      ['SetStatus', 'circe'],
+      ['SetStatus', 'Circe'],
     ]);
     expect(parseCommands('rate it 5 stars actually', owned)![0]!.parameters).toEqual([{ type: 'Rating', value: 5 }]);
     expect(parseCommands('and add it to my comfort reads shelf', owned)![0]!.type).toBe('OrganizeShelf');
@@ -149,4 +150,19 @@ test.describe('plain commands', () => {
     for (const m of ['undo', 'actually undo that', 'oops, undo', 'ok undo that please']) expect(UNDO_ASK.test(m)).toBe(true);
     expect(UNDO_ASK.test('undo the rating for dune')).toBe(false);
   });
+
+  test('how far they got is not part of the title (R3-07)', () => {
+    const owned = ['Klara and the Sun', 'Circe'];
+    const target = (m: string) => parseCommands(m, owned)?.[0]?.targets[0]?.name;
+    expect(target("gave up on Klara and the Sun around halfway, it just wasn't for me")).toBe('Klara and the Sun');
+    expect(target('dnf circe at page 120')).toBe('circe');
+    expect(target('gave up on the overstory halfway through')).toBe('the overstory');
+  });
+
+  test('adding then setting a status reads as one step, authors with initials too (R3-11)', () => {
+    expect(
+      tidyReply("I've added The Left Hand of Darkness by Ursula K. Le Guin to your library as Want to Read. I've marked The Left Hand of Darkness as Reading."),
+    ).toBe("I've added The Left Hand of Darkness by Ursula K. Le Guin to your library as Reading.");
+  });
 });
+

@@ -75,6 +75,11 @@ def issue_values(round_no: int, issue: dict) -> list:
     ]
 
 
+def shown(score):
+    """An area the tester couldn't reach that round is 'not tested', never a blank or a zero."""
+    return "not tested" if score is None else score
+
+
 def build() -> None:
     data = json.loads(SOURCE.read_text(encoding="utf-8"))
     rounds = data["rounds"]
@@ -87,13 +92,13 @@ def build() -> None:
     summary.append([])
     header_row(summary, ["Area", *[f"Round {r['round']}" for r in rounds]], [34, *[11] * len(rounds)])
     for area in AREAS:
-        summary.append([label(area), *[r["scores"].get(area, {}).get("score") for r in rounds]])
+        summary.append([label(area), *[shown(r["scores"].get(area, {}).get("score")) for r in rounds]])
         for cell in summary[summary.max_row][1:]:
             cell.border, cell.alignment = BORDER, Alignment(horizontal="center")
             if isinstance(cell.value, (int, float)):
                 cell.fill = GOOD if cell.value >= 8 else LOW
         summary[summary.max_row][0].border = BORDER
-    summary.append(["Lowest score", *[min(s["score"] for s in r["scores"].values()) for r in rounds]])
+    summary.append(["Lowest score", *[min(s["score"] for s in r["scores"].values() if s["score"] is not None) for r in rounds]])
     summary.append(["Issues reported", *[len(r["issues"]) for r in rounds]])
     summary.append(["Issues fixed", *[sum(1 for i in r["issues"] if i.get("status") == "Fixed") for r in rounds]])
     for row in summary.iter_rows(min_row=summary.max_row - 2, max_row=summary.max_row):
@@ -125,7 +130,7 @@ def build() -> None:
         header_row(ws, ["Area", "Score", "Tester's reason"], [30, 8, 90])
         for area in AREAS:
             s = r["scores"].get(area, {})
-            ws.append([label(area), s.get("score"), s.get("reason", "")])
+            ws.append([label(area), shown(s.get("score")), s.get("reason", "")])
             row = ws[ws.max_row]
             for cell in row:
                 cell.border, cell.alignment = BORDER, WRAP

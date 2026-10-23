@@ -3,14 +3,14 @@
 // AI_POLICY_VERSION, which asks users to re-confirm.
 
 export const SEMANTIC_SEARCH_DISCLOSURE =
-  'Bunko turns your highlights, quotes, notes, and reviews into search vectors on Bunko’s own servers, so you can ' +
-  'search them by meaning. Nothing is sent to an outside company. Turning this off deletes those vectors.';
+  'Bunko turns your highlights, quotes, notes, and reviews into a private search index on Bunko’s own servers, so you can ' +
+  'search them by meaning. Nothing is sent to an outside company. Turning this off deletes that index.';
 
 export const GENERATIVE_DISCLOSURE =
   'Powers the Assistant chat and book summaries. When you send the Assistant a message, Bunko sends it, the last few ' +
   'messages, and a summary of your library (titles, reading status, shelves) to NVIDIA’s AI service; a book summary ' +
   'sends that book’s highlights, notes, and review to Anthropic’s Claude API. Data is sent only when you ask, and ' +
-  'Bunko doesn’t store the replies. Needs semantic search to be on.';
+  'Bunko doesn’t store the replies. It also needs Search by meaning turned on.';
 
 export const TRANSLATION_DISCLOSURE =
   'When you ask to translate a chapter of a book in your library, Bunko sends that chapter’s text to Anthropic’s ' +

@@ -79,7 +79,7 @@ export function ShelfRow({
       >
         {works.length === 0 ? (
           <div className="flex h-24 w-full items-center justify-center">
-            <p className="font-display italic text-xs text-wood-200/85">No books on this rack yet. Drag volumes here.</p>
+            <p className="font-display italic text-xs text-wood-200/85">No books on this shelf yet. Drag books here.</p>
           </div>
         ) : (
           works.map((work) => (

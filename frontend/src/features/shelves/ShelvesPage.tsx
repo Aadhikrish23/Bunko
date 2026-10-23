@@ -25,7 +25,7 @@ import { AddToShelfDialog } from './AddToShelfDialog';
 
 const STATUS_RACKS: { status: ReadingStatus; label: string }[] = [
   { status: 'READING', label: 'Currently Reading' },
-  { status: 'WANT_TO_READ', label: 'To Read' },
+  { status: 'WANT_TO_READ', label: 'Want to Read' },
   { status: 'FINISHED', label: 'Finished' },
   { status: 'DID_NOT_FINISH', label: 'Did Not Finish' },
 ];
@@ -135,7 +135,7 @@ export function ShelvesPage() {
       await deleteShelf.mutateAsync(activeTab.shelfId);
       // Only leave the now-deleted tab once the delete actually succeeded —
       // switching first (the old behavior) meant a failed delete left the
-      // user on "All Volumes" with no sign anything went wrong.
+      // user on "All books" with no sign anything went wrong.
       setActiveTabId('all');
       setShowDeleteShelfConfirm(false);
     } catch (err) {
@@ -149,7 +149,7 @@ export function ShelvesPage() {
   // Define tabs with book counts for our catalog card selector
   const shelfTabs = useMemo(() => {
     const tabs: { id: string; label: string; count: number; isCustom?: boolean; shelfId?: string }[] = [
-      { id: 'all', label: 'All Volumes', count: allItems.length },
+      { id: 'all', label: 'All books', count: allItems.length },
     ];
 
     // Status racks (only include DID_NOT_FINISH if it has books, always show Reading/To Read/Finished)
@@ -362,7 +362,7 @@ export function ShelvesPage() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="font-serif text-xs italic tracking-wider text-paper-600">
-            Catalog Racks & Collections:
+            Your shelves
           </span>
           {!isCreating && (
             <button
@@ -435,7 +435,7 @@ export function ShelvesPage() {
                 )}
               </div>
               <p className="text-xs text-wood-200/85">
-                {visibleWorks.length} {visibleWorks.length === 1 ? 'volume' : 'volumes'} on shelf · drag, or focus a book and use the move buttons, to rearrange
+                {visibleWorks.length} {visibleWorks.length === 1 ? 'book' : 'books'} · drag to rearrange, or focus a book and use its arrows
               </p>
             </div>
           </div>
@@ -445,7 +445,7 @@ export function ShelvesPage() {
               <button
                 type="button"
                 onClick={() => setIsAddingBooks(true)}
-                className="focus-visible:focus-ring inline-flex items-center gap-1.5 rounded-md border border-wood-400/60 px-2.5 py-1 text-xs font-medium text-wood-100 hover:bg-white/10"
+                className="focus-visible:focus-ring inline-flex items-center gap-1.5 rounded-md border border-wood-400/60 px-2.5 py-1 text-xs font-medium text-paper-100 hover:bg-white/10"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add books
               </button>
@@ -458,8 +458,8 @@ export function ShelvesPage() {
                 aria-pressed={viewMode === 'cover'}
                 className={`rounded-md px-2.5 py-1 transition-colors ${
                   viewMode === 'cover'
-                    ? 'bg-wood-100 text-wood-900 shadow-sm font-semibold'
-                    : 'text-wood-100 hover:bg-white/10'
+                    ? 'bg-wood-200 text-wood-900 shadow-sm font-semibold'
+                    : 'text-paper-100 hover:bg-white/10'
                 }`}
               >
                 Covers
@@ -470,8 +470,8 @@ export function ShelvesPage() {
                 aria-pressed={viewMode === 'spine'}
                 className={`rounded-md px-2.5 py-1 transition-colors ${
                   viewMode === 'spine'
-                    ? 'bg-wood-100 text-wood-900 shadow-sm font-semibold'
-                    : 'text-wood-100 hover:bg-white/10'
+                    ? 'bg-wood-200 text-wood-900 shadow-sm font-semibold'
+                    : 'text-paper-100 hover:bg-white/10'
                 }`}
               >
                 Spines
@@ -485,7 +485,7 @@ export function ShelvesPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Filter this rack…"
-                className="focus-visible:focus-ring w-full rounded-md border border-wood-900/60 bg-[#25180f] py-1.5 pl-8 pr-2.5 text-xs text-wood-100 placeholder:text-wood-200/75"
+                className="focus-visible:focus-ring w-full rounded-md border border-wood-900/60 bg-[#25180f] py-1.5 pl-8 pr-2.5 text-xs text-paper-100 placeholder:text-wood-200/75"
               />
             </div>
           </div>

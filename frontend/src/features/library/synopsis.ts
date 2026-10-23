@@ -43,8 +43,17 @@ function stripPressQuote(text: string): string {
   return rest;
 }
 
+/** Markdown emphasis some catalogues send ("**From the *New York Times* bestselling...**"). */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/gs, '$1')
+    .replace(/__(.+?)__/gs, '$1')
+    .replace(/(^|[\s(“"])\*(?!\s)(.+?)(?<!\s)\*(?=[\s.,;:!?)”"]|$)/gm, '$1$2')
+    .replace(/(^|[\s(“"])_(?!\s)(.+?)(?<!\s)_(?=[\s.,;:!?)”"]|$)/gm, '$1$2');
+}
+
 export function cleanSynopsis(text: string): string {
-  const original = text.trim();
+  const original = stripMarkdown(text.trim());
   let current = original;
   for (let i = 0; i < 4; i++) {
     const next = stripCapsRun(stripPressQuote(current)).trim();

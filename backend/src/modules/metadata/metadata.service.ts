@@ -140,7 +140,8 @@ function toGoogleCandidate(item: GoogleBooksItem, targetLang?: string): Metadata
     coverImageUrl,
     firstPublishYear,
     description,
-    originalLanguage: detectedLang || 'Japanese',
+    // Google gives the edition's language, which says nothing about the original.
+    originalLanguage: null,
     language: userLang || detectedLang || 'English',
     partsCount,
     chaptersCount,
@@ -232,7 +233,7 @@ function toHardcoverCandidate(book: HardcoverBook, targetLang?: string): Metadat
     coverImageUrl: book.image?.url ?? null,
     firstPublishYear,
     description,
-    originalLanguage: 'Japanese',
+    originalLanguage: null, // not something the provider says; never guessed
     language: userLang || 'English',
     partsCount,
     chaptersCount,
@@ -405,7 +406,7 @@ function toOpenLibraryCandidate(doc: OpenLibraryDoc, targetLang?: string): Metad
     coverImageUrl,
     firstPublishYear: doc.first_publish_year ?? null,
     description,
-    originalLanguage: 'Japanese',
+    originalLanguage: null, // not something the provider says; never guessed
     language: userLang || 'English',
     partsCount,
     chaptersCount,
@@ -1329,7 +1330,7 @@ async function executeWaterfallSearch(trimmed: string, targetLang?: string): Pro
       const mapped = universeCandidates.map((c) => ({
         ...c,
         language: targetLang && targetLang !== 'all' ? normalizeLanguageName(targetLang) : c.language || 'English',
-        originalLanguage: c.originalLanguage || 'English',
+        originalLanguage: c.originalLanguage ?? null,
       }));
       return enrichMissingCovers(mapped);
     }
@@ -1463,21 +1464,26 @@ async function searchBookMetadataUncached(trimmed: string, targetLang?: string):
   }
 
   const allCandidates: MetadataCandidate[] = [];
-  const seenKeys = new Set<string>();
+  const indexByKey = new Map<string, number>();
+  const preferred = (targetLang && targetLang !== 'all' ? normalizeLanguageName(targetLang) : null) ?? 'English';
 
   for (const term of searchTerms) {
     const candidatesForTerm = await executeWaterfallSearch(term, targetLang);
     for (const c of candidatesForTerm) {
       const key = `${c.title.toLowerCase()}-${(c.authors || []).join(',').toLowerCase()}`;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
+      const at = indexByKey.get(key);
+      if (at === undefined) {
+        indexByKey.set(key, allCandidates.length);
         allCandidates.push(c);
+      } else if (allCandidates[at]!.language !== preferred && c.language === preferred) {
+        // The same book twice (e.g. Indonesian and English Circe): keep the reader's language.
+        allCandidates[at] = c;
       }
     }
     if (allCandidates.length >= 5) break;
   }
 
-  return rankByTitleMatch(trimmed, allCandidates);
+  return rankByTitleMatch(trimmed, allCandidates, preferred);
 }
 
 function titleKey(text: string): string {
@@ -1493,7 +1499,15 @@ function titleKey(text: string): string {
  * Closest titles first, keeping each provider's own order among equals: an exact title, then
  * the title before its subtitle, then titles containing every typed word, then the rest.
  */
-export function rankByTitleMatch<T extends { title: string }>(query: string, candidates: T[]): T[] {
+export function rankByTitleMatch<T extends { title: string; language?: string | null }>(
+  query: string,
+  candidates: T[],
+  preferredLanguage = 'English',
+): T[] {
+  // A Latin-script query matches editions in many languages equally ("Circe"); among equal
+  // matches the reader's language comes first. A query in another script already says which.
+  const latinQuery = !/[^\p{Script=Latin}\p{N}\p{P}\p{S}\s]/u.test(query);
+  const otherLanguage = (c: T) => (latinQuery && c.language && c.language !== preferredLanguage ? 1 : 0);
   const q = titleKey(query).replace(/^(the|a|an) /, '');
   const words = q.split(' ').filter(Boolean);
   const score = (c: T) => {
@@ -1507,7 +1521,7 @@ export function rankByTitleMatch<T extends { title: string }>(query: string, can
   };
   return candidates
     .map((c, i) => ({ c, i, s: score(c) }))
-    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .sort((a, b) => b.s - a.s || otherLanguage(a.c) - otherLanguage(b.c) || a.i - b.i)
     .map((x) => x.c);
 }
 

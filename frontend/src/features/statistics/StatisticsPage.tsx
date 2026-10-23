@@ -72,7 +72,7 @@ export function StatisticsPage() {
               <StatTile
                 label="Pages read"
                 value={statistics.data.pagesRead.toLocaleString()}
-                hint="EPUB pages are estimated"
+                hint={statistics.data.breakdowns.byFormat.some((f) => f.label === 'EPUB') ? 'EPUB pages are estimated' : undefined}
               />
               <StatTile label="Reading sessions" value={statistics.data.totalSessions.toLocaleString()} />
               <StatTile
@@ -112,6 +112,7 @@ export function StatisticsPage() {
                 title="Genres"
                 entries={statistics.data.breakdowns.byGenre}
                 formatLabel={(label) => label ?? 'No genre'}
+                noneRecorded="None of your books has a genre recorded yet."
               />
               <BreakdownList
                 title="Authors"
@@ -122,6 +123,7 @@ export function StatisticsPage() {
                 title="Languages"
                 entries={statistics.data.breakdowns.byLanguage}
                 formatLabel={(label) => (label ? languageLabel(label) : 'Not recorded')}
+                noneRecorded="None of your books has a language recorded yet."
               />
               <BreakdownList
                 title="Formats"
