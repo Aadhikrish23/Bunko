@@ -1,8 +1,9 @@
-import { ArrowLeft, FileText, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock, FileText, Plus, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { useDeleteWork, useUpdateWorkStatus, useWork } from '../../lib/api/works';
@@ -12,6 +13,7 @@ import { NotesPanel } from '../notes/NotesPanel';
 import { ReviewPanel } from '../reviews/ReviewPanel';
 import { BookSoundtrackPanel } from '../soundtrack/BookSoundtrackPanel';
 import { OfflineDownloadButton } from '../sync/OfflineDownloadButton';
+import { LogSessionDialog } from '../journal/LogSessionDialog';
 import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
@@ -52,6 +54,9 @@ export function BookDetailPage() {
   const updateStatus = useUpdateWorkStatus();
   const deleteWork = useDeleteWork();
   const [isAddEditionOpen, setIsAddEditionOpen] = useState(false);
+  const [attachTo, setAttachTo] = useState<{ editionId: string; format: 'EPUB' | 'PDF' } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [logging, setLogging] = useState(false);
 
   if (work.isLoading) return <PageSpinner />;
   if (work.isError || !work.data) {
@@ -102,11 +107,7 @@ export function BookDetailPage() {
 
           <button
             type="button"
-            onClick={async () => {
-              if (!confirm('Remove this book from your library? Your reading history is kept.')) return;
-              await deleteWork.mutateAsync(data.id);
-              navigate('/library');
-            }}
+            onClick={() => setConfirmRemove(true)}
             className="focus-visible:focus-ring flex items-center gap-1.5 self-start text-sm text-paper-700 hover:text-ember-600"
           >
             <Trash2 className="h-3.5 w-3.5" /> Remove from library
@@ -117,9 +118,14 @@ export function BookDetailPage() {
       <Card className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-lg text-paper-900">Editions</h2>
-          <Button size="sm" variant="secondary" onClick={() => setIsAddEditionOpen(true)}>
-            <Plus className="h-4 w-4" /> Add edition
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setLogging(true)}>
+              <Clock className="h-4 w-4" /> Log reading
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setIsAddEditionOpen(true)}>
+              <Plus className="h-4 w-4" /> Add edition
+            </Button>
+          </div>
         </div>
 
         {data.editions.length === 0 ? (
@@ -140,6 +146,18 @@ export function BookDetailPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <ContinueReadingButton journeyId={data.journeyId} edition={edition} coverImageUrl={data.coverImageUrl} />
                     <OfflineDownloadButton editionId={edition.id} title={data.title} />
+                  </div>
+                )}
+                {edition.format !== 'PHYSICAL' && !edition.copyId && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-paper-700">No file yet. Upload your {FORMAT_LABELS[edition.format]} to read it here.</p>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setAttachTo({ editionId: edition.id, format: edition.format as 'EPUB' | 'PDF' })}
+                    >
+                      <Upload className="h-4 w-4" /> Upload file
+                    </Button>
                   </div>
                 )}
               </li>
@@ -170,6 +188,27 @@ export function BookDetailPage() {
       </Card>
 
       {data.seriesName && <SeriesPanel seriesName={data.seriesName} siblings={data.seriesWorks} />}
+
+      {logging && <LogSessionDialog workId={data.id} onClose={() => setLogging(false)} />}
+
+      {attachTo && (
+        <AddEditionDialog workId={data.id} attachTo={attachTo} onClose={() => setAttachTo(null)} onAdded={() => setAttachTo(null)} />
+      )}
+
+      {confirmRemove && (
+        <ConfirmDialog
+          title={`Remove ${data.title}?`}
+          message="It comes off your shelves too. Your reading history, notes and review are kept, and you can add it back any time."
+          confirmLabel="Remove from library"
+          isConfirming={deleteWork.isPending}
+          onConfirm={async () => {
+            await deleteWork.mutateAsync(data.id);
+            setConfirmRemove(false);
+            navigate('/library');
+          }}
+          onClose={() => setConfirmRemove(false)}
+        />
+      )}
 
       {isAddEditionOpen && (
         <AddEditionDialog

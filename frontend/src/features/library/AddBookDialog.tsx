@@ -7,7 +7,8 @@ import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
 import { useMetadataSearch } from '../../lib/api/metadata';
 import type { MetadataCandidate } from '../../lib/api/types';
-import { useCreateWork } from '../../lib/api/works';
+import { useCreateWork, useUpdateWorkStatus } from '../../lib/api/works';
+import type { ReadingStatus } from '../../lib/api/types';
 import { errorMessage } from '../../lib/error-message';
 import { BookCover } from './BookCover';
 
@@ -57,6 +58,8 @@ export function AddBookDialog({
 
   const search = useMetadataSearch(debouncedQuery, selectedLang);
   const createWork = useCreateWork();
+  const updateStatus = useUpdateWorkStatus();
+  const [addAs, setAddAs] = useState<ReadingStatus>('WANT_TO_READ');
 
   async function addFromCandidate(candidate: MetadataCandidate) {
     setError(null);
@@ -71,12 +74,13 @@ export function AddBookDialog({
         externalSource: candidate.externalSource,
         externalId: candidate.externalId,
         description: candidate.description ?? null,
-        originalLanguage: candidate.originalLanguage || 'Japanese',
+        originalLanguage: candidate.originalLanguage || null,
         language: readingLang,
         partsCount: candidate.partsCount ?? null,
         chaptersCount: candidate.chaptersCount ?? null,
         seriesName: candidate.seriesName || null,
       });
+      if (addAs !== 'WANT_TO_READ') await updateStatus.mutateAsync({ workId: work.id, status: addAs });
       onAdded(work.id);
     } catch (err) {
       setError(errorMessage(err, 'Could not add this book.'));
@@ -125,26 +129,16 @@ export function AddBookDialog({
                   {selectedCandidate.firstPublishYear ? ` · ${selectedCandidate.firstPublishYear}` : ''}
                 </p>
 
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {selectedCandidate.originalLanguage && (
-                    <span className="rounded bg-amber-100/90 px-2 py-0.5 text-xs font-medium text-amber-900 border border-amber-200">
-                      Orig: {selectedCandidate.originalLanguage}
-                    </span>
-                  )}
-                  <span className="rounded bg-blue-100/90 px-2 py-0.5 text-xs font-medium text-blue-900 border border-blue-200">
-                    Added: {LANGUAGES.find((l) => l.code === selectedLang)?.code !== 'all' ? LANGUAGES.find((l) => l.code === selectedLang)?.label : (selectedCandidate.language || 'English')}
-                  </span>
-                  {selectedCandidate.partsCount && (
-                    <span className="rounded bg-emerald-100/90 px-2 py-0.5 text-xs font-medium text-emerald-900 border border-emerald-200">
-                      {selectedCandidate.partsCount} Parts
-                    </span>
-                  )}
-                  {selectedCandidate.chaptersCount && (
-                    <span className="rounded bg-purple-100/90 px-2 py-0.5 text-xs font-medium text-purple-900 border border-purple-200">
-                      {selectedCandidate.chaptersCount} Chapters
-                    </span>
-                  )}
-                </div>
+                <p className="text-xs text-paper-700">
+                  {[
+                    selectedCandidate.originalLanguage ? `Written in ${selectedCandidate.originalLanguage}` : null,
+                    selectedLang !== 'all' ? `your copy in ${LANGUAGES.find((l) => l.code === selectedLang)?.label}` : null,
+                    selectedCandidate.partsCount ? `${selectedCandidate.partsCount} parts` : null,
+                    selectedCandidate.chaptersCount ? `${selectedCandidate.chaptersCount} chapters` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
 
                 {selectedCandidate.description && (
                   <div className="mt-2 max-h-48 overflow-y-auto rounded-md bg-paper-100/60 p-3 border border-paper-200/60">
@@ -155,12 +149,35 @@ export function AddBookDialog({
               </div>
             </div>
 
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1 text-sm font-medium text-paper-800">Add it as</legend>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ['WANT_TO_READ', 'Want to read'],
+                    ['READING', 'Reading now'],
+                    ['FINISHED', 'Already read'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label
+                    key={value}
+                    className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-moss-500 ${
+                      addAs === value ? 'border-moss-600 bg-moss-100 text-moss-800' : 'border-paper-300 text-paper-700 hover:bg-paper-100'
+                    }`}
+                  >
+                    <input type="radio" name="add-as" value={value} checked={addAs === value} onChange={() => setAddAs(value)} className="sr-only" />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <div className="flex gap-2 pt-2 border-t border-paper-200">
               <Button variant="secondary" onClick={() => setSelectedCandidate(null)}>
                 Back to search
               </Button>
-              <Button onClick={() => addFromCandidate(selectedCandidate)} isLoading={createWork.isPending}>
-                Add to Library
+              <Button onClick={() => addFromCandidate(selectedCandidate)} isLoading={createWork.isPending || updateStatus.isPending}>
+                Add to library
               </Button>
             </div>
           </div>

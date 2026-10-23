@@ -53,7 +53,22 @@ export function ShelvesPage() {
   // browser's localStorage (shelf-order.ts stays as the instant-write
   // optimistic cache in front of this).
   const arrangementQuery = useShelfArrangement(activeTabId);
-  const [viewMode, setViewMode] = useState<'cover' | 'spine'>('cover');
+  // The reader's choice of covers or spines is remembered on this device.
+  const [viewMode, setViewModeState] = useState<'cover' | 'spine'>(() => {
+    try {
+      return localStorage.getItem('bunko:shelves-view') === 'spine' ? 'spine' : 'cover';
+    } catch {
+      return 'cover';
+    }
+  });
+  function setViewMode(mode: 'cover' | 'spine') {
+    setViewModeState(mode);
+    try {
+      localStorage.setItem('bunko:shelves-view', mode);
+    } catch {
+      // ignore: the choice just won't persist
+    }
+  }
   const [query, setQuery] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [newShelfName, setNewShelfName] = useState('');
@@ -427,10 +442,11 @@ export function ShelvesPage() {
               <button
                 type="button"
                 onClick={() => setViewMode('cover')}
+                aria-pressed={viewMode === 'cover'}
                 className={`rounded-md px-2.5 py-1 transition-colors ${
                   viewMode === 'cover'
-                    ? 'bg-wood-800 text-wood-100 shadow-sm font-semibold'
-                    : 'text-wood-200/75 hover:text-wood-200'
+                    ? 'bg-wood-100 text-wood-900 shadow-sm font-semibold'
+                    : 'text-wood-200/70 hover:text-wood-100'
                 }`}
               >
                 Covers
@@ -438,10 +454,11 @@ export function ShelvesPage() {
               <button
                 type="button"
                 onClick={() => setViewMode('spine')}
+                aria-pressed={viewMode === 'spine'}
                 className={`rounded-md px-2.5 py-1 transition-colors ${
                   viewMode === 'spine'
-                    ? 'bg-wood-800 text-wood-100 shadow-sm font-semibold'
-                    : 'text-wood-200/75 hover:text-wood-200'
+                    ? 'bg-wood-100 text-wood-900 shadow-sm font-semibold'
+                    : 'text-wood-200/70 hover:text-wood-100'
                 }`}
               >
                 Spines

@@ -18,7 +18,10 @@ export function BookCover({ title, coverImageUrl, className = '' }: BookCoverPro
       <img
         src={coverImageUrl}
         alt={`Cover of ${title}`}
-        className={`aspect-[2/3] w-full rounded-md object-cover shadow-card ${className}`}
+        loading="lazy"
+        decoding="async"
+        // A warm paper tint while the image arrives, rather than a blank grey tile.
+        className={`aspect-[2/3] w-full rounded-md bg-paper-200 object-cover shadow-card ${className}`}
       />
     );
   }

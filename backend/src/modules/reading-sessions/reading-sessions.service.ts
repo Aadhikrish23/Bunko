@@ -4,7 +4,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
 import { upsertCanonicalPosition, type CanonicalPositionData } from '../continuity/canonical-position';
 import { findUnitByClosestPage, findUnitByStructuralId, type ChapterGraph } from '../reader/chapter-graph';
-import type { EndSessionInput, ReportProgressInput, StartSessionInput } from './reading-sessions.schema';
+import type { EndSessionInput, LogSessionInput, ReportProgressInput, StartSessionInput } from './reading-sessions.schema';
 
 export interface SessionDto {
   id: string;
@@ -219,4 +219,49 @@ export async function canonicalPositionForSession(
     pageNumber: unit?.pageNumber ?? (session.medium === 'PDF' ? Number(session.endPosition) || null : null),
     confidence: null,
   };
+}
+
+/**
+ * Logs a reading session that already happened (SRS §6.3: manual override always available).
+ * It's recorded as ended, and moves the book's reading position only when it is the most
+ * recent reading of that book -- logging last Tuesday never rewinds where the reader is now.
+ */
+export async function logSession(userId: string, input: LogSessionInput, now = new Date()): Promise<SessionDto> {
+  const endTime = input.endedAt ?? now;
+  if (endTime.getTime() > now.getTime() + 60_000) throw new AppError('VALIDATION_ERROR', "A logged session can't end in the future");
+  const startTime = new Date(endTime.getTime() - input.minutes * 60_000);
+
+  const copy = await prisma.copy.findFirst({ where: { id: input.copyId, userId }, include: { edition: true } });
+  if (!copy) throw new AppError('NOT_FOUND', 'Copy not found in your library');
+  const journey = await prisma.readingJourney.upsert({
+    where: { userId_workId: { userId, workId: copy.edition.workId } },
+    create: { userId, workId: copy.edition.workId },
+    update: {},
+  });
+
+  const session = await prisma.readingSession.create({
+    data: {
+      userId,
+      journeyId: journey.id,
+      copyId: copy.id,
+      medium: copy.edition.format,
+      status: 'ENDED',
+      startTime,
+      endTime,
+      durationSeconds: input.minutes * 60,
+      startPosition: input.startPosition ?? null,
+      endPosition: input.endPosition ?? null,
+      reflection: input.reflection ?? null,
+    },
+  });
+
+  const newer = await prisma.readingSession.findFirst({
+    where: { journeyId: journey.id, status: 'ENDED', endTime: { gt: endTime }, id: { not: session.id } },
+    select: { id: true },
+  });
+  if (!newer) {
+    const position = await canonicalPositionForSession(session);
+    if (position) await upsertCanonicalPosition(journey.id, position, null);
+  }
+  return toSessionDto(session);
 }

@@ -178,3 +178,36 @@ test.describe('GET /statistics (T-023)', () => {
     expect(body.data).toHaveProperty('currentStreakDays');
   });
 });
+
+test.describe('POST /reading-sessions/log (R1-07)', () => {
+  test('logs a finished past session, counted in the journal with its book', async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest, 'PHYSICAL');
+    const endedAt = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    const res = await authedRequest.post('/api/v1/reading-sessions/log', {
+      data: { copyId, endedAt, minutes: 40, startPosition: 'p. 80', endPosition: 'p. 112', reflection: 'the statues!' },
+    });
+    expect(res.status()).toBe(201);
+    const session = (await res.json()).data;
+    expect(session).toMatchObject({ status: 'ENDED', durationSeconds: 2400, endPosition: 'p. 112' });
+
+    const journal = (await (await authedRequest.get('/api/v1/journal')).json()).data;
+    const entry = journal.find((e: { id: string }) => e.id === session.id);
+    expect(entry.book).toMatchObject({ format: 'PHYSICAL' });
+    expect(typeof entry.book.title).toBe('string');
+
+    const stats = (await (await authedRequest.get('/api/v1/statistics?tz=UTC')).json()).data;
+    expect(stats.pagesRead).toBe(32);
+  });
+
+  test('refuses a session that ends in the future, or another reader\'s copy', async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest, 'PHYSICAL');
+    const future = await authedRequest.post('/api/v1/reading-sessions/log', {
+      data: { copyId, endedAt: new Date(Date.now() + 86_400_000).toISOString(), minutes: 10 },
+    });
+    expect(future.status()).toBe(400);
+    const stranger = await authedRequest.post('/api/v1/reading-sessions/log', {
+      data: { copyId: '00000000-0000-0000-0000-000000000000', minutes: 10 },
+    });
+    expect(stranger.status()).toBe(404);
+  });
+});

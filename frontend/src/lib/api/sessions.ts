@@ -72,3 +72,21 @@ export function useEndSession() {
     },
   });
 }
+
+/** A session that already happened ("40 min last night, pages 80 to 112"). */
+export function useLogSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      copyId: string;
+      endedAt?: string;
+      minutes: number;
+      startPosition?: string | null;
+      endPosition?: string | null;
+      reflection?: string | null;
+    }) => api.post<ReadingSession>('/reading-sessions/log', input),
+    onSuccess: () => {
+      for (const queryKey of [['journal'], ['statistics'], ['works']]) void queryClient.invalidateQueries({ queryKey });
+    },
+  });
+}

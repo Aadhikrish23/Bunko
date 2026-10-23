@@ -17,6 +17,10 @@ export const EXPLICIT_ACTION =
 export const RECOMMEND_ASK =
   /\b(recommend|suggest|what should i read|what to read|read next|next read|something (like|to read|new)|anything like|books? like|similar to|in the mood for)\b/i;
 
+/** A recommendation that wants books beyond the reader's own list. */
+export const DISCOVERY_ASK =
+  /\b(like|similar|new|discover|haven'?t read|not (?:on|in) my (?:list|library)|outside my|something different|branch out)\b/i;
+
 /** An answer-mode reply claiming it changed something; it can't have. */
 export const CLAIMS_ACTION =
   /\bI(?:'ve| have)?\s+(?:just\s+|now\s+|also\s+)?(?:added|removed|marked|rated|reviewed|created|deleted|updated|put|moved|set|changed|saved|noted|shelved)\b/i;

@@ -30,6 +30,7 @@ export function ActivityChart({ buckets, range }: { buckets: TrendBucket[]; rang
   const ticks = niceTicks(max);
   const top = ticks[ticks.length - 1] || 1;
   const labelled = axisLabelIndices(buckets.length);
+  const sessionCount = buckets.reduce((sum, bucket) => sum + bucket.sessions, 0);
   const isEmpty = max === 0;
   const activeBucket = active !== null ? buckets[active] : undefined;
 
@@ -102,7 +103,7 @@ export function ActivityChart({ buckets, range }: { buckets: TrendBucket[]; rang
                 className="flex h-full min-w-0 flex-1 items-end justify-center"
                 onPointerEnter={() => setActive(index)}
               >
-                {bucket.minutesRead > 0 && (
+                {(bucket.minutesRead > 0 || bucket.sessions > 0) && (
                   <div
                     className={`w-full max-w-[24px] rounded-t-[4px] ${active === index ? 'bg-chart-bar-hover' : 'bg-chart-bar'}`}
                     style={{ height: `max(2px, ${(bucket.minutesRead / top) * 100}%)` }}
@@ -113,7 +114,9 @@ export function ActivityChart({ buckets, range }: { buckets: TrendBucket[]; rang
 
             {isEmpty && (
               <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-paper-600">
-                No reading sessions in this period yet.
+                {sessionCount === 0
+                  ? 'No reading sessions in this period yet.'
+                  : `${sessionCount === 1 ? 'One session' : `${sessionCount} sessions`}, each under a minute.`}
               </p>
             )}
 

@@ -45,14 +45,21 @@ export function NotesPanel({ workId }: { workId: string }) {
           {items.map((note) => (
             <li key={note.id} className="rounded-md border border-paper-200 bg-paper-100/70 p-3">
               <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1 rounded bg-paper-200 px-1.5 py-0.5 text-[10px] font-bold text-paper-700">
-                  {SCOPE_LABELS[note.scope] ?? note.scope}
+                <span className="flex items-center gap-2 text-xs text-paper-700">
+                  <span className="inline-flex items-center gap-1 rounded bg-paper-200 px-1.5 py-0.5 text-[10px] font-bold text-paper-700">
+                    {SCOPE_LABELS[note.scope] ?? note.scope}
+                    {note.position ? ` · ${note.position}` : ''}
+                  </span>
+                  <time dateTime={note.createdAt}>
+                    {new Date(note.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </time>
                 </span>
                 <button
                   type="button"
                   onClick={() => setDeletingId(note.id)}
-                  className="p-1 text-paper-400 hover:text-red-600 rounded"
+                  className="focus-visible:focus-ring rounded p-1 text-paper-400 hover:text-ember-600"
                   title="Delete note"
+                  aria-label="Delete note"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

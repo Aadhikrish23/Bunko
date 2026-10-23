@@ -1,4 +1,9 @@
-import { Highlighter, NotebookPen, Quote, StickyNote } from 'lucide-react';
+import { Highlighter, NotebookPen, Plus, Quote, StickyNote } from 'lucide-react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Button } from '../../components/ui/Button';
+import { BookCover } from '../library/BookCover';
+import { LogSessionDialog } from './LogSessionDialog';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
@@ -10,26 +15,45 @@ function formatDate(iso: string): string {
 }
 
 function formatDuration(seconds: number | null): string {
-  if (!seconds) return '—';
+  if (!seconds) return 'Under a minute';
   const minutes = Math.round(seconds / 60);
-  return `${minutes} min`;
+  if (minutes < 1) return 'Under a minute';
+  return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60 ? `${minutes % 60} min` : ''}`.trim() : `${minutes} min`;
 }
+
+const FORMAT = { PHYSICAL: 'Paper', EPUB: 'EPUB', PDF: 'PDF' } as const;
 
 export function JournalPage() {
   const journal = useJournal();
+  const [logging, setLogging] = useState(false);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl text-paper-900">Journal</h1>
-        <p className="mt-1 text-sm text-paper-600">A chronological record of your reading activity.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl text-paper-900">Journal</h1>
+          <p className="mt-1 text-sm text-paper-600">Every reading session, newest first.</p>
+        </div>
+        <Button size="sm" onClick={() => setLogging(true)}>
+          <Plus className="h-4 w-4" /> Log reading
+        </Button>
       </div>
+      {logging && <LogSessionDialog onClose={() => setLogging(false)} />}
 
       {journal.isLoading && <PageSpinner />}
       {journal.isError && <ErrorBanner message={errorMessage(journal.error, 'Could not load your journal.')} />}
 
       {journal.data && journal.data.items.length === 0 && (
-        <EmptyState icon={NotebookPen} title="No sessions yet" description="Finish a reading session to see it here." />
+        <EmptyState
+          icon={NotebookPen}
+          title="Your journal is empty"
+          description="It fills itself as you read in Bunko or time a session with a paper book. Read something already? Log it."
+          action={
+            <Button size="sm" variant="secondary" onClick={() => setLogging(true)}>
+              <Plus className="h-4 w-4" /> Log reading
+            </Button>
+          }
+        />
       )}
 
       {journal.data && journal.data.items.length > 0 && (
@@ -39,12 +63,24 @@ export function JournalPage() {
               <div className="w-20 flex-shrink-0 pt-0.5 text-xs font-medium text-paper-700">
                 {formatDate(entry.startTime)}
               </div>
+              <Link to={`/library/${entry.book.workId}`} className="focus-visible:focus-ring w-10 shrink-0 rounded-md" aria-hidden="true" tabIndex={-1}>
+                <BookCover title={entry.book.title} coverImageUrl={entry.book.coverImageUrl} />
+              </Link>
               <div className="flex-1">
-                <p className="text-sm text-paper-800">
+                <Link
+                  to={`/library/${entry.book.workId}`}
+                  className="focus-visible:focus-ring rounded font-display text-base text-paper-900 hover:text-moss-700"
+                >
+                  {entry.book.title}
+                </Link>
+                <p className="mt-0.5 text-sm text-paper-800">
                   <span className="font-medium">{formatDuration(entry.durationSeconds)}</span>
-                  {entry.startPosition && entry.endPosition && (
+                  <span className="text-paper-700"> · {FORMAT[entry.book.format]}</span>
+                  {entry.startPosition && entry.endPosition ? (
                     <span className="text-paper-700"> · {entry.startPosition} → {entry.endPosition}</span>
-                  )}
+                  ) : entry.endPosition && !/^(epubcfi|outline-|[a-z0-9_-]{8,}$)/i.test(entry.endPosition) ? (
+                    <span className="text-paper-700"> · stopped at {entry.endPosition}</span>
+                  ) : null}
                 </p>
                 {entry.reflection && <p className="mt-1 text-sm italic text-paper-600">“{entry.reflection}”</p>}
 

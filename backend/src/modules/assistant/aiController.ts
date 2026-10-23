@@ -47,9 +47,14 @@ class UnconfiguredProvider implements AIProvider {
 registerProvider("mock", () => new MockBooksProvider());
 
 function buildProvider(): AIProvider {
+  // No key: say so on every model call instead of letting the provider fail with a 401.
+  if (AIConfig.aiProvider === "nvidia" && !AIConfig.nvidiaApiKey) {
+    coreLog.warn("[assistant] NVIDIA_API_KEY is not set; messages that need the model will say the AI isn't set up.");
+    return new UnconfiguredProvider("NVIDIA NIM is not configured: NVIDIA_API_KEY is not set.");
+  }
   const chosen = createProvider(AIConfig.aiProvider);
   if (chosen) return new GuardedProvider(chosen);
-  const reason = `AI_PROVIDER "${AIConfig.aiProvider}" isn't one of: ${providerNames().join(", ")}`;
+  const reason = `AI_PROVIDER "${AIConfig.aiProvider}" is not configured: it isn't one of ${providerNames().join(", ")}`;
   coreLog.warn(`[assistant] ${reason}. The assistant will report itself unavailable.`);
   return new UnconfiguredProvider(reason);
 }
@@ -76,6 +81,10 @@ function runExclusivePerUser<T>(userId: string, task: () => Promise<T>): Promise
   return next;
 }
 
+const NOT_SET_UP_MESSAGE =
+  "My AI model isn't set up on this server yet, so I can only do plain commands and questions about your library right now. Try something like \"finished Circe, 4 stars\", \"put Dune on my Sci-Fi shelf\" or \"what am I reading?\".";
+const SOMETHING_WENT_WRONG = "Something went wrong on my side, so I didn't change anything. Could you try that again, maybe in other words?";
+
 /** What a client sees of a reply; the runtime's profiling metrics stay on the server. */
 function toReply(result: Record<string, any>) {
   return {
@@ -101,6 +110,11 @@ export class AIController {
         sendOk(res, toReply(result));
       } catch (error: any) {
         if (error && error.code === "AI_PROVIDER_UNAVAILABLE") {
+          // Misconfigured (no or rejected key): retrying won't help, so it's a plain reply.
+          if (/not configured/i.test(String(error.message ?? ""))) {
+            sendOk(res, { success: false, status: "FAILED", message: NOT_SET_UP_MESSAGE });
+            return;
+          }
           const slow = /timed out/i.test(String(error.message ?? ""));
           throw new AppError("AI_UNAVAILABLE", slow ? AI_SLOW_MESSAGE : AI_OFFLINE_MESSAGE);
         }
@@ -118,7 +132,9 @@ export class AIController {
           sendOk(res, { success: false, status: "FAILED", message: error.message || "I can't do that." });
           return;
         }
-        throw error;
+        // Anything else is our bug: log it, but answer like a person, with nothing changed.
+        req.log.error({ err: error }, "assistant chat failed");
+        sendOk(res, { success: false, status: "FAILED", message: SOMETHING_WENT_WRONG });
       }
     } catch (error) {
       next(error);

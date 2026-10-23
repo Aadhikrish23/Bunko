@@ -1464,6 +1464,33 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ReadingSessionResponse" }
 
+  /reading-sessions/log:
+    post:
+      summary: "Log a reading session that already happened (SRS §6.3 manual override)"
+      description: "Recorded as ENDED. Moves the book's reading position only when it is the most recent reading of that book. With both a start and an end page, the pages count toward statistics."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [copyId, minutes]
+              properties:
+                copyId: { type: string, format: uuid }
+                endedAt: { type: string, format: date-time, description: "Defaults to now; can't be in the future" }
+                minutes: { type: integer, minimum: 1, maximum: 720 }
+                startPosition: { type: string, nullable: true, description: "e.g. \"p. 80\"" }
+                endPosition: { type: string, nullable: true, description: "e.g. \"p. 112\"" }
+                reflection: { type: string, nullable: true, maxLength: 5000 }
+      responses:
+        "201":
+          description: "The logged session"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadingSessionResponse" }
+        "400": { description: "Invalid input or a future end time" }
+        "404": { description: "Copy not in the caller's library" }
+
   /reading-sessions/{sessionId}/end:
     post:
       summary: End a session (idempotent, SRS §12.9 step 4-5)
@@ -2245,6 +2272,14 @@ components:
         startPosition: { type: string, nullable: true }
         endPosition: { type: string, nullable: true }
         reflection: { type: string, nullable: true }
+        book:
+          type: object
+          description: "The book the session was with, so an entry can name and link to it"
+          properties:
+            workId: { type: string, format: uuid }
+            title: { type: string }
+            coverImageUrl: { type: string, nullable: true }
+            format: { type: string, enum: [PHYSICAL, EPUB, PDF] }
         annotations:
           type: array
           items: { $ref: "#/components/schemas/Annotation" }

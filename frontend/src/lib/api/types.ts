@@ -95,6 +95,7 @@ export interface ReadingSession {
 }
 
 export interface JournalEntry extends ReadingSession {
+  book: { workId: string; title: string; coverImageUrl: string | null; format: EditionFormat };
   annotations: Annotation[];
   notes: Note[];
 }

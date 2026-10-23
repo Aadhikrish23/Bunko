@@ -58,7 +58,17 @@ export function useUpdateWorkStatus() {
   return useMutation({
     mutationFn: ({ workId, status }: { workId: string; status: ReadingStatus }) =>
       api.patch<Work>(`/works/${workId}`, { status }),
-    onSuccess: (_data, variables) => {
+    // Show the new status at once; the server catches up (and wins) a moment later.
+    onMutate: async ({ workId, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['works', workId] });
+      const previous = queryClient.getQueryData<Work>(['works', workId]);
+      if (previous) queryClient.setQueryData<Work>(['works', workId], { ...previous, status });
+      return { previous };
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previous) queryClient.setQueryData(['works', variables.workId], context.previous);
+    },
+    onSettled: (_data, _err, variables) => {
       queryClient.invalidateQueries({ queryKey: ['works'] });
       queryClient.invalidateQueries({ queryKey: ['works', variables.workId] });
     },

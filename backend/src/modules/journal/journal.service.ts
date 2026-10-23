@@ -5,6 +5,8 @@ import type { SessionDto } from '../reading-sessions/reading-sessions.service';
 import type { ListJournalQuery } from './journal.schema';
 
 export interface JournalEntryDto extends SessionDto {
+  /** Which book the session was with, so an entry can say so and link to it. */
+  book: { workId: string; title: string; coverImageUrl: string | null; format: string };
   annotations: AnnotationDto[];
   notes: NoteDto[];
 }
@@ -57,6 +59,9 @@ export async function listJournal(
       orderBy: { startTime: 'desc' },
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
+      include: {
+        copy: { select: { edition: { select: { format: true, workId: true, work: { select: { title: true, coverImageUrl: true } } } } } },
+      },
     }),
     prisma.readingSession.count({ where }),
   ]);
@@ -73,6 +78,12 @@ export async function listJournal(
 
   const items = rows.map((row) => ({
     ...toSessionDto(row),
+    book: {
+      workId: row.copy.edition.workId,
+      title: row.copy.edition.work.title,
+      coverImageUrl: row.copy.edition.work.coverImageUrl,
+      format: row.copy.edition.format,
+    },
     annotations: annotationRows.filter((a) => a.sessionId === row.id).map(toAnnotationDto),
     notes: noteRows.filter((n) => n.sessionId === row.id).map(toNoteDto),
   }));

@@ -264,7 +264,7 @@ export class AIRuntime {
         if (outcome.success && !outcome.status?.match(/CONFIRMATION|CLARIFICATION/)) {
           const offer = await domain.followUpOffer(userId, plan, cleanRequest).catch(() => undefined);
           if (offer) {
-            pendingConfirmations.put(userId, { run: offer.run, label: offer.label, collection: offer.collection });
+            pendingConfirmations.put(userId, { run: offer.run, label: offer.label, collection: offer.collection, cancelMessage: offer.cancelMessage });
             return finish({ ...outcome, message: `${outcome.message} ${offer.question}` });
           }
         }

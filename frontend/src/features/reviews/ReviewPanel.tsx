@@ -135,6 +135,7 @@ export function ReviewPanel({ workId }: { workId: string }) {
           maxLength={10_000}
           className="w-full rounded-md border border-paper-300 bg-paper-50 p-2.5 text-sm text-paper-900 focus:border-moss-600 focus:outline-none"
         />
+        <p className="text-xs text-paper-600">Private: only you can see your ratings, reviews and notes, so spoil away.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

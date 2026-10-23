@@ -30,8 +30,10 @@ test.describe('groupWorksForShelf', () => {
 
   test('groups by series first, sorted alphabetically by series name', () => {
     const works = [
-      mockWork('1', 'Zed Book', { seriesName: 'Zeta Series' }),
-      mockWork('2', 'Alpha Book', { seriesName: 'Alpha Series' }),
+      mockWork('1', 'Zed One', { seriesName: 'Zeta Series' }),
+      mockWork('2', 'Alpha One', { seriesName: 'Alpha Series' }),
+      mockWork('3', 'Zed Two', { seriesName: 'Zeta Series' }),
+      mockWork('4', 'Alpha Two', { seriesName: 'Alpha Series' }),
     ];
     const groups = groupWorksForShelf(works);
     expect(groups.map((g) => g.label)).toEqual(['Alpha Series', 'Zeta Series']);
@@ -41,6 +43,8 @@ test.describe('groupWorksForShelf', () => {
     const works = [
       mockWork('1', 'A', { genres: ['Fantasy'] }),
       mockWork('2', 'B', { genres: ['Sci-Fi'] }),
+      mockWork('3', 'C', { genres: ['Fantasy'] }),
+      mockWork('4', 'D', { genres: ['Sci-Fi'] }),
     ];
     const groups = groupWorksForShelf(works);
     expect(groups.map((g) => g.label)).toEqual(['Fantasy', 'Sci-Fi']);
@@ -51,6 +55,8 @@ test.describe('groupWorksForShelf', () => {
       mockWork('1', 'A', { genres: ['Fantasy'] }),
       mockWork('2', 'B', { seriesName: 'A Series' }),
       mockWork('3', 'C'),
+      mockWork('4', 'D', { genres: ['Fantasy'] }),
+      mockWork('5', 'E', { seriesName: 'A Series' }),
     ];
     const groups = groupWorksForShelf(works);
     expect(groups.map((g) => g.label)).toEqual(['A Series', 'Fantasy', 'More Books']);
@@ -58,10 +64,27 @@ test.describe('groupWorksForShelf', () => {
   });
 
   test('a work with both a series and a genre is grouped by series, not genre', () => {
-    const works = [mockWork('1', 'A', { seriesName: 'A Series', genres: ['Fantasy'] })];
+    const works = [
+      mockWork('1', 'A', { seriesName: 'A Series', genres: ['Fantasy'] }),
+      mockWork('2', 'B', { seriesName: 'A Series', genres: ['Fantasy'] }),
+    ];
     const groups = groupWorksForShelf(works);
     expect(groups).toHaveLength(1);
     expect(groups[0]!.label).toBe('A Series');
+  });
+
+  test('a series or genre of one book shares the general row instead of a row of its own (R1-12)', () => {
+    const works = [
+      mockWork('1', 'Dune', { seriesName: 'Dune' }),
+      mockWork('2', 'The Left Hand of Darkness', { seriesName: 'Hainish Cycle', genres: ['Science Fiction'] }),
+      mockWork('3', 'Hyperion', { genres: ['Science Fiction'] }),
+      mockWork('4', 'Circe', { genres: ['Mythology'] }),
+    ];
+    const groups = groupWorksForShelf(works);
+    expect(groups.map((g) => [g.label, g.works.map((w) => w.title)])).toEqual([
+      ['Science Fiction', ['The Left Hand of Darkness', 'Hyperion']],
+      ['More Books', ['Dune', 'Circe']],
+    ]);
   });
 
   test('empty shelf returns no groups', () => {

@@ -3,7 +3,7 @@ import { requestDeviceId } from '../../lib/device-id';
 import { requireUserId } from '../../lib/require-user';
 import { sendOk } from '../../lib/response';
 import * as sessionsService from './reading-sessions.service';
-import type { EndSessionInput, ReportProgressInput, StartSessionInput } from './reading-sessions.schema';
+import type { EndSessionInput, LogSessionInput, ReportProgressInput, StartSessionInput } from './reading-sessions.schema';
 
 export async function startSessionHandler(
   req: Request<unknown, unknown, StartSessionInput>,
@@ -71,6 +71,19 @@ export async function endSessionHandler(
       requestDeviceId(req),
     );
     sendOk(res, dto);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function logSessionHandler(
+  req: Request<unknown, unknown, LogSessionInput>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const dto = await sessionsService.logSession(requireUserId(req), req.body);
+    sendOk(res, dto, 201);
   } catch (err) {
     next(err);
   }

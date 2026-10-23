@@ -178,4 +178,6 @@ export interface FollowUpOffer {
   label: string;
   collection?: string;
   run: () => Promise<string>;
+  /** What "no" replies (default: "Okay, I kept <label>."). */
+  cancelMessage?: string;
 }

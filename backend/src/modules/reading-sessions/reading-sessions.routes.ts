@@ -4,6 +4,7 @@ import { validate } from '../../middleware/validate';
 import * as controller from './reading-sessions.controller';
 import {
   endSessionSchema,
+  logSessionSchema,
   reportProgressSchema,
   sessionIdParamsSchema,
   startSessionSchema,
@@ -12,6 +13,7 @@ import {
 export const readingSessionsRouter = Router();
 
 readingSessionsRouter.post('/', authMiddleware, validate(startSessionSchema), controller.startSessionHandler);
+readingSessionsRouter.post('/log', authMiddleware, validate(logSessionSchema), controller.logSessionHandler);
 readingSessionsRouter.patch(
   '/:sessionId/progress',
   authMiddleware,

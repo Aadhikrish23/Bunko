@@ -73,7 +73,7 @@ export function ShelfRow({
             onDropEndZone();
           }
         }}
-        className={`bg-shelf-back relative flex items-end overflow-x-auto rounded-t-sm pb-0 ${
+        className={`bg-shelf-back relative flex items-end overflow-x-auto overflow-y-hidden rounded-t-sm pb-0 [scrollbar-color:theme(colors.wood.700)_transparent] [scrollbar-width:thin] ${
           viewMode === 'cover' ? 'min-h-[164px] gap-3.5 px-4 pt-5' : 'min-h-[240px] gap-2 px-3 pt-5'
         }`}
       >

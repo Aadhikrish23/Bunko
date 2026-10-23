@@ -73,6 +73,7 @@ export async function followUpOffer(userId: string, plan: IntentPlan, message: s
   return {
     question: `It's marked ${STATUS_LABEL[book.status]}; want me to mark it Finished?`,
     label: book.title,
+    cancelMessage: `Okay, ${book.title} stays as ${STATUS_LABEL[book.status]}.`,
     run: async () => {
       await updateWork(userId, book._id, { status: 'FINISHED' });
       return `I've marked ${book.title} as Finished.`;

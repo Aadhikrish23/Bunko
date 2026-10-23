@@ -151,7 +151,7 @@ test.describe('GET /statistics (T-053)', () => {
     ]);
     expect(breakdowns.byLanguage).toEqual([
       { label: null, count: 2 },
-      { label: 'en', count: 1 },
+      { label: 'English', count: 1 }, // codes and lowercase names are shown as language names (R1-09)
     ]);
     expect(breakdowns.byFormat).toEqual([
       { label: 'PDF', count: 2 },

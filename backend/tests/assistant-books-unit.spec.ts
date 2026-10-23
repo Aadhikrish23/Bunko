@@ -82,9 +82,11 @@ test.describe('plain commands', () => {
     expect(intents.map((i) => i.type)).toEqual(['SetStatus', 'RateBook']);
   });
 
-  test('book lists split, but not inside a title the reader owns', () => {
-    expect(splitBookList('dune and circe')).toEqual(['dune', 'circe']);
-    expect(splitBookList('dune, pride and prejudice and circe', ['Pride and Prejudice'])).toEqual(['dune', 'pride and prejudice', 'circe']);
+  test('book lists split into owned books only, never inside a title', () => {
+    expect(splitBookList('dune and circe', ['Dune', 'Circe'])).toEqual(['dune', 'circe']);
+    // Not known books: "and" may belong to a title, so it stays whole for the model.
+    expect(splitBookList('dune and circe')).toEqual(['dune and circe']);
+    expect(splitBookList('dune, pride and prejudice and circe', ['Pride and Prejudice', 'Dune', 'Circe'])).toEqual(['dune', 'pride and prejudice', 'circe']);
     expect(splitBookList('pride and prejudice', ['Pride and Prejudice'])).toEqual(['pride and prejudice']);
   });
 
@@ -96,6 +98,24 @@ test.describe('plain commands', () => {
       { type: 'Text', value: 'the house was unforgettable' },
     ]);
     expect(parseCommands('finished circe, loved it')![0]!.targets[0]!.name).toBe('circe');
+  });
+
+  test('titles with commas survive clause splitting; filler words are ignored (R1-03)', () => {
+    const owned = ['Tomorrow, and Tomorrow, and Tomorrow', 'Circe'];
+    const [started] = parseCommands('I started Tomorrow, and Tomorrow, and Tomorrow', owned)!;
+    expect(started!.targets[0]!.name).toBe('Tomorrow, and Tomorrow, and Tomorrow');
+    const two = parseCommands("ok i started tomorrow and tomorrow and tomorrow. and dnf circe tbh, couldnt get into it", owned)!;
+    expect(two.map((i) => [i.type, i.targets[0]!.name])).toEqual([
+      ['SetStatus', 'Tomorrow, and Tomorrow, and Tomorrow'],
+      ['SetStatus', 'circe'],
+    ]);
+    expect(parseCommands('rate it 5 stars actually', owned)![0]!.parameters).toEqual([{ type: 'Rating', value: 5 }]);
+    expect(parseCommands('and add it to my comfort reads shelf', owned)![0]!.type).toBe('OrganizeShelf');
+  });
+
+  test('a typo in an owned title still matches it (R1-04)', () => {
+    expect(titleScore('tomorow and tomorrow', 'Tomorrow, and Tomorrow, and Tomorrow')).toBeGreaterThanOrEqual(80);
+    expect(titleScore('tomorrow', 'Tomorrow, and Tomorrow, and Tomorrow')).toBeGreaterThanOrEqual(80);
   });
 
   test('anything that is not a plain command goes to the model', () => {

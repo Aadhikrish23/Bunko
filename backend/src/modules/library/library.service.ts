@@ -144,6 +144,9 @@ async function syncRelatedSeriesWorks(
   try {
     const discovery = await discoverRelatedBooks(work.title, authorNames[0]);
     if (!discovery || discovery.books.length === 0) return work.seriesId;
+    // A "series" named after the book itself (Wikidata often files a famous novel as its own
+    // franchise: "Dune" in "Dune") isn't a series to the reader; it only repeats the title.
+    if (coverKey(discovery.seriesName) === coverKey(work.title)) return work.seriesId;
 
     let seriesId = work.seriesId;
     if (!seriesId) {
@@ -213,45 +216,60 @@ async function getUserWorkOrThrow(userId: string, workId: string): Promise<WorkS
     throw new AppError('NOT_FOUND', 'Work not found in your library');
   }
 
-  let seriesWorks = userWork.work.seriesId
+  const seriesWorks = userWork.work.seriesId
     ? await getSeriesSiblings(userWork.work.seriesId, userWork.work.id, userId)
     : [];
 
-  // If no series siblings exist yet, lazily attempt discovery so previously
-  // added books also receive their related siblings on their detail page
+  // Books added before series discovery existed get their siblings found lazily -- in the
+  // background (a third-party lookup taking seconds), so opening a book never waits on it;
+  // the siblings appear on the next visit.
+  const authorNames = userWork.work.authors.map((wa) => wa.author.name);
   if (seriesWorks.length === 0) {
-    const authorNames = userWork.work.authors.map((wa) => wa.author.name);
-    const resolvedSeriesId = await syncRelatedSeriesWorks(
-      {
-        id: userWork.work.id,
-        title: userWork.work.title,
-        seriesId: userWork.work.seriesId,
-        genres: userWork.work.genres,
-      },
-      authorNames,
-    );
-    if (resolvedSeriesId) {
-      seriesWorks = await getSeriesSiblings(resolvedSeriesId, userWork.work.id, userId);
-    }
+    const work = { id: userWork.work.id, title: userWork.work.title, seriesId: userWork.work.seriesId, genres: userWork.work.genres };
+    void syncRelatedSeriesWorks(work, authorNames).catch((err) => logger.warn({ err, workId: work.id }, 'Related-series discovery failed'));
   }
-
-  if (!userWork.work.coverImageUrl) {
-    try {
-      const candidates = await searchBookMetadata(userWork.work.title);
-      const matched = candidates.find((c) => c.coverImageUrl);
-      if (matched?.coverImageUrl) {
-        await prisma.work.update({
-          where: { id: userWork.work.id },
-          data: { coverImageUrl: matched.coverImageUrl },
-        });
-        userWork.work.coverImageUrl = matched.coverImageUrl;
-      }
-    } catch {
-      // Ignore background cover enrichment failure
-    }
-  }
+  // Same for a missing cover, and only one that's clearly this book (pickMatchingCover).
+  if (!userWork.work.coverImageUrl) fillCoverInBackground(userWork.work.id, userWork.work.title, authorNames);
 
   return toWorkDto(userWork, journey?.id ?? null, seriesWorks);
+}
+
+/** Lowercase letters/digits of any script, subtitle and leading article removed. */
+function coverKey(title: string): string {
+  return (title.split(/\s*[:;—–(\[]/)[0] ?? title)
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/^(the|a|an) /, '');
+}
+
+/**
+ * The cover for a book added without one -- only from a search result that is clearly the same
+ * book: the same main title and, when an author is known, a shared author surname. Otherwise no
+ * cover at all (the shelf shows its cloth-cover fallback) rather than some other book's art.
+ */
+export function pickMatchingCover(title: string, authors: string[], candidates: { title: string; authors: string[]; coverImageUrl: string | null }[]): string | null {
+  const want = coverKey(title);
+  if (!want) return null;
+  const surnames = authors.map((a) => coverKey(a).split(' ').pop()).filter((s): s is string => Boolean(s && s.length >= 2));
+  const match = candidates.find(
+    (c) =>
+      c.coverImageUrl &&
+      coverKey(c.title) === want &&
+      (surnames.length === 0 || c.authors.some((a) => surnames.some((s) => coverKey(a).split(' ').includes(s)))),
+  );
+  return match?.coverImageUrl ?? null;
+}
+
+function fillCoverInBackground(workId: string, title: string, authors: string[]): void {
+  void (async () => {
+    const candidates = await searchBookMetadata(authors[0] ? `${title} ${authors[0]}` : title);
+    const cover = pickMatchingCover(title, authors, candidates);
+    // Only fills a cover that is still missing (another add may have set one meanwhile).
+    if (cover) await prisma.work.updateMany({ where: { id: workId, coverImageUrl: null }, data: { coverImageUrl: cover } });
+  })().catch((err) => logger.warn({ err, workId }, 'Cover lookup failed'));
 }
 
 export async function createWork(
@@ -286,18 +304,8 @@ export async function createWork(
     // with fresh incoming values or fallback search.
     const updateData: Prisma.WorkUpdateInput = {};
 
-    let newCover = input.coverImageUrl ?? null;
-    if (!newCover && !work.coverImageUrl) {
-      try {
-        const candidates = await searchBookMetadata(input.title);
-        const matched = candidates.find((c) => c.coverImageUrl);
-        if (matched?.coverImageUrl) {
-          newCover = matched.coverImageUrl;
-        }
-      } catch {
-        // Ignore fallback error
-      }
-    }
+    const newCover = input.coverImageUrl ?? null;
+    if (!newCover && !work.coverImageUrl) fillCoverInBackground(work.id, input.title, input.authors);
 
     if (!work.coverImageUrl && newCover) {
       updateData.coverImageUrl = newCover;
@@ -341,18 +349,7 @@ export async function createWork(
         ? await fetchWorkDescription(input.externalSource, input.externalId)
         : null);
 
-    let coverImageUrl = input.coverImageUrl ?? null;
-    if (!coverImageUrl) {
-      try {
-        const candidates = await searchBookMetadata(input.title);
-        const matched = candidates.find((c) => c.coverImageUrl);
-        if (matched?.coverImageUrl) {
-          coverImageUrl = matched.coverImageUrl;
-        }
-      } catch {
-        // Ignore fallback error
-      }
-    }
+    const coverImageUrl = input.coverImageUrl ?? null;
 
     work = await prisma.work.create({
       data: {
@@ -378,16 +375,14 @@ export async function createWork(
       });
     }
 
-    // Automatically discover and link related works in the same series or universe
-    await syncRelatedSeriesWorks(
-      {
-        id: work.id,
-        title: work.title,
-        seriesId: work.seriesId,
-        genres: work.genres,
-      },
-      input.authors,
+    // Discover and link related works in the same series or universe, and find a cover when
+    // none was given. Both are slow third-party lookups (seconds), so they run after the book
+    // is saved instead of holding up the reader's "Add".
+    const created = { id: work.id, title: work.title, seriesId: work.seriesId, genres: work.genres };
+    void syncRelatedSeriesWorks(created, input.authors).catch((err) =>
+      logger.warn({ err, workId: created.id }, 'Related-series discovery failed'),
     );
+    if (!coverImageUrl) fillCoverInBackground(work.id, input.title, input.authors);
   }
 
   const existingMembership = await prisma.userWork.findUnique({

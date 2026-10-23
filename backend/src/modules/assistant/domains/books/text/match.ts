@@ -49,8 +49,17 @@ export function titleScore(query: string, title: string): number {
   const fullWords = full.split(' ');
   // Every word typed is in the title, and they say something ("hail mary", not "the").
   if (qWords.every((w) => fullWords.includes(w)) && q.replace(/\s/g, '').length >= 4) {
-    const coverage = qWords.length / mainWords.length;
+    // Coverage of the title's distinct words: "tomorrow" covers half of "Tomorrow, and Tomorrow...".
+    const coverage = new Set(qWords).size / new Set(mainWords).size;
     return Math.round(70 + 20 * Math.min(1, coverage));
+  }
+  // Every typed word is a title word give or take a typo ("tomorow and tomorrow" for
+  // "Tomorrow, and Tomorrow, and Tomorrow"), and the words cover most of what the title says.
+  const fuzzyHit = (w: string) => fullWords.some((t) => t === w || (w.length >= 4 && t.length >= 4 && distance(w, t) <= 1));
+  const distinctTitle = new Set(mainWords);
+  const covered = [...distinctTitle].filter((t) => qWords.some((w) => w === t || (w.length >= 4 && t.length >= 4 && distance(w, t) <= 1)));
+  if (qWords.every(fuzzyHit) && q.replace(/\s/g, '').length >= 4 && covered.length / distinctTitle.size >= 0.6) {
+    return Math.round(72 + 13 * (covered.length / distinctTitle.size));
   }
   const best = Math.max(similarity(q, main), similarity(q, full));
   return Math.round(best * 100);

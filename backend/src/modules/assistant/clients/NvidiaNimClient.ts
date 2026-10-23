@@ -121,11 +121,13 @@ export class NvidiaNimClient {
           if (gateCode === "daily_limit") throw new AIQuotaError(AI_DAILY_LIMIT_MESSAGE, error);
           if (gateCode === "project_daily_limit") throw new AIQuotaError(AI_SHARED_LIMIT_MESSAGE, error);
           if (gateCode === "bad_token" || gateCode === "no_token") throw new AIQuotaError(AI_NOT_ENABLED_MESSAGE, error);
-          if (status === 401) {
-            throw new Error("NVIDIA NIM rejected the request (401 Unauthorized). Check that NVIDIA_API_KEY is set and valid.");
+          // A rejected key or a busy service is "unavailable", which the API turns into a clear
+          // reply -- not an unexplained server error.
+          if (status === 401 || status === 403) {
+            throw new AIProviderUnavailableError("NVIDIA NIM is not configured: the API key was rejected (check NVIDIA_API_KEY).", error);
           }
           if (status === 429) {
-            throw new Error("NVIDIA NIM rate limit exceeded (429 Too Many Requests). Please wait and try again.");
+            throw new AIProviderUnavailableError("NVIDIA NIM is busy (429 rate limit); try again shortly.", error);
           }
           throw new Error(`NVIDIA NIM returned a non-200 HTTP response status: ${status} for ${model}. Likely caused by an invalid model or request config.`);
         }

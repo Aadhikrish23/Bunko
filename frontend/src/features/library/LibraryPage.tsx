@@ -1,6 +1,6 @@
 import { LibraryBig, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -90,7 +90,49 @@ export function LibraryPage() {
           <ErrorBanner message={errorMessage(works.error, 'Could not load your library.')} />
         ))}
 
-      {works.data && works.data.items.length === 0 && (
+      {works.data && works.data.items.length === 0 && !query && statusFilter === 'ALL' && (
+        <section className="max-w-2xl py-6" aria-labelledby="welcome-heading">
+          <h2 id="welcome-heading" className="font-display text-2xl text-paper-900">
+            Welcome to your library
+          </h2>
+          <p className="mt-2 text-[15px] leading-relaxed text-paper-700">
+            Bunko keeps one reading journey per book, whether you read it on paper, as an EPUB or PDF, or switch between them.
+          </p>
+          <ol className="mt-6 flex flex-col gap-4">
+            <li className="flex gap-3">
+              <span className="font-display text-lg text-moss-700" aria-hidden="true">1</span>
+              <div>
+                <p className="font-medium text-paper-900">Add a book you’re reading</p>
+                <p className="text-sm text-paper-700">Search by title or author; your status, shelves and notes start from there.</p>
+                <Button onClick={() => setIsAddOpen(true)} size="sm" className="mt-2">
+                  <Plus className="h-4 w-4" /> Add a book
+                </Button>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="font-display text-lg text-moss-700" aria-hidden="true">2</span>
+              <div>
+                <p className="font-medium text-paper-900">Read it here, or log your paper copy</p>
+                <p className="text-sm text-paper-700">Upload an EPUB or PDF you own to read in Bunko, or time a session with the book in your hands.</p>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="font-display text-lg text-moss-700" aria-hidden="true">3</span>
+              <div>
+                <p className="font-medium text-paper-900">Or just tell the Assistant</p>
+                <p className="text-sm text-paper-700">
+                  “I’m reading Piranesi”, “finished Circe, 4 stars”.{' '}
+                  <Link to="/assistant" className="focus-visible:focus-ring rounded font-medium text-moss-700 underline underline-offset-4">
+                    Open the Assistant
+                  </Link>
+                </p>
+              </div>
+            </li>
+          </ol>
+        </section>
+      )}
+
+      {works.data && works.data.items.length === 0 && (query || statusFilter !== 'ALL') && (
         <EmptyState
           icon={LibraryBig}
           title={query || statusFilter !== 'ALL' ? 'No books match' : 'Your library is empty'}

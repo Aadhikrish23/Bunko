@@ -13,8 +13,19 @@ const FORMATS: { value: EditionFormat; label: string; icon: typeof BookOpen; acc
   { value: 'PDF', label: 'PDF file', icon: FileText, accept: '.pdf', mime: 'application/pdf' },
 ];
 
-export function AddEditionDialog({ workId, onClose, onAdded }: { workId: string; onClose: () => void; onAdded: () => void }) {
-  const [format, setFormat] = useState<EditionFormat | null>(null);
+export function AddEditionDialog({
+  workId,
+  onClose,
+  onAdded,
+  attachTo,
+}: {
+  workId: string;
+  onClose: () => void;
+  onAdded: () => void;
+  /** An existing digital edition that has no file yet: upload into it instead of adding a new one. */
+  attachTo?: { editionId: string; format: 'EPUB' | 'PDF' };
+}) {
+  const [format, setFormat] = useState<EditionFormat | null>(attachTo?.format ?? null);
   const [error, setError] = useState<string | null>(null);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,8 +55,8 @@ export function AddEditionDialog({ workId, onClose, onAdded }: { workId: string;
         file,
         onProgress: (p) => setUploadPercent(Math.round((p.loaded / p.total) * 100)),
       });
-      const edition = await createEdition.mutateAsync({ workId, format: selectedFormat });
-      await createCopy.mutateAsync({ editionId: edition.id, digitalFileId: digitalFile.id });
+      const editionId = attachTo?.editionId ?? (await createEdition.mutateAsync({ workId, format: selectedFormat })).id;
+      await createCopy.mutateAsync({ editionId, digitalFileId: digitalFile.id });
       onAdded();
     } catch (err) {
       setError(errorMessage(err, 'Could not import this file.'));
@@ -71,7 +82,7 @@ export function AddEditionDialog({ workId, onClose, onAdded }: { workId: string;
   }
 
   return (
-    <Modal title="Add an edition" onClose={onClose}>
+    <Modal title={attachTo ? `Upload your ${attachTo.format} file` : 'Add an edition'} onClose={onClose}>
       <div className="flex flex-col gap-4">
         {error && <ErrorBanner message={error} />}
 
@@ -85,7 +96,7 @@ export function AddEditionDialog({ workId, onClose, onAdded }: { workId: string;
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2">
-            {FORMATS.map((option) => (
+            {FORMATS.filter((option) => !attachTo || option.value === attachTo.format).map((option) => (
               <button
                 key={option.value}
                 type="button"

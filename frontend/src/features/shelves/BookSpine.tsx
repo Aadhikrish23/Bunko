@@ -44,7 +44,7 @@ function MoveButtons({
 }) {
   return (
     <div
-      className={`pointer-events-none absolute z-10 hidden items-center gap-0.5 group-hover:flex group-focus-within:flex max-md:flex ${
+      className={`pointer-events-none absolute z-10 hidden items-center gap-0.5 group-hover:flex group-focus-within:flex ${
         vertical ? 'inset-x-0 top-1 justify-center' : 'inset-x-0 -top-7 justify-center'
       }`}
     >

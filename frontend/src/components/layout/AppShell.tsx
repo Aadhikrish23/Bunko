@@ -48,7 +48,7 @@ export function AppShell() {
       </header>
 
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden w-60 flex-shrink-0 flex-col border-r border-paper-200 bg-paper-100/60 px-4 py-6 md:flex">
+      <aside className="hidden w-60 flex-shrink-0 flex-col overflow-y-auto border-r border-paper-200 bg-paper-100/60 px-4 py-6 md:sticky md:top-0 md:flex md:h-screen">
         <div className="mb-8 flex items-center gap-2 px-2">
           <BookOpen className="h-6 w-6 text-moss-600" strokeWidth={1.75} />
           <span className="font-display text-xl text-paper-900">Bunko</span>

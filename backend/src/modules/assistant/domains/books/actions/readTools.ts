@@ -1,12 +1,11 @@
 import { BaseTool } from '../../../sdk/BaseTool';
 import type { AIToolContext } from '../../../sdk/AIToolContext';
 import type { AIToolResult } from '../../../sdk/AIToolResult';
-import { discoverRelatedBooks } from '../../../../metadata/metadata.service';
 import conversationManager from '../../../conversation/ConversationManager';
 import { loadLibrary, loadShelves, type BookRecord } from '../data/library';
 import { STATUS_LABEL } from '../data/status';
 import { answerFromLibrary, searchBooks, titlesOf } from '../conversation/libraryAnswers';
-import { norm, titleScore } from '../text/match';
+import { namedTitles, norm } from '../text/match';
 
 export class SearchLibraryTool extends BaseTool<{ searchValue: string }, { titles: string[] }> {
   readonly category = 'library';
@@ -58,7 +57,10 @@ interface Pick {
   reason: string;
 }
 
-/** Why a to-read book suits this reader: authors and genres of what they loved, series they're in. */
+/**
+ * Why a to-read book suits this reader: a book they named ("something like Piranesi") first,
+ * then authors and genres of what they loved, then series they're already in.
+ */
 function rankToRead(books: BookRecord[], hint: string): Pick[] {
   const loved = books.filter((b) => b.isFavourite || (b.rating ?? 0) >= 4);
   const lovedAuthors = new Map<string, string>();
@@ -66,16 +68,30 @@ function rankToRead(books: BookRecord[], hint: string): Pick[] {
   const lovedGenres = new Map<string, number>();
   for (const b of loved) for (const g of b.genres) lovedGenres.set(norm(g), (lovedGenres.get(norm(g)) ?? 0) + 1);
   const finishedSeries = new Set(books.filter((b) => b.status === 'FINISHED' && b.seriesName).map((b) => norm(b.seriesName!)));
-  const hintWords = norm(hint).split(' ').filter((w) => w.length >= 4);
+  // "like Piranesi": the reader's own copy of the book they named, if they have it.
+  const like = namedTitles(hint, books.map((b) => b.title))
+    .map((t) => books.find((b) => b.title === t))
+    .find((b): b is BookRecord => Boolean(b));
+  const hintWords = norm(hint)
+    .split(' ')
+    .filter((w) => w.length >= 4 && !(like && norm(like.title).includes(w)));
 
   return books
-    .filter((b) => b.status === 'WANT_TO_READ')
+    .filter((b) => b.status === 'WANT_TO_READ' && b !== like)
     .map((book) => {
       let score = 0;
       let reason = WAITING;
       const author = book.authors.find((a) => lovedAuthors.has(norm(a)));
       const genre = book.genres.find((g) => lovedGenres.has(norm(g)));
-      if (book.seriesName && finishedSeries.has(norm(book.seriesName))) {
+      const likeAuthor = like && book.authors.find((a) => like.authors.some((x) => norm(x) === norm(a)));
+      const likeGenre = like && book.genres.find((g) => like.genres.some((x) => norm(x) === norm(g)));
+      if (likeAuthor) {
+        score += 8;
+        reason = `it's by ${likeAuthor}, like ${like!.title}`;
+      } else if (likeGenre) {
+        score += 7;
+        reason = `it's ${likeGenre}, like ${like!.title}`;
+      } else if (book.seriesName && finishedSeries.has(norm(book.seriesName))) {
         score += 5;
         reason = `you've already finished a book in the ${book.seriesName} series`;
       } else if (author) {
@@ -102,46 +118,28 @@ export class RecommendBooksTool extends BaseTool<{ query?: string }, { titles: s
 
   async execute(input: { query?: string }, context: AIToolContext): Promise<AIToolResult<{ titles: string[] }>> {
     const books = await loadLibrary(context.userId);
-    const hint = input.query ?? '';
-    const picks = rankToRead(books, hint).slice(0, 3);
-    const byLine = (p: Pick) => `${p.book.title}${p.book.authors[0] ? ` by ${p.book.authors[0]}` : ''}`;
-    // Say "because..." only when there's a real reason; otherwise say once why these three.
-    const reasoned = picks.some((p) => p.reason !== WAITING);
-    const lines = picks.map((p) => (reasoned && p.reason !== WAITING ? `- ${byLine(p)}: ${p.reason}.` : `- ${byLine(p)}`));
-
-    // The next book in a series they just finished, even if it isn't in the library yet.
-    const lastSeries = books.find((b) => b.status === 'FINISHED' && b.seriesName);
-    let next: string | undefined;
-    if (lastSeries) {
-      const related = await Promise.race([
-        discoverRelatedBooks(lastSeries.title, lastSeries.authors[0]).catch(() => null),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 6_000)),
-      ]);
-      const owned = books.map((b) => b.title);
-      // A real next book: not one they have, and not the series' own name ("Dune series").
-      const candidate = related?.books.find(
-        (b) => !owned.some((t) => titleScore(b.title, t) >= 90) && !/\bseries\b/i.test(b.title) && norm(b.title) !== norm(lastSeries.seriesName ?? ''),
-      );
-      if (candidate) next = `${candidate.title}${candidate.authors[0] ? ` by ${candidate.authors[0]}` : ''}`;
-    }
-
-    if (lines.length === 0 && !next) {
+    const ranked = rankToRead(books, input.query ?? '');
+    if (ranked.length === 0) {
       return this.success(
         { titles: [] },
         books.length === 0
           ? 'Add a few books first and I can suggest what to read next.'
-          : 'Your Want to Read list is empty, so I have nothing to pick from yet. Add some books you\'re curious about and ask again.',
+          : "Your Want to Read list is empty, so there's nothing on it to pick from yet. Add a few books you're curious about and ask again.",
       );
     }
-    const parts: string[] = [];
-    if (lines.length) {
-      parts.push(
-        reasoned
-          ? `From your Want to Read list, I'd start with:\n${lines.join('\n')}`
-          : `Your ratings don't point at any of these yet, so here are the ones that have waited longest on your Want to Read list:\n${lines.join('\n')}`,
-      );
+    const byLine = (p: Pick) => `${p.book.title}${p.book.authors[0] ? ` by ${p.book.authors[0]}` : ''}`;
+    // Only real reasons are given; with none, say once why these ones.
+    const reasoned = ranked.filter((p) => p.reason !== WAITING).slice(0, 3);
+    if (reasoned.length > 0) {
+      const others = ranked.filter((p) => p.reason === WAITING).slice(0, 3 - Math.min(3, reasoned.length) || 2);
+      const lines = reasoned.map((p) => `- ${byLine(p)}: ${p.reason}.`);
+      const also = others.length ? `\n\nAlso waiting on your list: ${others.map((p) => p.book.title).join(', ')}.` : '';
+      return this.success({ titles: reasoned.map((p) => p.book.title) }, `From your Want to Read list, I'd start with:\n${lines.join('\n')}${also}`);
     }
-    if (next) parts.push(`You finished ${lastSeries!.title}; the series continues with ${next}. Say "add ${next.split(' by ')[0]}" if you'd like it.`);
-    return this.success({ titles: picks.map((p) => p.book.title) }, parts.join('\n\n'));
+    const picks = ranked.slice(0, 3);
+    return this.success(
+      { titles: picks.map((p) => p.book.title) },
+      `Your ratings don't point at any of these yet, so here are the ones that have waited longest on your Want to Read list:\n${picks.map((p) => `- ${byLine(p)}`).join('\n')}`,
+    );
   }
 }

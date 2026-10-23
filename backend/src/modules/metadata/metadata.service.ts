@@ -1,5 +1,6 @@
 import { env } from '../../config/env';
 import { logger } from '../../lib/logger';
+import { redisConnection } from '../../lib/queue';
 
 export interface MetadataCandidate {
   externalSource: string;
@@ -411,9 +412,26 @@ function toOpenLibraryCandidate(doc: OpenLibraryDoc, targetLang?: string): Metad
   };
 }
 
+// Open Library's free-text q= ranks long, common-word titles poorly ("tomorrow and tomorrow and
+// tomorrow" returned Macbeth editions first), so a title= search runs alongside it and the two
+// are merged; searchBookMetadata then ranks by how closely each title matches.
 async function searchOpenLibrary(query: string, targetLang?: string): Promise<MetadataCandidate[]> {
+  const [general, byTitle] = await Promise.all([
+    searchOpenLibraryBy('q', query, targetLang),
+    searchOpenLibraryBy('title', query, targetLang),
+  ]);
+  const seen = new Set<string>();
+  return [...byTitle, ...general].filter((c) => {
+    const key = c.externalId || `${c.title}|${c.authors.join(',')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function searchOpenLibraryBy(param: 'q' | 'title', query: string, targetLang?: string): Promise<MetadataCandidate[]> {
   const fields = 'key,title,author_name,cover_i,cover_edition_key,first_publish_year,isbn,first_sentence';
-  let url = `${OPEN_LIBRARY_SEARCH_URL}?q=${encodeURIComponent(query)}&limit=${MAX_RESULTS}&fields=${fields}`;
+  let url = `${OPEN_LIBRARY_SEARCH_URL}?${param}=${encodeURIComponent(query)}&limit=${MAX_RESULTS}&fields=${fields}`;
   if (targetLang && targetLang !== 'all') {
     url += `&language=${encodeURIComponent(targetLang)}`;
   }
@@ -857,8 +875,14 @@ async function searchUniverseWorks(query: string): Promise<MetadataCandidate[]> 
     });
     if (!sRes.ok) return [];
     const sData = (await sRes.json()) as { search?: { id: string; label: string; description?: string }[] };
+    // Only a universe the reader actually named ("grishaverse", "camp half-blood chronicles"):
+    // a search for the novel "Tomorrow, and Tomorrow, and Tomorrow" once matched a series called
+    // "Tomorrow and Tomorrow" and returned its books instead.
+    const wanted = titleKey(trimmed);
     const universeEntity = (sData.search || []).find((item) => {
       const desc = (item.description || '').toLowerCase();
+      const label = titleKey(item.label || '');
+      if (!(label === wanted || label.startsWith(`${wanted} `))) return false;
       return (
         desc.includes('universe') ||
         desc.includes('franchise') ||
@@ -1316,9 +1340,15 @@ async function executeWaterfallSearch(trimmed: string, targetLang?: string): Pro
   // Tier 1: Google Books if an API key is configured
   if (env.GOOGLE_BOOKS_API_KEY) {
     try {
-      const googleCandidates = await searchGoogleBooks(trimmed, env.GOOGLE_BOOKS_API_KEY, targetLang);
+      // Google ranks long common-word titles poorly; Open Library's title search, run alongside,
+      // usually has the exact book, and searchBookMetadata ranks the merged list by title.
+      const [googleCandidates, olByTitle] = await Promise.all([
+        searchGoogleBooks(trimmed, env.GOOGLE_BOOKS_API_KEY, targetLang),
+        searchOpenLibraryBy('title', trimmed, targetLang).catch(() => [] as MetadataCandidate[]),
+      ]);
       if (googleCandidates.length > 0) {
-        return enrichMissingCovers(googleCandidates);
+        const exactFromOl = olByTitle.filter((c) => titleKey(c.title) === titleKey(trimmed)).slice(0, 3);
+        return enrichMissingCovers([...exactFromOl, ...googleCandidates]);
       }
     } catch (err) {
       logger.warn({ err }, 'Google Books search failed; falling back to Hardcover');
@@ -1401,9 +1431,28 @@ async function executeWaterfallSearch(trimmed: string, targetLang?: string): Pro
 // Tier 3 (zero-config fallback): Inventaire.io (if Open Library is down, times out, or returns 0 results).
 // Tier 4 (multi-language fallback): Direct Wikidata search (for Tamil and non-Latin scripts).
 // On any upstream failure, degrades to an empty result list rather than a 500 (T-013a).
+// Catalogue searches take seconds (several providers plus cover lookups); the same search
+// again within the hour -- retyping, going back, adding the book -- comes from Redis.
+const SEARCH_CACHE_SECONDS = 3600;
+
 export async function searchBookMetadata(query: string, targetLang?: string): Promise<MetadataCandidate[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
+  const cacheKey = `metadata:search:${targetLang ?? 'any'}:${trimmed.toLowerCase()}`;
+  const cached = await redisConnection.get(cacheKey).catch(() => null);
+  if (cached) {
+    try {
+      return JSON.parse(cached) as MetadataCandidate[];
+    } catch {
+      // fall through to a fresh search
+    }
+  }
+  const results = await searchBookMetadataUncached(trimmed, targetLang);
+  if (results.length > 0) await redisConnection.set(cacheKey, JSON.stringify(results), 'EX', SEARCH_CACHE_SECONDS).catch(() => undefined);
+  return results;
+}
+
+async function searchBookMetadataUncached(trimmed: string, targetLang?: string): Promise<MetadataCandidate[]> {
 
   let searchTerms = [trimmed];
   if (targetLang && targetLang !== 'all') {
@@ -1428,7 +1477,38 @@ export async function searchBookMetadata(query: string, targetLang?: string): Pr
     if (allCandidates.length >= 5) break;
   }
 
-  return allCandidates;
+  return rankByTitleMatch(trimmed, allCandidates);
+}
+
+function titleKey(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+/**
+ * Closest titles first, keeping each provider's own order among equals: an exact title, then
+ * the title before its subtitle, then titles containing every typed word, then the rest.
+ */
+export function rankByTitleMatch<T extends { title: string }>(query: string, candidates: T[]): T[] {
+  const q = titleKey(query).replace(/^(the|a|an) /, '');
+  const words = q.split(' ').filter(Boolean);
+  const score = (c: T) => {
+    const full = titleKey(c.title).replace(/^(the|a|an) /, '');
+    const main = titleKey(c.title.split(/\s*[:;(\[]/)[0] ?? c.title).replace(/^(the|a|an) /, '');
+    if (full === q) return 4;
+    if (main === q) return 3;
+    const titleWords = new Set(full.split(' '));
+    if (words.length > 0 && words.every((w) => titleWords.has(w))) return 2;
+    return 0;
+  };
+  return candidates
+    .map((c, i) => ({ c, i, s: score(c) }))
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .map((x) => x.c);
 }
 
 // Fetches book synopsis / description once per add, supporting Google Books,

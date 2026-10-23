@@ -267,7 +267,9 @@ export async function groundPlan(plan: IntentPlan, input: GroundingInput): Promi
  */
 export function shapePlan(plan: IntentPlan, message: string, fromModel: boolean): void {
   if (fromModel && RECOMMEND_ASK.test(message) && !EXPLICIT_ACTION.test(message)) {
-    plan.intents = [intent(BookIntent.RecommendBook, [], [{ type: IntentParameterType.Text, value: message }])];
+    // A question riding along ("...anything new like Piranesi?") stays, for the model's answer.
+    const asks = plan.intents.filter((i) => i.type === BookIntent.AskQuestion);
+    plan.intents = [intent(BookIntent.RecommendBook, [], [{ type: IntentParameterType.Text, value: message }]), ...asks];
     return;
   }
 

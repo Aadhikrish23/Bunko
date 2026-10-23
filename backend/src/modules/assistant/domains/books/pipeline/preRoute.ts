@@ -9,7 +9,7 @@ import { answerFromLibrary } from '../conversation/libraryAnswers';
 import { parseCommands } from '../conversation/quickCommands';
 import { withPageBook } from '../conversation/normalize';
 import { isQuestionOnly, lastNamedTitle } from './planChecks';
-import { EXPLICIT_ACTION, LOOKS_LIKE_QUESTION, RECOMMEND_ASK } from './patterns';
+import { DISCOVERY_ASK, EXPLICIT_ACTION, LOOKS_LIKE_QUESTION, RECOMMEND_ASK } from './patterns';
 import { undoLastChange, UNDO_ASK } from './undo';
 
 /**
@@ -46,7 +46,12 @@ export async function preRoute({ userId, requestId, message, client, session, re
 
   // "what should I read next?" needs no planning.
   if (RECOMMEND_ASK.test(message) && !EXPLICIT_ACTION.test(message)) {
-    return plan([{ type: BookIntent.RecommendBook, confidence: 1, targets: [], parameters: [{ type: IntentParameterType.Text, value: message }] }]);
+    const intents: AIIntent[] = [
+      { type: BookIntent.RecommendBook, confidence: 1, targets: [], parameters: [{ type: IntentParameterType.Text, value: message }] },
+    ];
+    // "something like Piranesi": their own list first, then the model for books beyond it.
+    if (DISCOVERY_ASK.test(message)) intents.push({ type: BookIntent.AskQuestion, confidence: 1, targets: [], parameters: [] });
+    return plan(intents);
   }
 
   // "rate dune 4", "finished circe", "put dune on my sci-fi shelf": no model needed.

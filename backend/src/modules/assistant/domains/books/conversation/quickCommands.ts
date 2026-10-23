@@ -20,11 +20,16 @@ const bookT = (name: string) => ({ type: IntentTargetType.Book, name });
 const libraryT = (name: string) => ({ type: IntentTargetType.Library, name });
 const shelfT = (name: string) => ({ type: IntentTargetType.Collection, name });
 
+// Chat filler that isn't part of a title: "dnf'd circe tbh", "rate it 5 actually".
+const TRAILING_FILLER =
+  /(?:\s+(?:tbh|lol|lmao|honestly|already|actually|anyway|rn|right now|please|pls|too|as well|instead|again|haha|now|then|ok|okay))+\s*$/i;
+
 const clean = (s: string) =>
   s
     .trim()
     .replace(/^["'“”]+|["'“”]+$/g, '')
-    .replace(/[.!]+$/, '')
+    .replace(/[.!?]+$/, '')
+    .replace(TRAILING_FILLER, '')
     .trim();
 
 const STATUS_VERBS =
@@ -37,7 +42,7 @@ const STATUS_VERBS =
  */
 export function splitBookList(raw: string, ownedTitles: string[] = []): string[] {
   const whole = clean(raw);
-  const isOwned = (s: string) => ownedTitles.some((t) => titleScore(s, t) >= 90);
+  const isOwned = (s: string) => ownedTitles.some((t) => titleScore(s, t) >= 80);
   if (!/,|\s(?:and|&)\s/i.test(whole) || isOwned(whole)) return [whole];
   const pieces = whole.split(/\s*,\s*(?:and\s+)?|\s+(?:and|&)\s+/i).map(clean).filter(Boolean);
   const out: string[] = [];
@@ -50,7 +55,33 @@ export function splitBookList(raw: string, ownedTitles: string[] = []): string[]
       out.push(pieces[i]!);
     }
   }
-  return out;
+  // Split only into books the reader actually has; otherwise "and" may be part of a title
+  // nobody here knows, and the model (or "isn't in your library") is the better answer.
+  return out.every(isOwned) ? out : [whole];
+}
+
+/**
+ * Owned titles that contain commas or "and" ("Tomorrow, and Tomorrow, and Tomorrow") are
+ * swapped for placeholders before a message is cut into clauses, so their punctuation can't
+ * split them. Matching forgives missing punctuation and case.
+ */
+function maskTitles(message: string, ownedTitles: string[]): { text: string; restore: (s: string) => string } {
+  const masked: string[] = [];
+  let text = message;
+  const risky = ownedTitles.filter((t) => /,|;|\s(?:and|&)\s/i.test(t)).sort((a, b) => b.length - a.length);
+  for (const title of risky) {
+    const words = title
+      .split(/[\s,;:&]+/)
+      .filter(Boolean)
+      .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${words.join('[\\s,;:&]+')}(?![\\p{L}\\p{N}])`, 'giu');
+    text = text.replace(pattern, () => {
+      masked.push(title);
+      return `⟦${masked.length - 1}⟧`;
+    });
+  }
+  const restore = (s: string) => s.replace(/⟦(\d+)⟧/g, (_m, i: string) => masked[Number(i)] ?? '');
+  return { text, restore };
 }
 
 /** One clause -> one intent per book (or a status + rating pair), or undefined. */
@@ -146,18 +177,28 @@ function parseSingle(clause: string): AIIntent[] | undefined {
 export function splitClauses(message: string): string[] {
   return message
     .split(/\s*(?:;|\.\s+|,?\s+and then\s+|,?\s+then\s+|,?\s+also\s+|,\s*and\s+|\s+and\s+(?=(?:add|rate|mark|set|put|take|remove|delete|note|review|start|finish|create|make)\b))\s*/i)
-    .map((c) => c.trim())
+    .map((c) =>
+      c
+        .trim()
+        .replace(/^(?:(?:and|also|then|ok|okay|so|oh|well|btw|plus|but|alright|right)\b[\s,]*)+/i, '')
+        .trim(),
+    )
     .filter(Boolean);
 }
 
 /** Every clause of a message as intents, or undefined if any clause isn't a plain command. */
 export function parseCommands(message: string, ownedTitles: string[] = []): AIIntent[] | undefined {
-  const clauses = splitClauses(message);
+  const { text, restore } = maskTitles(message, ownedTitles);
+  const clauses = splitClauses(text);
   const out: AIIntent[] = [];
   for (const clause of clauses) {
     const parsed = parseCommand(clause, ownedTitles);
     if (!parsed) return undefined;
     out.push(...parsed);
+  }
+  for (const i of out) {
+    i.targets = i.targets.map((t) => ({ ...t, name: restore(t.name) }));
+    i.parameters = i.parameters.map((p) => (typeof p.value === 'string' ? { ...p, value: restore(p.value) } : p));
   }
   return out.length ? out : undefined;
 }

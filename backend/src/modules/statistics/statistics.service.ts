@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { normalizeLanguageName } from '../metadata/metadata.service';
 import { prisma } from '../../config/prisma';
 import {
   addDays,
@@ -196,7 +197,8 @@ async function loadBreakdowns(userId: string): Promise<Breakdowns> {
     if (work.authors.length === 0) increment(byAuthor, null);
     for (const name of new Set(work.authors.map((entry) => entry.author.name))) increment(byAuthor, name);
 
-    increment(byLanguage, work.language ?? editionLanguageByWork.get(workId) ?? null);
+    // "english", "en" and "English" are one language.
+    increment(byLanguage, normalizeLanguageName(work.language ?? editionLanguageByWork.get(workId) ?? null));
 
     for (const format of formatsByWork.get(workId) ?? []) increment(byFormat, format);
   }

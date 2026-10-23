@@ -1,0 +1,339 @@
+{
+  "rounds": [
+    {
+      "round": 1,
+      "date": "2026-10-23",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100 with AI_PROVIDER=nvidia but no NVIDIA_API_KEY yet; Claude ai-service not running. Seeded account with 6 books (one sample EPUB).",
+      "scores": {
+        "first_impression_onboarding": {
+          "score": 6,
+          "reason": "Calm, bookish login with a clear error, but no forgot-password, onboarding or import, and the first library screen shows wrong covers."
+        },
+        "library_adding_finding_books": {
+          "score": 5,
+          "reason": "Exact search works and doesn't duplicate, but a single typo gives junk, search takes 6-8s, covers are wrong, there's no sort and no status choice when adding."
+        },
+        "book_page_and_details": {
+          "score": 5,
+          "reason": "Tidy single screen, but no description, pages or publication info, no way to fix a cover, and modal buttons that do nothing."
+        },
+        "reading_experience": {
+          "score": 2,
+          "reason": "The sample EPUB couldn't be opened from any path."
+        },
+        "tracking_journal_statistics": {
+          "score": 4,
+          "reason": "Timer-only sessions, pages not counted, journal entries don't name the book, stats contradict themselves."
+        },
+        "shelves_organizing": {
+          "score": 6,
+          "reason": "Charming bookcase and inline shelf creation, but odd one-book rows, per-row scrollbars, an inverted toggle and overlapping arrows on mobile."
+        },
+        "notes_highlights_reviews": {
+          "score": 6,
+          "reason": "Fast and pleasant, but whole stars only, notes undated, and highlights impossible without the reader."
+        },
+        "assistant_chat": {
+          "score": 4,
+          "reason": "Good when phrased exactly, but about half the messages failed with 'An unexpected error occurred'; it can't handle 'it' or typos, and it invented 'Dune II'."
+        },
+        "look_and_feel": {
+          "score": 7,
+          "reason": "Feels made by book people; wrong covers undercut it."
+        },
+        "speed_reliability": {
+          "score": 4,
+          "reason": "Slow covers and search, status changes take ~3s with no feedback, assistant failures, remove seemed to do nothing."
+        },
+        "overall": {
+          "score": 4,
+          "reason": "Good bones and taste, but I can't read a book, covers are wrong, the journal doesn't name books, and the assistant fails half the time."
+        }
+      },
+      "praise": [
+        "The visual identity feels made for readers: warm paper, serif headings, a wooden bookcase with real-looking spines, and personal copy.",
+        "Inline shelf creation from a book page is excellent; shelf chips toggle with a clear checkmark.",
+        "Reviews and notes feel smooth: stars, Favourite and Want-to-reread toggles, an instant 'Saved.', and notes that edit in place.",
+        "The assistant's opt-in screen is honest about what data goes where; when it worked it understood 'tbr', read back notes, and undo worked.",
+        "Solid mobile layout: bottom tab bar, two-column cover grid, full-width search, and a cleanly stacked book page."
+      ],
+      "issues": [
+        {
+          "id": "R1-01",
+          "area": "reading_experience",
+          "severity": "blocker",
+          "title": "No way to open the digital reader, even for a book with an EPUB",
+          "steps": "Library > 'A Bunko Sample Book' > 'Open Digital Reader'; clicked the EPUB edition row; tried status Reading, reload, and 'Start / Resume Reading Session'.",
+          "expected": "The EPUB opens in the reader.",
+          "actual": "Every path lands on the book details page; the EPUB edition row has no read button.",
+          "root_cause": "QA seed attached the EPUB with the upload id instead of the stored file id, so no copy existed; and the app gave a digital edition without its file no way forward.",
+          "fix": "Seed fixed (uses the id /files/:id/confirm returns) and now ships an original 5-chapter novella. A digital edition with no file shows 'Upload file'; the quick-action modal only offers actions that work.",
+          "files": [
+            "backend/scripts/seed-qa-reader.ts",
+            "backend/scripts/qa-sample-book.ts",
+            "frontend/src/features/library/BookDetailPage.tsx",
+            "frontend/src/features/library/AddEditionDialog.tsx",
+            "frontend/src/features/library/BookQuickActionModal.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-02",
+          "area": "library_adding_finding_books",
+          "severity": "major",
+          "title": "Most covers are for completely different books",
+          "steps": "Open Library (also Shelves, modal, book page).",
+          "expected": "The real cover for each book.",
+          "actual": "The Left Hand of Darkness and the sample book show 'Their Eyes Were Watching God'; Circe, Piranesi and Klara show unrelated books; a hand-added zine got a random cover. There's no way to change or remove a cover.",
+          "root_cause": "Three code paths took the first search result with any cover regardless of title; the seed also used guessed cover ids. Wikidata series discovery filed books under their own title.",
+          "fix": "Covers only from a result with the same main title and a shared author surname (pickMatchingCover), looked up in the background; self-named series ignored and cleared. Changing/removing a cover by hand is not built yet (covers live on the shared catalogue entry).",
+          "files": [
+            "backend/src/modules/library/library.service.ts",
+            "backend/scripts/seed-qa-reader.ts"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R1-03",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Many assistant messages fail with a generic error",
+          "steps": "'no i meant the zevin one...', 'I started Tomorrow, and Tomorrow, and Tomorrow' (the app's own example), 'ok i started the first one. and dnf'd circe tbh', 'and add it to my comfort reads shelf', 'rate it 5 stars actually'.",
+          "expected": "The change is made, or a clarifying question.",
+          "actual": "'An unexpected error occurred' each time, no reason, no retry. Short single-book commands worked.",
+          "root_cause": "No NVIDIA key on the test server: NIM's 401 became a plain Error and surfaced as a 500. Separately, titles with commas, filler words ('ok', 'and', 'tbh', 'actually') and 'it' defeated the fast paths, so those messages needed the model.",
+          "fix": "Rejected key / rate limit are 'unavailable'; a missing key is detected at startup and answered with a plain message; any other failure is a friendly logged reply. Owned titles with commas are masked before clause splitting; filler words stripped.",
+          "files": [
+            "backend/src/modules/assistant/clients/NvidiaNimClient.ts",
+            "backend/src/modules/assistant/aiController.ts",
+            "backend/src/modules/assistant/domains/books/conversation/quickCommands.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-04",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "A typo in an owned title makes it search the catalogue for junk",
+          "steps": "'started tomorow and tomorrow last night, its so good already' (the book is in the library).",
+          "expected": "It matches the owned book.",
+          "actual": "\"I couldn't find a book called \\\"tomorow\\\". The closest were \\\"Notes on the History of Fort George\\\"...\"",
+          "root_cause": "Title matching needed exact words; the list splitter split 'tomorow and tomorrow' into two books.",
+          "fix": "Typo-tolerant word matching on owned titles; lists split only into books the reader owns.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/text/match.ts",
+            "backend/src/modules/assistant/domains/books/conversation/quickCommands.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-05",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Recommendations made up a sequel and ignored 'something like Piranesi'",
+          "steps": "'what should i read next? something like piranesi'",
+          "expected": "Books like Piranesi, and accurate facts.",
+          "actual": "Listed the Want to Read list only, and said 'the series continues with Dune II by Frank Herbert' (no such book).",
+          "root_cause": "The 'series continues' line came from a Wikidata lookup that returned non-books ('Dune II'); 'like X' wasn't used.",
+          "fix": "Series continuation removed; 'something like X' ranks the list by X's authors and genres with reasons, and asks the model for books beyond the list.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/actions/readTools.ts",
+            "backend/src/modules/assistant/domains/books/pipeline/preRoute.ts",
+            "backend/src/modules/assistant/domains/books/prompts/answerPrompt.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-06",
+          "area": "tracking_journal_statistics",
+          "severity": "major",
+          "title": "Journal entries don't say which book",
+          "steps": "Piranesi > physical edition > session > end with 'p 112' and a reflection > Journal.",
+          "expected": "Entry shows the book, page and time, and links to it.",
+          "actual": "'Oct 23, 2026 · 0 min · “the other is kinda sus now”': no title, no page, not clickable; no way to add an entry from the Journal.",
+          "root_cause": "Journal entries carried no book.",
+          "fix": "Each entry names and links its book with its cover and format; 'Log reading' on the Journal.",
+          "files": [
+            "backend/src/modules/journal/journal.service.ts",
+            "frontend/src/features/journal/JournalPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-07",
+          "area": "tracking_journal_statistics",
+          "severity": "major",
+          "title": "Reading can only be logged live, and pages aren't counted",
+          "steps": "Started and immediately ended a session with 'p 112'.",
+          "expected": "Log a past session (time, date, page), and pages count.",
+          "actual": "'Session saved — 0 min. Nice reading.' Stats: 'Pages read 0'. No manual duration/date, no progress on the book, no finish date.",
+          "root_cause": "Only live timed sessions existed; a physical session with only an end page can't count pages.",
+          "fix": "POST /reading-sessions/log and a 'Log reading' form (book, day, minutes, from/to page, reflection) on the Journal and book page; both pages make them count.",
+          "files": [
+            "backend/src/modules/reading-sessions/*",
+            "frontend/src/features/journal/LogSessionDialog.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-08",
+          "area": "book_page_and_details",
+          "severity": "major",
+          "title": "Modal buttons silently do nothing without a matching edition",
+          "steps": "Circe (no editions) > 'Start / Resume Reading Session'; Piranesi (physical only) > 'Open Digital Reader'.",
+          "expected": "Hidden, disabled, or explained.",
+          "actual": "Both silently go to the book page.",
+          "root_cause": "Modal buttons fell back to navigating to the book page.",
+          "fix": "Modal shows only working actions and explains/offers to add a copy otherwise.",
+          "files": [
+            "frontend/src/features/library/BookQuickActionModal.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-09",
+          "area": "tracking_journal_statistics",
+          "severity": "minor",
+          "title": "Statistics contradict themselves; language data messy",
+          "steps": "Statistics > Daily.",
+          "expected": "Consistent numbers.",
+          "actual": "Summary counts 1 session while the chart says 'No reading sessions in this period yet'; languages 'Unknown 6' and lowercase 'english 2'; 'Bunko' listed as an author.",
+          "root_cause": "The chart's empty state keyed on minutes, not sessions; language labels weren't normalised.",
+          "fix": "Chart distinguishes 'no sessions' from 'sessions under a minute'; languages shown as names. ('Bunko' as author was seed data; reading goals aren't in the SRS.)",
+          "files": [
+            "frontend/src/features/statistics/ActivityChart.tsx",
+            "backend/src/modules/statistics/statistics.service.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-10",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Catalogue search isn't typo-tolerant and is slow; no status on add",
+          "steps": "Add a book > 'tomorow and tomorrow and tomorrow'.",
+          "expected": "The right book near the top.",
+          "actual": "After 6-8s: unrelated results. Confusing language chips; manual form lacks page count/cover; always added as Want to Read.",
+          "root_cause": "Google Books answered first with poor relevance; the universe check could hijack results; no caching; original language defaulted to 'Japanese'.",
+          "fix": "Open Library title search merged in; results ranked by title match; universe check only for named universes; searches cached an hour; choose Want to read / Reading now / Already read when adding; calm metadata line replaces off-palette chips. (Catalogue-side typo tolerance depends on the providers.)",
+          "files": [
+            "backend/src/modules/metadata/metadata.service.ts",
+            "frontend/src/features/library/AddBookDialog.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-11",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "'Remove from library' gave no visible response",
+          "steps": "Book page > 'Remove from library'.",
+          "expected": "A confirmation, then the book is gone.",
+          "actual": "Nothing visible; the book stayed.",
+          "root_cause": "Used the browser's native confirm(), which the tester never saw.",
+          "fix": "In-app confirmation dialog that says what's kept.",
+          "files": [
+            "frontend/src/features/library/BookDetailPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-12",
+          "area": "shelves_organizing",
+          "severity": "minor",
+          "title": "Odd shelf grouping, per-row scrollbars, inverted toggle",
+          "steps": "Shelves > All Volumes; Covers/Spines toggle; mobile.",
+          "expected": "Books share shelves; the active view is clear.",
+          "actual": "One book per tall row under its own title; every row has a scrollbar; the active toggle option is the dim one; the choice doesn't stick; arrows cover art on mobile.",
+          "root_cause": "Rows per one-book series/genre; overflow-x-auto made rows scroll vertically; active toggle was the dark pill; arrows forced visible on mobile.",
+          "fix": "Rows need two books; overflow-y hidden with a thin themed scrollbar; light active pill with aria-pressed, remembered; arrows on focus/hover only.",
+          "files": [
+            "frontend/src/features/shelves/*"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-13",
+          "area": "speed_reliability",
+          "severity": "minor",
+          "title": "Slow loads with little feedback",
+          "steps": "Library, Shelves, book pages; status dropdown.",
+          "expected": "Fast, with placeholders.",
+          "actual": "Covers blank for 3-5s on every visit; a big modal spinner; status change ~3s while the old value still shows.",
+          "root_cause": "Opening a book ran series discovery and a cover search synchronously (2-3s); covers had no placeholder; status change waited for the server.",
+          "fix": "Both moved to the background (book fetch ~72 ms); lazy covers on a paper tint; skeleton in the modal; optimistic status updates.",
+          "files": [
+            "backend/src/modules/library/library.service.ts",
+            "frontend/src/features/library/BookCover.tsx",
+            "frontend/src/lib/api/works.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-14",
+          "area": "notes_highlights_reviews",
+          "severity": "minor",
+          "title": "Reviews and notes are basic",
+          "steps": "Rated, reviewed, added and edited a note.",
+          "expected": "Half stars, dated notes, spoiler/private options.",
+          "actual": "Whole stars only; notes undated with only a 'Book' tag; highlights impossible (R1-01).",
+          "root_cause": "Notes showed no date; ratings are whole stars by SRS §14.",
+          "fix": "Notes show their date (and position); the review box says reviews and notes are private. Half stars not added: SRS §14 sets whole 5-star ratings.",
+          "files": [
+            "frontend/src/features/notes/NotesPanel.tsx",
+            "frontend/src/features/reviews/ReviewPanel.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R1-15",
+          "area": "assistant_chat",
+          "severity": "polish",
+          "title": "Odd reply after declining a follow-up",
+          "steps": "'rate piranesi 5 stars' > asked to mark Finished > 'nah not yet'.",
+          "expected": "'Okay, I'll leave it as Reading.'",
+          "actual": "'Okay, I kept Piranesi.' (sounds like it nearly removed it).",
+          "root_cause": "The decline message was the generic 'Okay, I kept X.'",
+          "fix": "Follow-up offers can say what 'no' means (general core hook): 'Okay, Piranesi stays as Reading.'",
+          "files": [
+            "backend/src/modules/assistant/domain/DomainPack.ts",
+            "backend/src/modules/assistant/AIRuntime.ts",
+            "backend/src/modules/assistant/domains/books/pipeline/replies.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R1-16",
+          "area": "first_impression_onboarding",
+          "severity": "polish",
+          "title": "No forgot-password, no import of an existing history",
+          "steps": "Login and register pages; Settings.",
+          "expected": "Forgot password; Goodreads/StoryGraph import.",
+          "actual": "Neither exists.",
+          "root_cause": "Password reset needs email delivery (none configured); importing other platforms is SRS §37, which needs product approval.",
+          "fix": "Not built. A first-run welcome now explains the three ways to start (add, read/log, assistant).",
+          "files": [
+            "frontend/src/features/library/LibraryPage.tsx"
+          ],
+          "status": "Won't fix (needs approval)"
+        },
+        {
+          "id": "R1-17",
+          "area": "look_and_feel",
+          "severity": "polish",
+          "title": "Sidebar scrolls away on long pages",
+          "steps": "Scrolled a long book page on desktop.",
+          "expected": "Navigation and Sign out stay in reach.",
+          "actual": "The sidebar scrolls with the content.",
+          "root_cause": "Sidebar wasn't sticky.",
+          "fix": "Sticky full-height sidebar on desktop.",
+          "files": [
+            "frontend/src/components/layout/AppShell.tsx"
+          ],
+          "status": "Fixed"
+        }
+      ]
+    }
+  ]
+}
