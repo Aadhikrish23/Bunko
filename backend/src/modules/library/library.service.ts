@@ -406,13 +406,20 @@ export async function listWorks(
     userId,
     ...(query.status ? { status: query.status } : {}),
     ...(query.shelfId ? { shelves: { some: { shelfId: query.shelfId } } } : {}),
+    // Every word must appear in the title or an author ("ishiguro klara") (R4-09).
     ...(query.q
       ? {
           work: {
-            OR: [
-              { title: { contains: query.q, mode: 'insensitive' } },
-              { authors: { some: { author: { name: { contains: query.q, mode: 'insensitive' } } } } },
-            ],
+            AND: query.q
+              .trim()
+              .split(/\s+/)
+              .slice(0, 8)
+              .map((word) => ({
+                OR: [
+                  { title: { contains: word, mode: 'insensitive' as const } },
+                  { authors: { some: { author: { name: { contains: word, mode: 'insensitive' as const } } } } },
+                ],
+              })),
           },
         }
       : {}),
@@ -447,10 +454,22 @@ export async function updateWork(userId: string, workId: string, input: UpdateWo
   if (!existing) {
     throw new AppError('NOT_FOUND', 'Work not found in your library');
   }
-  if (input.status && input.status !== existing.status) {
+  const status = input.status ?? existing.status;
+  if (input.finishedAt && input.finishedAt.getTime() > Date.now() + 86_400_000) {
+    throw new AppError('VALIDATION_ERROR', "A book can't be finished in the future");
+  }
+  if (input.finishedAt !== undefined && status !== 'FINISHED') {
+    throw new AppError('VALIDATION_ERROR', 'Only a finished book has a finish date');
+  }
+  const statusChanged = input.status !== undefined && input.status !== existing.status;
+  if (statusChanged || input.finishedAt !== undefined) {
+    // Becoming Finished is dated now unless a date (or null, "don't know") is given; any
+    // other status has no finish date.
+    const finishedAt =
+      status !== 'FINISHED' ? null : input.finishedAt !== undefined ? input.finishedAt : statusChanged ? new Date() : existing.finishedAt;
     await prisma.userWork.update({
       where: { userId_workId: { userId, workId } },
-      data: { status: input.status, finishedAt: input.status === 'FINISHED' ? new Date() : null },
+      data: { status, finishedAt },
     });
   }
   return getUserWorkOrThrow(userId, workId);

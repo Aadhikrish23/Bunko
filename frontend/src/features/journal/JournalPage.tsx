@@ -74,14 +74,16 @@ export function JournalPage() {
       {journal.data && journal.data.items.length > 0 && (
         <ol className="flex flex-col gap-4">
           {journal.data.items.map((entry) => (
-            <li key={entry.id} className="flex gap-4 border-b border-paper-200 pb-4 last:border-0">
-              <div className="w-20 flex-shrink-0 pt-0.5 text-xs font-medium text-paper-700">
+            <li key={entry.id} className="flex gap-3 border-b border-paper-200 pb-4 last:border-0 sm:gap-4">
+              {/* The date gets its own column on wide screens and sits above the title on a phone. */}
+              <div className="hidden w-20 flex-shrink-0 pt-0.5 text-xs font-medium text-paper-700 sm:block">
                 {formatDate(entry.startTime)}
               </div>
               <Link to={`/library/${entry.book.workId}`} className="focus-visible:focus-ring w-10 shrink-0 rounded-md" aria-hidden="true" tabIndex={-1}>
                 <BookCover title={entry.book.title} coverImageUrl={entry.book.coverImageUrl} />
               </Link>
               <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-paper-700 sm:hidden">{formatDate(entry.startTime)}</p>
                 <Link
                   to={`/library/${entry.book.workId}`}
                   className="focus-visible:focus-ring rounded font-display text-base text-paper-900 hover:text-moss-700"

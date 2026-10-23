@@ -11,7 +11,7 @@ interface AnnotationsDrawerProps {
   annotations: Annotation[];
   isLoading?: boolean;
   isError?: boolean;
-  onSelectAnnotation: (position: string) => void;
+  onSelectAnnotation: (position: string, annotationId?: string) => void;
   onRemoveAnnotation: (id: string) => void;
   onUpdateNote: (id: string, note: string) => void;
   onClose: () => void;
@@ -29,6 +29,8 @@ export function AnnotationsDrawer({
 }: AnnotationsDrawerProps) {
   const [tab, setTab] = useState<'all' | 'quotes'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Deleting asks once, in place: a quick second click must never land on the next item (R4-01).
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [editNoteText, setEditNoteText] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,7 +165,7 @@ export function AnnotationsDrawer({
                         <button
                           type="button"
                           onClick={() => {
-                            onSelectAnnotation(localMatch.position);
+                            onSelectAnnotation(localMatch.position, localMatch.id);
                             onClose();
                           }}
                           className="text-[11px] font-medium text-moss-700 hover:underline"
@@ -199,33 +201,57 @@ export function AnnotationsDrawer({
               return (
                 <li
                   key={item.id}
-                  style={{ borderLeftColor: colorInfo.border }}
-                  className="group rounded-r-lg border border-l-4 border-paper-200 bg-paper-100/70 p-3 shadow-xs transition-all hover:bg-paper-100"
+                  className="group rounded-lg border border-paper-200 bg-paper-100/70 p-3 transition-colors hover:bg-paper-100"
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold border ${colorInfo.badge}`}>
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-paper-700">
+                      <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorInfo.border }} />
                       {isQuote ? <Quote className="h-2.5 w-2.5" /> : <Highlighter className="h-2.5 w-2.5" />}
-                      {isQuote ? 'Quote' : colorKey}
+                      {isQuote ? 'Quote' : 'Highlight'}
                     </span>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => {
-                          onSelectAnnotation(item.position);
+                          onSelectAnnotation(item.position, item.id);
                           onClose();
                         }}
                         className="text-[11px] font-medium text-moss-700 hover:underline"
                       >
                         Jump to spot
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onRemoveAnnotation(item.id)}
-                        className="p-1 text-paper-400 hover:text-red-600 rounded"
-                        title="Delete highlight"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {confirmingId === item.id ? (
+                        <span className="flex items-center gap-1" role="group" aria-label="Delete this highlight?">
+                          <button
+                            type="button"
+                            autoFocus
+                            onClick={() => {
+                              setConfirmingId(null);
+                              onRemoveAnnotation(item.id);
+                            }}
+                            className="focus-visible:focus-ring rounded px-1.5 py-0.5 text-[11px] font-semibold text-ember-600 hover:bg-ember-400/10"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingId(null)}
+                            className="focus-visible:focus-ring rounded px-1.5 py-0.5 text-[11px] text-paper-700 hover:bg-paper-200"
+                          >
+                            Keep
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingId(item.id)}
+                          className="focus-visible:focus-ring rounded p-1 text-paper-600 hover:text-ember-600"
+                          aria-label={isQuote ? 'Delete quote' : 'Delete highlight'}
+                          title={isQuote ? 'Delete quote' : 'Delete highlight'}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 

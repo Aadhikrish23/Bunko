@@ -56,13 +56,20 @@ export function useCreateWork() {
 export function useUpdateWorkStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ workId, status }: { workId: string; status: ReadingStatus }) =>
-      api.patch<Work>(`/works/${workId}`, { status }),
+    // finishedAt: a chosen date, or null for "read it long ago, don't know when" (R4-05).
+    mutationFn: ({ workId, status, finishedAt }: { workId: string; status?: ReadingStatus; finishedAt?: string | null }) =>
+      api.patch<Work>(`/works/${workId}`, { ...(status ? { status } : {}), ...(finishedAt !== undefined ? { finishedAt } : {}) }),
     // Show the new status at once; the server catches up (and wins) a moment later.
-    onMutate: async ({ workId, status }) => {
+    onMutate: async ({ workId, status, finishedAt }) => {
       await queryClient.cancelQueries({ queryKey: ['works', workId] });
       const previous = queryClient.getQueryData<Work>(['works', workId]);
-      if (previous) queryClient.setQueryData<Work>(['works', workId], { ...previous, status });
+      if (previous) {
+        queryClient.setQueryData<Work>(['works', workId], {
+          ...previous,
+          ...(status ? { status } : {}),
+          ...(finishedAt !== undefined ? { finishedAt } : {}),
+        });
+      }
       return { previous };
     },
     onError: (_err, variables, context) => {

@@ -39,8 +39,12 @@ function EditionHighlights({ editionId, showEmpty }: { editionId: string; showEm
             {a.note && <p className="mt-1 text-sm text-paper-700">{a.note}</p>}
             <p className="mt-1 text-xs text-paper-600">
               {formatDate(a.createdAt)} ·{' '}
-              <Link to={`/read-chapters/${editionId}`} className="focus-visible:focus-ring rounded text-moss-700 underline underline-offset-2">
-                Open the book
+              <Link
+                to={`/read-chapters/${editionId}`}
+                state={{ annotationId: a.id }}
+                className="focus-visible:focus-ring rounded text-moss-700 underline underline-offset-2"
+              >
+                Read it in the book
               </Link>
             </p>
           </div>

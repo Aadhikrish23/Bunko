@@ -1,3 +1,4 @@
+import { chapterLabels, positionLabel } from '../reader/position-labels';
 import type { Note } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
@@ -47,10 +48,24 @@ async function requireOwnNote(userId: string, id: string): Promise<Note> {
   return note;
 }
 
-export async function listNotes(userId: string, workId: string): Promise<NoteDto[]> {
+/**
+ * A book's notes, newest first. A chapter note's position is also given in words
+ * (positionLabel: the chapter title), never just the stored id (R4-02).
+ */
+export async function listNotes(userId: string, workId: string): Promise<(NoteDto & { positionLabel: string | null })[]> {
   await requireOwnWork(userId, workId);
-  const rows = await prisma.note.findMany({ where: { workId, userId }, orderBy: { createdAt: 'desc' } });
-  return rows.map(toNoteDto);
+  const rows = await prisma.note.findMany({
+    where: { workId, userId },
+    orderBy: { createdAt: 'desc' },
+    include: { copy: { select: { edition: { select: { id: true, format: true } } } } },
+  });
+  const editionIds = [...new Set(rows.flatMap((r) => (r.copy ? [r.copy.edition.id] : [])))];
+  const labels = await chapterLabels(editionIds);
+  return rows.map((row) => {
+    const edition = row.copy?.edition;
+    const units = edition ? labels.get(edition.id) ?? [] : [];
+    return { ...toNoteDto(row), positionLabel: edition ? positionLabel(row.position, edition.format, units) : row.position };
+  });
 }
 
 // `options` is only used by offline sync replay (T-069) — see

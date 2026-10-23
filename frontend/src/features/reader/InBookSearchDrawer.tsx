@@ -57,6 +57,8 @@ export function InBookSearchDrawer({ onSearch, onSelectResult, onClose }: InBook
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-paper-400" />
           <input
             type="text"
+            autoFocus
+            aria-label="Search in this book"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search words or phrases..."

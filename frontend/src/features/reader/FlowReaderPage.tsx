@@ -35,6 +35,7 @@ import { useCreateNote } from '../../lib/api/notes';
 import type { NoteScope, ReadingSession } from '../../lib/api/types';
 import { useAddBookmark, useBookmarks, useRemoveBookmark } from '../../lib/api/bookmarks';
 import { useAiStatus, useTranslations } from '../../lib/api/ai';
+import { useUpdateWorkStatus, useWork } from '../../lib/api/works';
 import { COLOR_HEX_MAP, type HighlightColor } from '../../lib/annotation-colors';
 import { errorMessage } from '../../lib/error-message';
 import { isOfflineSessionId } from '../../lib/offline/local-sessions';
@@ -92,7 +93,7 @@ const MARGIN_SIZE_FRACTION: Record<MarginSize, number> = {
 };
 
 // Shared by the rendered page and the offscreen measurer: they must lay out identically.
-const HEADING_CLASS = 'mb-4 font-display text-lg';
+const HEADING_CLASS = 'mb-4 font-display';
 const TRANSLATION_LABEL_CLASS = 'mb-3 text-xs italic opacity-70';
 const PARAGRAPH_GAP = '0.7em';
 
@@ -157,7 +158,9 @@ export function FlowReaderPage() {
   const { editionId } = useParams<{ editionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const routerState = location.state as { journeyId?: string | null; coverImageUrl?: string | null } | null;
+  const routerState = location.state as
+    | { journeyId?: string | null; coverImageUrl?: string | null; annotationId?: string | null }
+    | null;
   const journeyId = routerState?.journeyId ?? null;
   const coverImageUrl = routerState?.coverImageUrl ?? null;
 
@@ -181,7 +184,6 @@ export function FlowReaderPage() {
   const currentOffsetRef = useRef(0);
   const hasResolvedInitialPosition = useRef(false);
   const [positionResolved, setPositionResolved] = useState(false);
-  const [displayPositionLabel, setDisplayPositionLabel] = useState('');
 
   // The live session can change under the page: a tab left in the background is paused and
   // resumed (or replaced, once the grace window has passed).
@@ -201,6 +203,12 @@ export function FlowReaderPage() {
   const [showSoundtrack, setShowSoundtrack] = useState(false);
   const [showTranslatePanel, setShowTranslatePanel] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  // A search match marked for a moment after jumping to it.
+  const [flash, setFlash] = useState<{ structuralId: string; start: number; end: number } | null>(null);
+  const flashTimerRef = useRef<number | null>(null);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const work = useWork(manifest.data?.workId);
+  const updateStatus = useUpdateWorkStatus();
   const [currentStructuralId, setCurrentStructuralId] = useState<string | null>(null);
 
   // Chapter translation (SRS §20.5, T-091): the chosen language is
@@ -265,7 +273,9 @@ export function FlowReaderPage() {
   // scrollable column instead of the flipbook.
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const chapterSectionRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const scrollRafRef = useRef<number | null>(null);
+  // A timer, not requestAnimationFrame: frames don't run in a background tab, which would
+  // leave the throttle stuck and position tracking dead (R4-03).
+  const scrollTimerRef = useRef<number | null>(null);
   const [scrollProgressPercent, setScrollProgressPercent] = useState(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -294,8 +304,6 @@ export function FlowReaderPage() {
     currentPositionRef.current = structuralId;
     currentOffsetRef.current = offset;
     setCurrentStructuralId(structuralId);
-    const chapter = chapters.data?.chapters.find((c) => c.structuralId === structuralId);
-    if (chapter) setDisplayPositionLabel(chapter.label);
     if (editionId) {
       writeLocal(`bunko_flow_pos_${editionId}`, structuralId);
       writeLocal(`bunko_flow_off_${editionId}`, String(offset));
@@ -326,7 +334,7 @@ export function FlowReaderPage() {
 
   useEffect(
     () => () => {
-      if (scrollRafRef.current != null) cancelAnimationFrame(scrollRafRef.current);
+      if (scrollTimerRef.current != null) clearTimeout(scrollTimerRef.current);
     },
     []
   );
@@ -394,6 +402,13 @@ export function FlowReaderPage() {
   const warmthFilter = settings.temperature > 0 ? ` sepia(${(settings.temperature / 100) * 0.5})` : '';
   const pageFilterStyle = { filter: `${brightnessFilter}${warmthFilter}` };
 
+  // Chapter titles sit a step above the body text at every font size (R4-16).
+  const headingStyle = {
+    fontFamily: FONT_FAMILY_STACK[settings.fontFamily],
+    fontSize: `${1.3 * settings.fontScale}rem`,
+    lineHeight: '1.3',
+  };
+
   const pageTextStyle: CSSProperties = {
     fontSize: `${0.95 * settings.fontScale}rem`,
     fontFamily: FONT_FAMILY_STACK[settings.fontFamily],
@@ -430,7 +445,7 @@ export function FlowReaderPage() {
         const heading = () => {
           const h = document.createElement('h2');
           h.className = HEADING_CLASS;
-          h.style.fontFamily = FONT_FAMILY_STACK[settings.fontFamily];
+          Object.assign(h.style, headingStyle);
           h.textContent = chapter.label;
           if (!chapter.translated) return [h];
           const label = document.createElement('p');
@@ -522,9 +537,33 @@ export function FlowReaderPage() {
     return hasCoverPage && start <= 1 ? 0 : start - 2;
   }
 
-  function scrollToChapter(structuralId: string) {
-    chapterSectionRefs.current.get(structuralId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    handlePositionChange(structuralId);
+  // A section's distance from the top of the scrolled content.
+  const sectionTop = (container: HTMLElement, section: HTMLElement) =>
+    section.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+
+  // Scroll mode renders after the position is resolved, so the jump to it happens once the
+  // chapters are on screen (R4-03).
+  useEffect(() => {
+    if (!positionResolved || !isContinuous) return;
+    const sid = currentPositionRef.current;
+    if (!sid) return;
+    const timer = setTimeout(() => scrollToChapter(sid, currentOffsetRef.current, false), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positionResolved, isContinuous]);
+
+  // In scroll mode a position is a chapter plus how far into its text; that maps to a point
+  // inside the chapter's section.
+  function scrollToChapter(structuralId: string, offset = 0, smooth = true) {
+    const container = scrollContainerRef.current;
+    const section = chapterSectionRefs.current.get(structuralId);
+    const length = displayChapters.find((c) => c.structuralId === structuralId)?.text.length ?? 0;
+    if (container && section) {
+      const fraction = length > 0 ? Math.min(1, offset / length) : 0;
+      const top = sectionTop(container, section) + fraction * section.offsetHeight - 16;
+      container.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+    }
+    handlePositionChange(structuralId, offset);
   }
 
   function showPage(target: number) {
@@ -538,7 +577,7 @@ export function FlowReaderPage() {
   // Not memoized: it closes over handlePositionChange and the current pages.
   function jumpToStructuralId(structuralId: string, offset = 0) {
     if (isContinuous) {
-      scrollToChapter(structuralId);
+      scrollToChapter(structuralId, offset);
       return;
     }
     const target = pageIndexFor(structuralId, offset);
@@ -555,15 +594,22 @@ export function FlowReaderPage() {
   useEffect(() => {
     if (hasResolvedInitialPosition.current) return;
     if (pages.length === 0 || !chapters.data || manifest.isLoading) return;
+    if (routerState?.annotationId && annotationsQuery.isLoading) return;
     hasResolvedInitialPosition.current = true;
 
     const saved = editionId ? readLocal(`bunko_flow_pos_${editionId}`) : null;
     const savedOffset = editionId ? Number(readLocal(`bunko_flow_off_${editionId}`)) || 0 : 0;
-    const target = saved ?? manifest.data?.startPosition ?? null;
-    if (target) jumpToStructuralId(target, saved ? savedOffset : 0);
+    // Opened from a highlight on the book page: at that highlight (R4-10).
+    const fromHighlight = routerState?.annotationId ? annotations.find((a) => a.id === routerState.annotationId) : undefined;
+    if (fromHighlight) {
+      jumpToAnnotation(fromHighlight.position, fromHighlight.id);
+    } else {
+      const target = saved ?? manifest.data?.startPosition ?? null;
+      if (target) jumpToStructuralId(target, saved ? savedOffset : 0);
+    }
     setPositionResolved(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pages, chapters.data, manifest.isLoading, manifest.data, editionId]);
+  }, [pages, chapters.data, manifest.isLoading, manifest.data, editionId, annotationsQuery.isLoading]);
 
   // A re-layout (font size, margins, window size, fonts loading, a
   // translation) changes every page's contents: stay on the page holding
@@ -591,14 +637,18 @@ export function FlowReaderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.pageTurnMode]);
 
+  // react-pageflip keeps the onFlip it was mounted with, so this must never close over a
+  // render's state: it goes through a ref to the latest handler (R4-02 -- a first-render
+  // closure saw no chapters and never updated the chapter name).
+  const positionChangeRef = useRef(handlePositionChange);
+  positionChangeRef.current = handlePositionChange;
   const handleFlip = useCallback((e: { data?: unknown }) => {
     const idx = Number(e?.data);
     if (!Number.isFinite(idx)) return;
     setCurrentPageIndex(idx);
     if (idx > 0) setCoverOpened(true);
     const page = pagesRef.current[idx];
-    if (page) handlePositionChange(page.structuralId, page.start);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (page) positionChangeRef.current(page.structuralId, page.start);
   }, []);
 
   const canGoBack = viewStart(currentPageIndex) > 0;
@@ -621,6 +671,19 @@ export function FlowReaderPage() {
   // Arrow keys and Page Up/Down turn pages (R2-17) unless something else has the keyboard.
   const turnRef = useRef({ prev: handlePrevPage, next: handleNextPage });
   turnRef.current = { prev: handlePrevPage, next: handleNextPage };
+  // Escape closes whichever menu is open (R4-13); a click outside closes the dropdowns.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      setShowBookmarks(false);
+      setShowMore(false);
+      setShowChapterList(false);
+      setShowTranslatePanel(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const keysEnabled = !isContinuous && !showCoverSplash && !showNoteComposer && !endedSession && !activeSelection;
   useEffect(() => {
     if (!keysEnabled) return;
@@ -646,9 +709,9 @@ export function FlowReaderPage() {
   }
 
   function handleScrollContainerScroll() {
-    if (scrollRafRef.current != null) return;
-    scrollRafRef.current = requestAnimationFrame(() => {
-      scrollRafRef.current = null;
+    if (scrollTimerRef.current != null) return;
+    scrollTimerRef.current = window.setTimeout(() => {
+      scrollTimerRef.current = null;
       const container = scrollContainerRef.current;
       if (!container) return;
       const { scrollTop, scrollHeight, clientHeight } = container;
@@ -673,9 +736,14 @@ export function FlowReaderPage() {
           earliestId = id;
         }
       });
-      const targetId = currentId ?? earliestId;
-      if (targetId) handlePositionChange(targetId);
-    });
+      const targetId: string | null = currentId ?? earliestId;
+      if (!targetId) return;
+      // How far into that chapter the top of the view is, as a character offset.
+      const section = chapterSectionRefs.current.get(targetId);
+      const length = displayChapters.find((c) => c.structuralId === targetId)?.text.length ?? 0;
+      const into = section ? (container.scrollTop - sectionTop(container, section)) / Math.max(1, section.offsetHeight) : 0;
+      handlePositionChange(targetId, Math.round(Math.max(0, Math.min(1, into)) * length));
+    }, 100);
   }
 
   const bookPath = manifest.data?.workId ? `/library/${manifest.data.workId}` : '/library';
@@ -692,6 +760,12 @@ export function FlowReaderPage() {
         sessionId,
         endPosition: currentPositionRef.current ?? undefined,
       });
+      // Opening a book for a few seconds isn't a reading session: it leaves no journal entry.
+      if ((session.durationSeconds ?? 0) < 60 && !isOfflineSessionId(sessionId)) {
+        await api.delete(`/reading-sessions/${sessionId}`).catch(() => undefined);
+        navigate(bookPath);
+        return;
+      }
       setEndedSession({ durationSeconds: session.durationSeconds });
     } catch {
       navigate(bookPath);
@@ -725,14 +799,22 @@ export function FlowReaderPage() {
 
   function handleSaveHighlight(color: HighlightColor, note?: string, isQuote?: boolean) {
     if (!editionId || !activeSelection) return;
-    createAnnotation.mutate({
-      kind: isQuote ? 'QUOTE' : 'HIGHLIGHT',
-      position: activeSelection.position,
-      text: activeSelection.text,
-      color,
-      note,
-      sessionId: sessionIdRef.current ?? undefined,
-    });
+    createAnnotation.mutate(
+      {
+        kind: isQuote ? 'QUOTE' : 'HIGHLIGHT',
+        position: activeSelection.position,
+        text: activeSelection.text,
+        color,
+        note,
+        sessionId: sessionIdRef.current ?? undefined,
+      },
+      { onSuccess: () => showSaved(isQuote ? 'Quote saved' : 'Highlight saved') },
+    );
+  }
+
+  function showSaved(message: string) {
+    setSavedNotice(message);
+    window.setTimeout(() => setSavedNotice(null), 2500);
   }
 
   function handleSaveNote(body: string, scope: NoteScope) {
@@ -808,7 +890,7 @@ export function FlowReaderPage() {
         results.push({
           id: `${chapter.structuralId}-${pos}`,
           // The chapter and the match's offset, so the jump lands on the right page.
-          target: `${chapter.structuralId}#${pos}`,
+          target: `${chapter.structuralId}#${pos}:${q.length}`,
           snippet: `...${snippet}...`,
           chapterLabel: chapter.label,
         });
@@ -819,14 +901,29 @@ export function FlowReaderPage() {
     return results;
   }
 
-  function jumpToSearchResult(target: string) {
+  function jumpToSearchResult(target: string, length = 0) {
     const cut = target.lastIndexOf('#');
-    if (cut === -1) jumpToStructuralId(target);
-    else jumpToStructuralId(target.slice(0, cut), Number(target.slice(cut + 1)) || 0);
+    if (cut === -1) {
+      jumpToStructuralId(target);
+      return;
+    }
+    const sid = target.slice(0, cut);
+    const [at = '0', len = String(length)] = target.slice(cut + 1).split(':');
+    const start = Number(at) || 0;
+    length = Number(len) || 0;
+    jumpToStructuralId(sid, start);
+    // The match is marked for a few seconds so the eye finds it (R4-06).
+    if (length > 0) flashPassage(sid, start, start + length);
   }
 
-  function jumpToAnnotation(position: string) {
-    const annotation = annotations.find((a) => a.position === position);
+  function flashPassage(structuralId: string, start: number, end: number) {
+    if (flashTimerRef.current != null) clearTimeout(flashTimerRef.current);
+    setFlash({ structuralId, start, end });
+    flashTimerRef.current = window.setTimeout(() => setFlash(null), 4000);
+  }
+
+  function jumpToAnnotation(position: string, annotationId?: string) {
+    const annotation = annotations.find((a) => a.id === annotationId) ?? annotations.find((a) => a.position === position);
     const text = chapters.data?.chapters.find((c) => c.structuralId === position)?.text;
     const found = annotation && text ? findPassage(text, annotation.text) : null;
     jumpToStructuralId(position, found?.start ?? 0);
@@ -851,7 +948,8 @@ export function FlowReaderPage() {
       : charIndex.total > 0
         ? (charsRead / charIndex.total) * 100
         : 0;
-  const minutesLeft = charIndex.total > 0 ? Math.max(atLastView ? 0 : 1, Math.ceil((charIndex.total - charsRead) / READING_CHARS_PER_MINUTE)) : null;
+  const minutesLeft =
+    charIndex.total === 0 ? null : atLastView ? 0 : Math.max(1, Math.ceil((charIndex.total - charsRead) / READING_CHARS_PER_MINUTE));
 
   function seekPercent(pct: number) {
     if (isContinuous) {
@@ -948,14 +1046,33 @@ export function FlowReaderPage() {
   const isDarkPage = parseInt(theme.paperBg.slice(1, 3), 16) < 0x80;
   const highlightAlpha = isDarkPage ? 0.35 : 0.9;
 
+  function withFlash(structuralId: string, marks: Mark[]): Mark[] {
+    return flash && flash.structuralId === structuralId
+      ? [...marks.filter((m) => m.end <= flash.start || m.start >= flash.end), { ...flash, color: 'search', id: 'search' }]
+      : marks;
+  }
+
   function renderRuns(fragment: PageFragment, marks: Mark[]) {
     return segmentFragment(fragment, marks).map((run, j) => {
       if (!run.mark) return <Fragment key={j}>{run.text}</Fragment>;
+      if (run.mark.id === 'search') {
+        return (
+          <mark key={j} style={{ backgroundColor: 'transparent', color: 'inherit', boxShadow: `inset 0 -0.45em 0 ${tint('#C97B4A', 0.45)}` }}>
+            {run.text}
+          </mark>
+        );
+      }
       const hex = COLOR_HEX_MAP[run.mark.color as HighlightColor]?.bg ?? COLOR_HEX_MAP.yellow.bg;
       return (
+        // Tapping a highlight opens your highlights, where it can be edited or removed (R4-11).
         <mark
           key={j}
-          style={{ backgroundColor: tint(hex, highlightAlpha), color: 'inherit', borderRadius: 2, boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' }}
+          onClick={() => {
+            if (window.getSelection()?.toString()) return;
+            setShowAnnotationsDrawer(true);
+          }}
+          title="Your highlight: open highlights"
+          style={{ backgroundColor: tint(hex, highlightAlpha), color: 'inherit', borderRadius: 2, boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone', cursor: 'pointer' }}
         >
           {run.text}
         </mark>
@@ -964,11 +1081,11 @@ export function FlowReaderPage() {
   }
 
   function renderPageText(page: FlowPage) {
-    const marks = page.translated ? [] : marksByChapter.get(page.structuralId) ?? [];
+    const marks = page.translated ? [] : withFlash(page.structuralId, marksByChapter.get(page.structuralId) ?? []);
     return (
       <div data-sid={page.structuralId} className="flex flex-col" style={{ ...pageTextStyle, gap: PARAGRAPH_GAP }}>
         {page.isChapterStart && (
-          <h2 className={HEADING_CLASS} style={{ color: theme.text, fontFamily: FONT_FAMILY_STACK[settings.fontFamily] }}>
+          <h2 className={HEADING_CLASS} style={{ ...headingStyle, color: theme.text }}>
             {page.chapterLabel}
           </h2>
         )}
@@ -1282,6 +1399,17 @@ export function FlowReaderPage() {
       </header>
 
 
+      {(showBookmarks || showMore) && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-20"
+          onClick={() => {
+            setShowBookmarks(false);
+            setShowMore(false);
+          }}
+        />
+      )}
+
       {showCorrection && journeyId && <CorrectPositionDialog journeyId={journeyId} onClose={() => setShowCorrection(false)} />}
 
       {showSettingsDrawer && (
@@ -1531,6 +1659,29 @@ export function FlowReaderPage() {
       )}
       </div>
 
+      {savedNotice && (
+        <p role="status" className="pointer-events-none fixed bottom-24 left-1/2 z-40 -translate-x-1/2 rounded-full bg-paper-900/90 px-4 py-1.5 text-xs text-paper-50 shadow">
+          {savedNotice}
+        </p>
+      )}
+
+      {/* The end of the book (R4-07): offer to mark it finished. */}
+      {positionResolved && (atLastView || (isContinuous && scrollProgressPercent >= 99.5)) && work.data && work.data.status !== 'FINISHED' && (
+        <div
+          style={{ backgroundColor: theme.paperBg, borderColor: theme.border, color: theme.text }}
+          className="flex flex-wrap items-center justify-center gap-3 border-t px-4 py-2 text-sm"
+        >
+          <span className="font-display">The end. Finished {work.data.title}?</span>
+          <Button
+            size="sm"
+            isLoading={updateStatus.isPending}
+            onClick={() => updateStatus.mutate({ workId: work.data!.id, status: 'FINISHED' }, { onSuccess: () => showSaved('Marked as finished') })}
+          >
+            Mark as finished
+          </Button>
+        </div>
+      )}
+
       {positionResolved && !isContinuous && !showCoverSplash && (
         <div
           style={{ backgroundColor: theme.paperBg, borderColor: theme.border, color: theme.text }}
@@ -1560,8 +1711,9 @@ export function FlowReaderPage() {
 
       <ReaderProgressScrubber
         currentProgressPercent={currentProgressPercent}
-        locationLabel={displayPositionLabel || pages[0]?.chapterLabel}
+        locationLabel={currentChapter?.label ?? pages[0]?.chapterLabel}
         minutesLeft={minutesLeft}
+        colors={{ background: theme.paperBg, text: theme.text, border: theme.border }}
         onSeekPercent={seekPercent}
       />
     </div>

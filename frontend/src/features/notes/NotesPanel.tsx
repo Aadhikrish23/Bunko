@@ -48,7 +48,7 @@ export function NotesPanel({ workId }: { workId: string }) {
                 <span className="flex items-center gap-2 text-xs text-paper-700">
                   <span className="inline-flex items-center gap-1 rounded bg-paper-200 px-1.5 py-0.5 text-[10px] font-bold text-paper-700">
                     {SCOPE_LABELS[note.scope] ?? note.scope}
-                    {note.position ? ` · ${note.position}` : ''}
+                    {note.positionLabel ?? note.position ? ` · ${note.positionLabel ?? note.position}` : ''}
                   </span>
                   <time dateTime={note.createdAt}>
                     {new Date(note.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}

@@ -334,7 +334,7 @@ export function ShelvesPage() {
       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="font-display text-2xl text-paper-900">Shelves</h1>
-          <p className="mt-1 text-sm text-paper-600">Your personal bookcase. Drag, or use the keyboard, to arrange your shelves.</p>
+          <p className="mt-1 text-sm text-paper-600">Your personal bookcase, arranged however you like.</p>
         </div>
 
         {isCreating && (

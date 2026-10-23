@@ -324,7 +324,7 @@ export function ReaderPage() {
               {showToc && (
                 <div className="absolute left-0 sm:right-0 sm:left-auto top-full z-30 mt-1 max-h-80 w-64 overflow-y-auto rounded-md border border-paper-200 bg-paper-50 p-2 shadow-lg">
                   <h4 className="px-2 py-1 text-xs font-bold uppercase tracking-wider text-paper-700 border-b border-paper-200 mb-1">
-                    Chapters / TOC
+                    Chapters
                   </h4>
                   <ul className="flex flex-col gap-0.5">
                     {toc.map((item, idx) => (
@@ -614,7 +614,8 @@ export function ReaderPage() {
       <ReaderProgressScrubber
         currentProgressPercent={currentProgressPercent}
         locationLabel={manifest.data.format === 'PDF' ? `Page ${currentPositionRef.current || 1}` : undefined}
-        totalChaptersOrPages={manifest.data.format === 'PDF' ? pdfPageCount || undefined : toc.length || undefined}
+        // No time-left guess here: chapter and page counts say little about how much text is left.
+        minutesLeft={null}
         onSeekPercent={(pct) => {
           setCurrentProgressPercent(pct);
           if (manifest.data.format === 'PDF') {

@@ -176,6 +176,8 @@ function parseSingle(clause: string, ownedTitles: string[] = [], shelfNames: str
       // "finished circe, loved it": the title stops at the comma.
       rest = rest.split(/\s*[,;]\s*/)[0] ?? rest;
     }
+    // "finished circe last night": when, for the finish date (R4-05).
+    const when = /\b(last night|yesterday)\b/i.exec(rest)?.[1];
     rest = rest.replace(/\s+(?:last night|today|yesterday|this morning|this week|finally|at last)$/i, '');
     // "Klara and the Sun around halfway": one of their titles, then how far they got.
     rest = rest.replace(/\s+(?:around|about|at|after|just past|past|only)?\s*(?:halfway(?: through)?|midway|the (?:start|beginning|middle|end)|(?:page|p\.)\s*\d+|\d+\s*(?:pages|chapters|%)(?: in)?|chapter \d+)$/i, '');
@@ -187,7 +189,12 @@ function parseSingle(clause: string, ownedTitles: string[] = [], shelfNames: str
     if (ownedLead) rest = ownedLead.t;
     const status = toStatus(verb.replace(/^'m /, ''));
     if (!status) return undefined;
-    const out = [intent(BookIntent.SetStatus, [bookT(clean(rest))], [{ type: IntentParameterType.Status, value: status }])];
+    const out = [
+      intent(BookIntent.SetStatus, [bookT(clean(rest))], [
+        { type: IntentParameterType.Status, value: status },
+        ...(when ? [{ type: IntentParameterType.Date, value: when.toLowerCase() }] : []),
+      ]),
+    ];
     if (score) {
       out.push(
         intent(BookIntent.RateBook, [bookT(clean(rest))], [

@@ -86,6 +86,27 @@ test.describe('assistant changes the library (T-098 – T-100)', () => {
     expect(await statusOf(testUser.userId, ids.Circe!)).toBe('WANT_TO_READ');
   });
 
+  test('"can you put klara on my comfort reads shelf?" does it (R4-15)', async ({ authedRequest, testUser }) => {
+    await library(authedRequest, [{ title: 'Klara and the Sun', authors: ['Kazuo Ishiguro'] }]);
+    await chat(authedRequest, 'create a shelf called comfort reads');
+    const reply = await chat(authedRequest, 'can you put klara on my comfort reads shelf?');
+    expect(reply.message).toContain('Comfort Reads');
+    const shelf = await prisma.shelf.findFirst({
+      where: { userId: testUser.userId },
+      include: { works: { include: { userWork: { include: { work: true } } } } },
+    });
+    expect(shelf?.works.map((w) => w.userWork.work.title)).toEqual(['Klara and the Sun']);
+  });
+
+  test('"finished circe last night" dates it yesterday and says so (R4-05)', async ({ authedRequest, testUser }) => {
+    const ids = await library(authedRequest, [{ title: 'Circe', authors: ['Madeline Miller'] }]);
+    const reply = await chat(authedRequest, 'finally finished circe last night, 4 stars');
+    expect(reply.message).toContain('Finished, yesterday');
+    const row = await prisma.userWork.findUniqueOrThrow({ where: { userId_workId: { userId: testUser.userId, workId: ids.Circe! } } });
+    const daysAgo = Math.round((Date.now() - row.finishedAt!.getTime()) / 86_400_000);
+    expect(daysAgo).toBe(1);
+  });
+
   test('a first name of an owned title is that book, never a new one (R2-03)', async ({ authedRequest, testUser }) => {
     const ids = await library(authedRequest, [{ title: 'Klara and the Sun', authors: ['Kazuo Ishiguro'] }, { title: 'Circe' }]);
     const reply = await chat(authedRequest, "dnf'd klara, the robot pov wasnt for me");

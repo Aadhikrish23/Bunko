@@ -100,7 +100,18 @@ export function useDeleteAnnotation(editionId: string | undefined) {
         () => api.delete(`/annotations/${id}`),
         () => enqueue('ANNOTATION_DELETED', { annotationId: id }),
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['annotations', editionId] }),
+    // Gone from the list at once, so the next item never slides under a second click (R4-01);
+    // put back if the delete fails.
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['annotations', editionId] });
+      const before = queryClient.getQueryData<Annotation[]>(['annotations', editionId]);
+      queryClient.setQueryData<Annotation[]>(['annotations', editionId], (list) => list?.filter((a) => a.id !== id));
+      return { before };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.before) queryClient.setQueryData(['annotations', editionId], context.before);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['annotations', editionId] }),
   });
 }
 

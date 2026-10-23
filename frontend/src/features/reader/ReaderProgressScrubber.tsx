@@ -8,6 +8,8 @@ interface ReaderProgressScrubberProps {
   // from the page or chapter count.
   minutesLeft?: number | null;
   totalChaptersOrPages?: number;
+  // The reading theme's colours, so a dark page doesn't sit on a cream bar (R4-12).
+  colors?: { background: string; text: string; border: string };
   onSeekPercent?: (percent: number) => void;
 }
 
@@ -16,6 +18,7 @@ export function ReaderProgressScrubber({
   locationLabel,
   minutesLeft,
   totalChaptersOrPages,
+  colors,
   onSeekPercent,
 }: ReaderProgressScrubberProps) {
   const [guessedMinutesLeft, setGuessedMinutesLeft] = useState<number | null>(null);
@@ -32,19 +35,22 @@ export function ReaderProgressScrubber({
   const estimatedMinutesLeft = minutesLeft !== undefined ? minutesLeft : guessedMinutesLeft;
 
   return (
-    <div className="sticky bottom-0 z-30 flex w-full flex-col border-t border-paper-200 bg-paper-50/95 px-4 py-2 shadow-md backdrop-blur text-xs text-paper-700">
+    <div
+      style={colors ? { backgroundColor: colors.background, color: colors.text, borderColor: colors.border } : undefined}
+      className={`sticky bottom-0 z-30 flex w-full flex-col border-t px-4 py-2 text-xs shadow-md ${colors ? '' : 'border-paper-200 bg-paper-50/95 text-paper-700 backdrop-blur'}`}
+    >
       <div className="flex items-center justify-between font-semibold mb-1">
-        <span className="text-paper-800 truncate max-w-[60%]">
+        <span className={`truncate max-w-[60%] ${colors ? '' : 'text-paper-800'}`}>
           {locationLabel || 'Reading progress'}
         </span>
         <div className="flex items-center gap-3">
           {estimatedMinutesLeft !== null && (
-            <span className="flex items-center gap-1 text-paper-700 font-normal">
+            <span className={`flex items-center gap-1 font-normal ${colors ? 'opacity-80' : 'text-paper-700'}`}>
               <Clock className="h-3 w-3 text-moss-600" aria-hidden="true" />
               {estimatedMinutesLeft === 0 ? 'Last page' : `About ${estimatedMinutesLeft} min left`}
             </span>
           )}
-          <span className="font-mono text-moss-800">{Math.round(currentProgressPercent)}%</span>
+          <span className={`font-mono ${colors ? '' : 'text-moss-800'}`}>{Math.round(currentProgressPercent)}%</span>
         </div>
       </div>
 

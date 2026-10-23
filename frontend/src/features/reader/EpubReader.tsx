@@ -269,7 +269,9 @@ export function EpubReader({
             spineItem?.idref?.toLowerCase().includes('titlepage') ||
             spineItem?.href?.toLowerCase().includes('titlepage')
           );
-          const isCoverPage = isAtStart && (isCoverItem || location?.start?.index === 0);
+          // Only a section that says it's a cover is laid out as one: a book whose first
+          // section is chapter text was squeezed into narrow columns (R4-04).
+          const isCoverPage = isAtStart && isCoverItem;
           setIsCover(Boolean(isCoverPage));
 
           if (settings?.pageTurnMode === '3d-flip' || !settings?.pageTurnMode) {
@@ -389,7 +391,7 @@ export function EpubReader({
                 sec?.idref?.toLowerCase().includes('titlepage') ||
                 sec?.href?.toLowerCase().includes('titlepage')
               );
-              const isCoverPage = isAtStart && (isCoverItem || sec?.index === 0);
+              const isCoverPage = isAtStart && isCoverItem;
               setIsCover(Boolean(isCoverPage));
               if (isCoverPage && (settings?.pageTurnMode === '3d-flip' || !settings?.pageTurnMode)) {
                 try {
@@ -402,7 +404,11 @@ export function EpubReader({
             } catch {
               // Graceful fallback to first chapter if target section is not found
               const fallbackSec: EpubAny = await rendition.display();
-              const isCoverPage = Boolean(!target || fallbackSec?.index === 0);
+              const isCoverPage = Boolean(
+                fallbackSec?.index === 0 &&
+                  (fallbackSec?.properties?.includes('cover') ||
+                    /cover|titlepage/i.test(`${fallbackSec?.idref ?? ''} ${fallbackSec?.href ?? ''}`)),
+              );
               setIsCover(Boolean(isCoverPage));
               if (isCoverPage && (settings?.pageTurnMode === '3d-flip' || !settings?.pageTurnMode)) {
                 try {

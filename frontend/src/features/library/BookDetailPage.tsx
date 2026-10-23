@@ -49,6 +49,12 @@ function Synopsis({ text }: { text: string }) {
 
 const FORMAT_LABELS = { PHYSICAL: 'Physical', EPUB: 'EPUB', PDF: 'PDF' } as const;
 
+/** An ISO time as the reader's local yyyy-mm-dd, for a date input. */
+function toDateInput(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function BookDetailPage() {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
@@ -108,10 +114,20 @@ export function BookDetailPage() {
                 </option>
               ))}
             </select>
-            {data.status === 'FINISHED' && data.finishedAt && (
-              <span className="text-sm text-paper-700">
-                Finished {new Date(data.finishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
+            {data.status === 'FINISHED' && (
+              // Editable: moving a backlog over means books finished long ago (R4-05).
+              <label className="flex items-center gap-2 text-sm text-paper-700">
+                {data.finishedAt ? 'Finished on' : 'Finished on (add the date)'}
+                <input
+                  type="date"
+                  value={data.finishedAt ? toDateInput(data.finishedAt) : ''}
+                  max={toDateInput(new Date().toISOString())}
+                  onChange={(e) =>
+                    updateStatus.mutate({ workId: data.id, finishedAt: e.target.value ? new Date(`${e.target.value}T12:00:00`).toISOString() : null })
+                  }
+                  className="focus-visible:focus-ring rounded-md border border-paper-300 bg-paper-50 px-2 py-1 text-sm text-paper-800"
+                />
+              </label>
             )}
           </div>
 

@@ -218,6 +218,8 @@ export interface Note {
   body: string;
   createdAt: string;
   updatedAt: string;
+  /** A chapter note's chapter title, on listed notes. */
+  positionLabel?: string | null;
 }
 
 export interface Review {

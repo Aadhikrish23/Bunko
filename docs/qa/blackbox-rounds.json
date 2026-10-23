@@ -1139,6 +1139,336 @@
           "status": "Fixed"
         }
       ]
+    },
+    {
+      "round": 4,
+      "date": "2026-10-23",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100; assistant model not configured (no NVIDIA_API_KEY). Browser pane already signed in to the seeded account with the readable EPUB; desktop (800px pane) and phone 375x812.",
+      "scores": {
+        "first_impression_onboarding": {
+          "score": 7,
+          "reason": "Warm and calm with clear empty states; onboarding not seen (already signed in); the Assistant asks to turn AI on before saying what it does."
+        },
+        "library_adding_finding_books": {
+          "score": 6,
+          "reason": "Adding works and results look great; ~16s search, confusing labels, 'Already read' stamps today, no way to edit metadata."
+        },
+        "book_page_and_details": {
+          "score": 6,
+          "reason": "Rating, favourite, review, shelves, status save nicely; finish date not editable, 'Bunko Sample Press' as author, 'Chapter · ch1' labels."
+        },
+        "reading_experience": {
+          "score": 5,
+          "reason": "Lovely typography, 3D curl and phone layout; wrong current chapter (footer, bookmarks, notes), scroll and View Original lose your place, View Original's first chapter broken."
+        },
+        "tracking_journal_statistics": {
+          "score": 8,
+          "reason": "The journal is the best part; timer survived a refresh; paper logging easy."
+        },
+        "shelves_organizing": {
+          "score": 8,
+          "reason": "Charming bookcase, multi-add works, shelf toggles on the book page; adding a bit slow."
+        },
+        "notes_highlights_reviews": {
+          "score": 5,
+          "reason": "Highlights show on page and book page and persist; deleting one deleted another with its note; chapter notes on the wrong chapter; tapping a highlight does nothing."
+        },
+        "assistant_chat": {
+          "score": 7,
+          "reason": "Honest about the missing model; commands, undo and questions work; 'can you put klara on my comfort reads shelf' listed the shelf; 'last night' ignored."
+        },
+        "look_and_feel": {
+          "score": 8,
+          "reason": "Made for readers; a few developer-ish labels and cramped phone layouts."
+        },
+        "speed_reliability": {
+          "score": 6,
+          "reason": "Never signed out, nothing lost; blank spinner on every load, slow search and shelf adds, View Original blanks each page turn."
+        },
+        "overall": {
+          "score": 6,
+          "reason": "Would track reading here today, but can't yet trust the reader with place and highlights."
+        }
+      },
+      "praise": [
+        "Beautiful reading surface: serif type, spacing, sepia/paper themes, a satisfying 3D curl; font changes and refresh keep your place in Flip mode.",
+        "The Journal: reflection, highlights, margin notes and chapter notes grouped per session; an honest delete dialog.",
+        "The 'Session ended' reflection ritual, and a paper session that survives a refresh.",
+        "The Shelves bookcase with spine/cover toggle and multi-select 'Add books'.",
+        "An honest Assistant with accurate commands, undo and library answers, and clear AI privacy text.",
+        "A good phone layout: clean icon toolbar, well-sized reading column."
+      ],
+      "issues": [
+        {
+          "id": "R4-01",
+          "area": "notes_highlights_reviews",
+          "severity": "major",
+          "title": "Deleting one highlight also deleted another and its margin note",
+          "steps": "Reader > Highlights (3) > trash on the Quote, no feedback, click again.",
+          "expected": "Only the Quote deleted, with confirm or undo.",
+          "actual": "The Quote and the yellow highlight with its margin note both gone; no confirmation or feedback.",
+          "root_cause": "Deleting waited for the server before the list changed, so a second click landed on the next highlight as it slid up.",
+          "fix": "Highlights leave the list at once (restored if the delete fails), and deleting asks in place: Delete / Keep.",
+          "files": [
+            "frontend/src/features/reader/AnnotationsDrawer.tsx",
+            "frontend/src/lib/api/annotations.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-02",
+          "area": "reading_experience",
+          "severity": "major",
+          "title": "Current chapter wrong: footer, chapter list, bookmarks, notes",
+          "steps": "Turn pages with arrows in 3D Flip / scroll; bookmark in The Customs House; 'This chapter' note in A Ledger in Salt.",
+          "expected": "Everything names the chapter being read.",
+          "actual": "Footer lags 1-2 chapters; bookmark labelled and jumping to the wrong chapter; note saved as 'Chapter · ch1'.",
+          "root_cause": "The page-flip handler was memoised on the first render, before chapters loaded, so the chapter name never followed page turns; notes showed the stored chapter id.",
+          "fix": "The flip handler goes through a ref to the latest code; the chapter name is derived from the current chapter; notes carry positionLabel (the chapter title).",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "backend/src/modules/notes/notes.service.ts",
+            "backend/src/modules/reader/position-labels.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-03",
+          "area": "reading_experience",
+          "severity": "major",
+          "title": "Scroll mode doesn't reopen where you left off",
+          "steps": "Scroll mode, go to The Customs House (~58%), refresh.",
+          "expected": "Reopens there.",
+          "actual": "Top of chapter 1 at 0% while the footer says another chapter.",
+          "root_cause": "Scroll mode tried to scroll before its chapters were on screen, and tracked position with requestAnimationFrame, which stalls in a background tab, so offsets stayed at 0.",
+          "fix": "Position is chapter + offset in scroll mode too, restored once the chapters render; tracking uses a timer.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-04",
+          "area": "reading_experience",
+          "severity": "major",
+          "title": "View Original's first chapter broken; switching views loses place",
+          "steps": "At A Ledger in Salt, View Original, then Back to reading view.",
+          "expected": "Same spot, normal layout, place kept.",
+          "actual": "Huge heading, paragraphs in 4-5 narrow columns, opens at chapter 1, 0% / '20 min left'; back in reading view at 0%; ~2s blank page per turn; no highlights.",
+          "root_cause": "The original-file view treated the first section of any book as a cover (narrow columns); position loss came from R4-03; the time estimate was guessed from chapter counts.",
+          "fix": "Only a section marked as a cover is laid out as one; the place carries both ways; no time guess in the original view. (Page-turn blanking and highlights in the original view unchanged.)",
+          "files": [
+            "frontend/src/features/reader/EpubReader.tsx",
+            "frontend/src/features/reader/ReaderPage.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R4-05",
+          "area": "book_page_and_details",
+          "severity": "major",
+          "title": "Finish date can't be set or changed",
+          "steps": "Finish a book; add as 'Already read'; 'finally finished circe last night, 4 stars'.",
+          "expected": "Editable date; 'last night' = yesterday.",
+          "actual": "Plain text; 'Already read' stamps today (inflating this year's count); Circe got today.",
+          "root_cause": "finishedAt could only be 'now'; 'Already read' dated today; the assistant ignored 'last night'.",
+          "fix": "Editable 'Finished on' date (PATCH /works finishedAt, no future dates); 'Already read' starts undated; 'finished X last night' dates it yesterday and says so.",
+          "files": [
+            "backend/src/modules/library/*",
+            "frontend/src/features/library/BookDetailPage.tsx",
+            "frontend/src/features/library/AddBookDialog.tsx",
+            "backend/src/modules/assistant/domains/books/actions/libraryTools.ts",
+            "backend/src/modules/assistant/domains/books/conversation/quickCommands.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-06",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "Search result jumps to the chapter, not the match",
+          "steps": "Search 'ledger', click a result.",
+          "expected": "Scroll to and mark the match; search box focused.",
+          "actual": "Top of chapter, nothing marked; first typing lost.",
+          "root_cause": "Search results carried only the chapter; the box wasn't focused.",
+          "fix": "Jumps to the page with the match, marks the words for a few seconds; the box is focused.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/reader/InBookSearchDrawer.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-07",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "No end-of-book moment",
+          "steps": "Read to 100%.",
+          "expected": "Offer to mark finished / rate.",
+          "actual": "Nothing; '1 min left' at 100%; status stays Reading.",
+          "root_cause": "No handling of the last page.",
+          "fix": "'The end. Finished <title>?' with Mark as finished; 'Last page' instead of '1 min left'.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/reader/ReaderProgressScrubber.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-08",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Add-book search slow, labels confusing",
+          "steps": "Search 'The Housekeeper and the Professor'.",
+          "expected": "Fast results, clear labels.",
+          "actual": "~16s; 'Added: English' badge on every result; leading 'The' dropped.",
+          "root_cause": "Coloured chips per result ('Added: English' meant the language you'd read it in).",
+          "fix": "One quiet line ('Originally Japanese · 14 chapters'), synopsis cleaned. (Catalogue speed unchanged.)",
+          "files": [
+            "frontend/src/features/library/AddBookDialog.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R4-09",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Library search can't combine author and title; no metadata editing",
+          "steps": "Search 'ishiguro klara'; try to fix an author/cover.",
+          "expected": "Finds the book; an Edit option.",
+          "actual": "No match; no edit; inconsistent placeholder covers.",
+          "root_cause": "Library search matched the whole phrase against title or author.",
+          "fix": "Each word must match the title or an author. (Editing book details isn't built: works are shared catalogue entries.)",
+          "files": [
+            "backend/src/modules/library/library.service.ts"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R4-10",
+          "area": "book_page_and_details",
+          "severity": "minor",
+          "title": "'Open the book' on a highlight doesn't go to it",
+          "steps": "Book page > Highlights > Open the book.",
+          "expected": "Opens at that highlight.",
+          "actual": "Opens at the last position.",
+          "root_cause": "The link opened the book at the last position.",
+          "fix": "'Read it in the book' opens the reader at that highlight.",
+          "files": [
+            "frontend/src/features/notes/BookHighlights.tsx",
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-11",
+          "area": "notes_highlights_reviews",
+          "severity": "minor",
+          "title": "Highlights can't be edited from the page; weak feedback",
+          "steps": "Click a highlight; save one with a note or a Quote.",
+          "expected": "Edit/recolour/delete on click; confirmation.",
+          "actual": "Nothing on click; no confirmation; toolbar covers the selection; quotes cut off; raw colour names.",
+          "root_cause": "Highlights on the page weren't interactive; saving was silent.",
+          "fix": "Tapping a highlight opens your highlights; 'Highlight saved' / 'Quote saved' notice; colour labels replaced by a swatch.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/reader/AnnotationsDrawer.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-12",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "Dark theme leaves light surfaces",
+          "steps": "Appearance > Dark.",
+          "expected": "Whole reader dark.",
+          "actual": "Progress bar and Appearance panel stay cream; stray horizontal scrollbar.",
+          "root_cause": "The progress bar used fixed cream colours.",
+          "fix": "It takes the reading theme's colours. (The Appearance panel stays light.)",
+          "files": [
+            "frontend/src/features/reader/ReaderProgressScrubber.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R4-13",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "Menus don't close with Escape or an outside click",
+          "steps": "Open the bookmarks dropdown or the phone '...' menu.",
+          "expected": "Closes.",
+          "actual": "Stays open; two menus open at once.",
+          "root_cause": "No Escape or outside-click handling.",
+          "fix": "Escape closes menus and panels; clicking outside closes the dropdowns.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-14",
+          "area": "tracking_journal_statistics",
+          "severity": "minor",
+          "title": "Tiny accidental sessions; inconsistent page fields",
+          "steps": "Open and close a book within a minute; compare Log reading and ending a timed session.",
+          "expected": "Very short visits not logged; same page fields.",
+          "actual": "'Under a minute' sessions counted; free-text vs numeric page fields.",
+          "root_cause": "Every opened reader session was kept.",
+          "fix": "Closing a book within a minute leaves no journal entry. (The paper-session form still asks for a chapter or page as text, which SRS §12.9 requires.)",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R4-15",
+          "area": "assistant_chat",
+          "severity": "minor",
+          "title": "Natural shelf request answered with a list",
+          "steps": "'can you put klara on my comfort reads shelf'.",
+          "expected": "Adds it or asks.",
+          "actual": "Listed the shelf; 'something like piranesi' ignored.",
+          "root_cause": "'can you ...' read as a question, so it was answered from the library.",
+          "fix": "Polite requests ('can you put ...?') are commands.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/pipeline/preRoute.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R4-16",
+          "area": "look_and_feel",
+          "severity": "polish",
+          "title": "Developer-ish text and cramped phone layouts",
+          "steps": "Desktop and phone.",
+          "expected": "Reader wording, tidy phone layouts.",
+          "actual": "'CHAPTERS / TOC', 'Chapter · ch1', 'Drag, or use the keyboard' on phone, small chapter titles, cramped Editions header and Journal dates, full-screen Appearance sheet.",
+          "root_cause": "Leftover technical labels; fixed heading size; dates squeezing journal entries on phones.",
+          "fix": "'Chapters', plainer shelves subtitle, chapter titles a step above body text, journal dates above the title on phones.",
+          "files": [
+            "frontend/src/features/reader/ReaderPage.tsx",
+            "frontend/src/features/shelves/ShelvesPage.tsx",
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/journal/JournalPage.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R4-17",
+          "area": "speed_reliability",
+          "severity": "polish",
+          "title": "Blank spinner on every full page load",
+          "steps": "Refresh any page.",
+          "expected": "App shell immediately.",
+          "actual": "1-2s blank page; typing lost; 'Maximum update depth exceeded' and some 404s in the console.",
+          "root_cause": "The app waits for the session to be restored before drawing anything.",
+          "fix": "Not changed this round.",
+          "files": [],
+          "status": "Open"
+        }
+      ]
     }
   ]
 }

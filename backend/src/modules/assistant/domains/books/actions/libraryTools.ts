@@ -94,12 +94,26 @@ export class RemoveBookTool extends BaseTool<{ bookId: string }, BookResult> {
   }
 }
 
-export class UpdateStatusTool extends BaseTool<{ bookId: string; status: string }, BookResult> {
+/** "yesterday" / "last night" / an ISO date -> a Date; undefined when not given or unreadable. */
+function finishedOn(when: string | undefined): Date | undefined {
+  if (!when) return undefined;
+  if (/^(yesterday|last night)$/i.test(when)) return new Date(Date.now() - 86_400_000);
+  if (/^today$/i.test(when)) return new Date();
+  const parsed = new Date(when);
+  return Number.isNaN(parsed.getTime()) || parsed.getTime() > Date.now() + 86_400_000 ? undefined : parsed;
+}
+
+const dayName = (date: Date) => {
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(date).setHours(0, 0, 0, 0)) / 86_400_000);
+  return days === 0 ? 'today' : days === 1 ? 'yesterday' : `on ${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+};
+
+export class UpdateStatusTool extends BaseTool<{ bookId: string; status: string; when?: string }, BookResult> {
   readonly category = 'library';
   readonly name = 'update_status';
   readonly description = 'Sets a book to Want to Read, Reading, Finished, or Did Not Finish.';
 
-  async execute(input: { bookId: string; status: string }, context: AIToolContext): Promise<AIToolResult<BookResult>> {
+  async execute(input: { bookId: string; status: string; when?: string }, context: AIToolContext): Promise<AIToolResult<BookResult>> {
     const own = await ownBook(context.userId, input.bookId);
     if (!own) return this.failure("That book isn't in your library.");
     const status = toStatus(input.status);
@@ -114,10 +128,12 @@ export class UpdateStatusTool extends BaseTool<{ bookId: string; status: string 
     if (own.status === status) {
       return this.success({ title, workId: own.workId, status }, `${title} is already marked ${STATUS_LABEL[status]}.`, { alreadyInStatus: true });
     }
-    await updateWork(context.userId, own.workId, { status });
+    // "finished circe last night": the date it was finished, said back so it can be checked (R4-05).
+    const finishedAt = status === 'FINISHED' ? finishedOn(input.when) : undefined;
+    await updateWork(context.userId, own.workId, { status, ...(finishedAt ? { finishedAt } : {}) });
     const message =
       status === 'FINISHED'
-        ? `I've marked ${title} as Finished. Congratulations on finishing it!`
+        ? `I've marked ${title} as Finished${finishedAt ? `, ${dayName(finishedAt)}` : ''}. Congratulations on finishing it!`
         : `I've marked ${title} as ${STATUS_LABEL[status]}.`;
     return this.success({ title, workId: own.workId, status }, message, { previousStatus: own.status });
   }

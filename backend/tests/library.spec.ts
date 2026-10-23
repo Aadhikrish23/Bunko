@@ -277,3 +277,37 @@ test.describe('finish date (R2-20, SRS §18.2)', () => {
     expect(reading.finishedAt).toBeNull();
   });
 });
+
+test.describe('editing the finish date (R4-05)', () => {
+  const create = async (request: import('@playwright/test').APIRequestContext) =>
+    (await (await request.post('/api/v1/works', { data: { title: `Dated ${Date.now()}`, coverImageUrl: 'https://example.com/c.jpg' } })).json()).data.id as string;
+
+  test('a finished book takes a chosen date, or none when it was read long ago', async ({ authedRequest }) => {
+    const workId = await create(authedRequest);
+    const dated = (await (await authedRequest.patch(`/api/v1/works/${workId}`, { data: { status: 'FINISHED', finishedAt: '2019-06-01' } })).json()).data;
+    expect(dated.finishedAt.slice(0, 10)).toBe('2019-06-01');
+    const moved = (await (await authedRequest.patch(`/api/v1/works/${workId}`, { data: { finishedAt: '2020-02-14' } })).json()).data;
+    expect(moved.finishedAt.slice(0, 10)).toBe('2020-02-14');
+
+    const other = await create(authedRequest);
+    const undated = (await (await authedRequest.patch(`/api/v1/works/${other}`, { data: { status: 'FINISHED', finishedAt: null } })).json()).data;
+    expect(undated.finishedAt).toBeNull();
+  });
+
+  test('no future dates, and no date on a book that is not finished', async ({ authedRequest }) => {
+    const workId = await create(authedRequest);
+    const future = new Date(Date.now() + 5 * 86_400_000).toISOString();
+    expect((await authedRequest.patch(`/api/v1/works/${workId}`, { data: { status: 'FINISHED', finishedAt: future } })).status()).toBe(400);
+    expect((await authedRequest.patch(`/api/v1/works/${workId}`, { data: { finishedAt: '2020-01-01' } })).status()).toBe(400);
+  });
+});
+
+
+test('library search matches each word in the title or an author (R4-09)', async ({ authedRequest }) => {
+  const title = `Klara and the Sun ${Date.now()}`;
+  await authedRequest.post('/api/v1/works', { data: { title, authors: ['Kazuo Ishiguro'], coverImageUrl: 'https://example.com/c.jpg' } });
+  const found = (await (await authedRequest.get('/api/v1/works', { params: { q: 'ishiguro klara' } })).json()).data;
+  expect(found.map((w: { title: string }) => w.title)).toContain(title);
+  const none = (await (await authedRequest.get('/api/v1/works', { params: { q: 'ishiguro dune' } })).json()).data;
+  expect(none.map((w: { title: string }) => w.title)).not.toContain(title);
+});

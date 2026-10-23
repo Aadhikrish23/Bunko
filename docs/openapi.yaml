@@ -198,8 +198,14 @@ paths:
               type: object
               properties:
                 status: { $ref: "#/components/schemas/ReadingStatus" }
+                finishedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: "When the book was finished; only for a FINISHED book, never in the future. Null means not known. Becoming FINISHED without it is dated now."
       responses:
         "200": { description: Updated }
+        "400": { description: "A future date, or a date on a book that isn't finished" }
     delete:
       summary: Remove a work from the user's library
       parameters:

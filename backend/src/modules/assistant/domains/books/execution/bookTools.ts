@@ -27,7 +27,11 @@ const book = { name: 'bookId', type: 'string', required: true };
 const metadata: ToolCapability[] = [
   meta('add_book', "Finds a book and adds it to the reader's library", ['Library'], [{ name: 'bookName', type: 'string', required: true }]),
   meta('remove_book', "Removes a book from the reader's library", ['Book'], [book]),
-  meta('update_status', "Sets a book's reading status", ['Book'], [book, { name: 'status', type: 'string', required: true }]),
+  meta('update_status', "Sets a book's reading status", ['Book'], [
+    book,
+    { name: 'status', type: 'string', required: true },
+    { name: 'date', type: 'string', required: false },
+  ]),
   meta('create_review', 'Rates and/or reviews a book', ['Book'], [
     book,
     { name: 'rating', type: 'number', required: false },
@@ -105,7 +109,8 @@ function buildInput(step: ExecutionStep): Record<string, unknown> | undefined {
     case 'update_status': {
       const raw = get('status', 'Status');
       // Keep what the reader said when it isn't a Bunko status ("paused"), so the tool can explain.
-      return { bookId: bookId(), status: toStatus(raw) ?? String(raw ?? '') };
+      const when = get('date', 'Date');
+      return { bookId: bookId(), status: toStatus(raw) ?? String(raw ?? ''), ...(when ? { when: String(when) } : {}) };
     }
     case 'create_review': {
       const rating = get('rating', 'Rating');

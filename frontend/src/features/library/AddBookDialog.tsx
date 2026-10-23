@@ -11,6 +11,7 @@ import { useCreateWork, useUpdateWorkStatus } from '../../lib/api/works';
 import type { ReadingStatus } from '../../lib/api/types';
 import { errorMessage } from '../../lib/error-message';
 import { BookCover } from './BookCover';
+import { cleanSynopsis } from './synopsis';
 
 function useDebouncedValue(value: string, delayMs: number): string {
   const [debounced, setDebounced] = useState(value);
@@ -80,7 +81,9 @@ export function AddBookDialog({
         chaptersCount: candidate.chaptersCount ?? null,
         seriesName: candidate.seriesName || null,
       });
-      if (addAs !== 'WANT_TO_READ') await updateStatus.mutateAsync({ workId: work.id, status: addAs });
+      if (addAs !== 'WANT_TO_READ') {
+        await updateStatus.mutateAsync({ workId: work.id, status: addAs, ...(addAs === 'FINISHED' ? { finishedAt: null } : {}) });
+      }
       onAdded(work.id);
     } catch (err) {
       setError(errorMessage(err, 'Could not add this book.'));
@@ -100,7 +103,9 @@ export function AddBookDialog({
         partsCount: manualPartsCount ? parseInt(manualPartsCount, 10) : null,
         chaptersCount: manualChaptersCount ? parseInt(manualChaptersCount, 10) : null,
       });
-      if (addAs !== 'WANT_TO_READ') await updateStatus.mutateAsync({ workId: work.id, status: addAs });
+      if (addAs !== 'WANT_TO_READ') {
+        await updateStatus.mutateAsync({ workId: work.id, status: addAs, ...(addAs === 'FINISHED' ? { finishedAt: null } : {}) });
+      }
       onAdded(work.id);
     } catch (err) {
       setError(errorMessage(err, 'Could not add this book.'));
@@ -215,32 +220,22 @@ export function AddBookDialog({
                           {candidate.firstPublishYear ? ` · ${candidate.firstPublishYear}` : ''}
                         </p>
 
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          {candidate.originalLanguage && (
-                            <span className="rounded bg-amber-100/80 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 border border-amber-200">
-                              Orig: {candidate.originalLanguage}
-                            </span>
-                          )}
-                          {candidate.language && (
-                            <span className="rounded bg-blue-100/80 px-1.5 py-0.5 text-[10px] font-medium text-blue-900 border border-blue-200">
-                              Added: {candidate.language}
-                            </span>
-                          )}
-                          {candidate.partsCount && (
-                            <span className="rounded bg-emerald-100/80 px-1.5 py-0.5 text-[10px] font-medium text-emerald-900 border border-emerald-200">
-                              {candidate.partsCount} Parts
-                            </span>
-                          )}
-                          {candidate.chaptersCount && (
-                            <span className="rounded bg-purple-100/80 px-1.5 py-0.5 text-[10px] font-medium text-purple-900 border border-purple-200">
-                              {candidate.chaptersCount} Chapters
-                            </span>
-                          )}
-                        </div>
+                        {/* One quiet line, not coloured chips (R4-08). */}
+                        {(candidate.originalLanguage || candidate.partsCount || candidate.chaptersCount) && (
+                          <p className="mt-1 text-xs text-paper-600">
+                            {[
+                              candidate.originalLanguage ? `Originally ${candidate.originalLanguage}` : null,
+                              candidate.partsCount ? `${candidate.partsCount} parts` : null,
+                              candidate.chaptersCount ? `${candidate.chaptersCount} chapters` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </p>
+                        )}
 
                         {candidate.description && (
                           <p className="mt-1.5 line-clamp-2 text-xs text-paper-700 leading-relaxed">
-                            {candidate.description}
+                            {cleanSynopsis(candidate.description)}
                           </p>
                         )}
                       </div>

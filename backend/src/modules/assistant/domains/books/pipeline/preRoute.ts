@@ -19,7 +19,12 @@ import { undoLastChange, UNDO_ASK } from './undo';
  * data, recommendations, plain commands, undo -- then the model for the rest. Each of these
  * is instant and costs nothing against the daily allowance.
  */
-export async function preRoute({ userId, requestId, message, client, session, requestContext, model }: PreRouteInput): Promise<PreRouteOutcome> {
+// "can you put klara on my comfort reads shelf" is a request, not a question about shelves (R4-15).
+const POLITE_REQUEST =
+  /^\s*(?:hey|hi|ok|okay)?[\s,]*(?:can|could|would|will)\s+you\s+(?:please\s+)?(?=(?:put|add|mark|set|move|rate|remove|delete|take|create|make|note|review|start|shelve|file|undo)\b)/i;
+
+export async function preRoute({ userId, requestId, message: said, client, session, requestContext, model }: PreRouteInput): Promise<PreRouteOutcome> {
+  const message = said.replace(POLITE_REQUEST, '').replace(/\?\s*$/, (q) => (POLITE_REQUEST.test(said) ? '' : q));
   const [books, shelves] = await Promise.all([loadLibrary(userId), loadShelves(userId)]);
   requestContext.library = snapshotOf(books, shelves);
   requestContext.recentExchanges = recentExchanges.get(userId);

@@ -55,7 +55,7 @@ export function tidyReply(message: string): string {
   return message
     .replace(
       // Authors can carry initials ("Ursula K. Le Guin"), so the "by" part may hold periods.
-      /I've added (.+?)( by [^\n]+?)? to your library as Want to Read\. I've marked \1 as ([A-Za-z ]+?)\.( Congratulations on finishing it!)?/g,
+      /I've added (.+?)( by [^\n]+?)? to your library as Want to Read\. I've marked \1 as ([A-Za-z ,]+?)\.( Congratulations on finishing it!)?/g,
       (_m, title: string, by: string | undefined, status: string, congrats: string | undefined) => `I've added ${title}${by ?? ''} to your library as ${status}.${congrats ?? ''}`,
     )
     // Squeeze doubled spaces only; line breaks carry lists and paragraphs.

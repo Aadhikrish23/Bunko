@@ -30,6 +30,8 @@ export const createWorkSchema = z.union([addExistingWorkSchema, newWorkSchema]);
 export const updateWorkSchema = z
   .object({
     status: readingStatusEnum.optional(),
+    // When it was finished (SRS §18.2). Null leaves it unknown ("read it years ago").
+    finishedAt: z.coerce.date().nullable().optional(),
   })
   .strict();
 
