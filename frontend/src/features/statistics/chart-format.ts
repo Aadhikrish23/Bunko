@@ -86,10 +86,15 @@ const languageNames = (() => {
 
 // Metadata providers give ISO codes ("en", "eng"); show a readable name
 // when the code is one Intl knows, and the raw value otherwise.
-export function languageLabel(code: string): string {
+// The server sends a language name ("English") or, for older data, a code ("en", "pt-BR").
+// Only a code is looked up: Intl reads "english" as a valid subtag and hands it back as-is.
+export function languageLabel(value: string): string {
+  if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(value)) {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
   try {
-    return languageNames?.of(code) ?? code;
+    return languageNames?.of(value) ?? value;
   } catch {
-    return code;
+    return value;
   }
 }

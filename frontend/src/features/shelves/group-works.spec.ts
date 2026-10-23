@@ -8,6 +8,7 @@ function mockWork(id: string, title: string, opts: { seriesName?: string | null;
     title,
     authors: ['Test Author'],
     status: 'READING',
+    finishedAt: null,
     editions: [],
     journeyId: null,
     genres: opts.genres ?? [],

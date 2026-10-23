@@ -238,6 +238,21 @@
   border-radius: 9999px;
 }
 
+.scrollbar-paper {
+  scrollbar-width: thin;
+  scrollbar-color: #d8cfbf transparent;
+}
+.scrollbar-paper::-webkit-scrollbar {
+  height: 6px;
+}
+.scrollbar-paper::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-paper::-webkit-scrollbar-thumb {
+  background-color: #d8cfbf;
+  border-radius: 9999px;
+}
+
 /* PDF.js Text Layer Styling for Native Text Selection */
 .textLayer {
   position: absolute;

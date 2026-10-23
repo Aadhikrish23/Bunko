@@ -258,3 +258,22 @@ test.describe('editions and copies (T-014, T-015)', () => {
   // (T-024, Phase 4) is built — covered there rather than with a synthetic
   // uuid here.
 });
+
+test.describe('finish date (R2-20, SRS §18.2)', () => {
+  test('is set when a book is marked Finished and cleared when it is not', async ({ authedRequest }) => {
+    const created = await authedRequest.post('/api/v1/works', {
+      data: { title: `Finish Date ${Date.now()}`, coverImageUrl: 'https://example.com/c.jpg' },
+    });
+    const workId = (await created.json()).data.id;
+    expect((await created.json()).data.finishedAt).toBeNull();
+
+    const finished = (await (await authedRequest.patch(`/api/v1/works/${workId}`, { data: { status: 'FINISHED' } })).json()).data;
+    expect(Date.now() - new Date(finished.finishedAt).getTime()).toBeLessThan(60_000);
+    // Setting the same status again keeps the original date.
+    const again = (await (await authedRequest.patch(`/api/v1/works/${workId}`, { data: { status: 'FINISHED' } })).json()).data;
+    expect(again.finishedAt).toBe(finished.finishedAt);
+
+    const reading = (await (await authedRequest.patch(`/api/v1/works/${workId}`, { data: { status: 'READING' } })).json()).data;
+    expect(reading.finishedAt).toBeNull();
+  });
+});

@@ -211,3 +211,71 @@ test.describe('POST /reading-sessions/log (R1-07)', () => {
     expect(stranger.status()).toBe(404);
   });
 });
+
+// Black-box round 2 (T-105): time away isn't reading, a reflection can follow the end,
+// a clash names the other book, and reading moves a Want to Read book to Reading.
+test.describe('reading time and session hand-offs (R2-04 – R2-06, R2-22)', () => {
+  const workOf = async (copyId: string) =>
+    (await prisma.copy.findUniqueOrThrow({ where: { id: copyId }, include: { edition: true } })).edition.workId;
+
+  test('time paused (a hidden tab) is not counted as reading', async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest);
+    const sessionId = (await (await authedRequest.post('/api/v1/reading-sessions', { data: { copyId } })).json()).data.id;
+    await prisma.$executeRaw`UPDATE "ReadingSession" SET "startTime" = ${new Date(Date.now() - 10 * 60_000)} WHERE id = ${sessionId}`;
+
+    expect((await authedRequest.post(`/api/v1/reading-sessions/${sessionId}/pause`)).status()).toBe(200);
+    // Away for eight minutes, then back.
+    await prisma.$executeRaw`UPDATE "ReadingSession" SET "pausedAt" = ${new Date(Date.now() - 8 * 60_000)} WHERE id = ${sessionId}`;
+    const resumed = await authedRequest.post('/api/v1/reading-sessions', { data: { copyId } });
+    expect((await resumed.json()).data).toMatchObject({ id: sessionId, status: 'ACTIVE' });
+
+    const ended = (await (await authedRequest.post(`/api/v1/reading-sessions/${sessionId}/end`, { data: {} })).json()).data;
+    expect(ended.durationSeconds).toBeGreaterThanOrEqual(118);
+    expect(ended.durationSeconds).toBeLessThanOrEqual(125);
+  });
+
+  test('a page turn in a session the idle sweep paused resumes it', async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest);
+    const sessionId = (await (await authedRequest.post('/api/v1/reading-sessions', { data: { copyId } })).json()).data.id;
+    await backdateUpdatedAt(sessionId, new Date(Date.now() - 10 * 60_000));
+    await runIdleTimeoutSweep();
+    const progress = await authedRequest.patch(`/api/v1/reading-sessions/${sessionId}/progress`, { data: { position: 'ch2' } });
+    expect(progress.status()).toBe(200);
+    expect((await prisma.readingSession.findUniqueOrThrow({ where: { id: sessionId } })).status).toBe('ACTIVE');
+  });
+
+  test('a reflection can be added once the session has ended', async ({ authedRequest }) => {
+    const copyId = await createCopy(authedRequest);
+    const sessionId = (await (await authedRequest.post('/api/v1/reading-sessions', { data: { copyId } })).json()).data.id;
+    await authedRequest.post(`/api/v1/reading-sessions/${sessionId}/end`, { data: { endPosition: 'ch3' } });
+    const withReflection = await authedRequest.post(`/api/v1/reading-sessions/${sessionId}/end`, {
+      data: { endPosition: 'ch3', reflection: 'The customs house was eerie.' },
+    });
+    expect(withReflection.status()).toBe(200);
+    expect((await withReflection.json()).data.reflection).toBe('The customs house was eerie.');
+    // Changing a reflection already written is still a conflict.
+    const changed = await authedRequest.post(`/api/v1/reading-sessions/${sessionId}/end`, { data: { reflection: 'Different.' } });
+    expect(changed.status()).toBe(409);
+  });
+
+  test('a clash names the book whose session is still open', async ({ authedRequest }) => {
+    const first = await createCopy(authedRequest);
+    await authedRequest.post('/api/v1/reading-sessions', { data: { copyId: first } });
+    const clash = await authedRequest.post('/api/v1/reading-sessions', { data: { copyId: await createCopy(authedRequest) } });
+    expect(clash.status()).toBe(409);
+    expect((await clash.json()).error.message).toMatch(/still in a reading session for “Test Book \d+”/);
+  });
+
+  test('starting or logging a session moves Want to Read to Reading, never a finished book', async ({ authedRequest, testUser }) => {
+    const live = await createCopy(authedRequest);
+    await authedRequest.post('/api/v1/reading-sessions', { data: { copyId: live } });
+    const status = async (copyId: string) =>
+      (await prisma.userWork.findUniqueOrThrow({ where: { userId_workId: { userId: testUser.userId, workId: await workOf(copyId) } } })).status;
+    expect(await status(live)).toBe('READING');
+
+    const reread = await createCopy(authedRequest, 'PHYSICAL');
+    await authedRequest.patch(`/api/v1/works/${await workOf(reread)}`, { data: { status: 'FINISHED' } });
+    await authedRequest.post('/api/v1/reading-sessions/log', { data: { copyId: reread, minutes: 20 } });
+    expect(await status(reread)).toBe('FINISHED');
+  });
+});

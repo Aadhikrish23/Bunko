@@ -121,7 +121,7 @@ export function StatisticsPage() {
               <BreakdownList
                 title="Languages"
                 entries={statistics.data.breakdowns.byLanguage}
-                formatLabel={(label) => (label ? languageLabel(label) : 'Unknown')}
+                formatLabel={(label) => (label ? languageLabel(label) : 'Not recorded')}
               />
               <BreakdownList
                 title="Formats"

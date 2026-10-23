@@ -25,7 +25,7 @@ test('physical progress maps to a digital edition via the confirmation prompt', 
   await page.getByRole('button', { name: 'Add edition' }).click();
   await page.getByRole('button', { name: 'Physical copy' }).click();
   await expect(page.getByRole('dialog', { name: 'Add an edition' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Start Reading Session' }).click();
+  await page.getByRole('button', { name: 'Start a reading session' }).click();
   await page.getByRole('button', { name: 'End Session' }).click();
   await page.getByLabel('Ending chapter / page').fill('Chapter 10');
   await page.getByRole('button', { name: 'Save session' }).click();
@@ -41,7 +41,7 @@ test('physical progress maps to a digital edition via the confirmation prompt', 
   });
   await expect(page.getByRole('dialog', { name: 'Add an edition' })).toHaveCount(0, { timeout: 30_000 });
 
-  await page.getByRole('button', { name: 'Continue Reading' }).click();
+  await page.getByRole('button', { name: /^(Start|Continue) reading$/ }).click();
 
   const prompt = page.getByRole('dialog', { name: 'Continue your reading journey?' });
   await expect(prompt).toBeVisible();

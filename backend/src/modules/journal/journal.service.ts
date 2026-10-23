@@ -7,6 +7,9 @@ import type { ListJournalQuery } from './journal.schema';
 export interface JournalEntryDto extends SessionDto {
   /** Which book the session was with, so an entry can say so and link to it. */
   book: { workId: string; title: string; coverImageUrl: string | null; format: string };
+  /** Where the session started and stopped, in words ("The Last Lantern", "p. 112"); null when unknown. */
+  startLabel: string | null;
+  endLabel: string | null;
   annotations: AnnotationDto[];
   notes: NoteDto[];
 }
@@ -33,6 +36,41 @@ function toSessionDto(session: {
   };
 }
 
+interface UnitLabel {
+  editionId: string;
+  structuralId: string;
+  label: string;
+  order: number;
+}
+
+// Only the chapter labels -- the stored graph also carries every chapter's full text.
+async function chapterLabels(editionIds: string[]): Promise<Map<string, UnitLabel[]>> {
+  const byEdition = new Map<string, UnitLabel[]>();
+  if (editionIds.length === 0) return byEdition;
+  const rows = await prisma.$queryRaw<UnitLabel[]>`
+    SELECT e.id AS "editionId", u->>'structuralId' AS "structuralId", u->>'label' AS "label", (u->>'order')::int AS "order"
+    FROM "Edition" e, jsonb_array_elements(e."chapterGraph"->'units') u
+    WHERE e.id = ANY(${editionIds}::text[]) AND jsonb_typeof(e."chapterGraph"->'units') = 'array'`;
+  for (const row of rows) byEdition.set(row.editionId, [...(byEdition.get(row.editionId) ?? []), row]);
+  return byEdition;
+}
+
+/**
+ * A stored position in words. Physical positions are already what the reader typed; PDF
+ * positions are page numbers; the flow reader stores a chapter's structuralId and the EPUB
+ * view a CFI, whose first step after /6/ is the spine item (2 = first).
+ */
+export function positionLabel(position: string | null, format: string, units: UnitLabel[]): string | null {
+  if (!position) return null;
+  if (format === 'PHYSICAL') return position;
+  if (/^\d+$/.test(position)) return `p. ${position}`;
+  const cfi = /^epubcfi\(\/6\/(\d+)/.exec(position);
+  const unit = cfi
+    ? units.find((u) => u.order === Number(cfi[1]) / 2 - 1)
+    : units.find((u) => u.structuralId === position);
+  return unit?.label ?? null;
+}
+
 // The Journal shows completed reading activity (SRS §12.5) — ended
 // sessions only; Active/Paused sessions aren't history yet. Multiple
 // sessions for the same book on the same day are kept as separate
@@ -56,37 +94,53 @@ export async function listJournal(
   const [rows, total] = await Promise.all([
     prisma.readingSession.findMany({
       where,
-      orderBy: { startTime: 'desc' },
+      // Most recently finished first: a session logged after the fact ends "now" even
+      // though it started long ago.
+      orderBy: [{ endTime: 'desc' }, { createdAt: 'desc' }],
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
       include: {
-        copy: { select: { edition: { select: { format: true, workId: true, work: { select: { title: true, coverImageUrl: true } } } } } },
+        copy: {
+          select: {
+            edition: {
+              select: { id: true, format: true, workId: true, work: { select: { title: true, coverImageUrl: true } } },
+            },
+          },
+        },
       },
     }),
     prisma.readingSession.count({ where }),
   ]);
 
   const sessionIds = rows.map((row) => row.id);
-  const [annotationRows, noteRows] = await Promise.all([
+  const digitalEditions = [...new Set(rows.filter((r) => r.copy.edition.format !== 'PHYSICAL').map((r) => r.copy.edition.id))];
+  const [annotationRows, noteRows, labels] = await Promise.all([
     sessionIds.length
       ? prisma.annotation.findMany({ where: { userId, sessionId: { in: sessionIds } } })
       : Promise.resolve([]),
     sessionIds.length
       ? prisma.note.findMany({ where: { userId, sessionId: { in: sessionIds } } })
       : Promise.resolve([]),
+    chapterLabels(digitalEditions),
   ]);
 
-  const items = rows.map((row) => ({
+  const items = rows.map((row) => {
+    const { format, id: editionId } = row.copy.edition;
+    const units = labels.get(editionId) ?? [];
+    return {
     ...toSessionDto(row),
     book: {
       workId: row.copy.edition.workId,
       title: row.copy.edition.work.title,
       coverImageUrl: row.copy.edition.work.coverImageUrl,
-      format: row.copy.edition.format,
+      format,
     },
+    startLabel: positionLabel(row.startPosition, format, units),
+    endLabel: positionLabel(row.endPosition, format, units),
     annotations: annotationRows.filter((a) => a.sessionId === row.id).map(toAnnotationDto),
     notes: noteRows.filter((n) => n.sessionId === row.id).map(toNoteDto),
-  }));
+    };
+  });
 
   return { items, total };
 }

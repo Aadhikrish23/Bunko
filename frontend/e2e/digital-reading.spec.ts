@@ -30,19 +30,19 @@ test('import an EPUB, open it, close it, and reopen it', async ({ page }) => {
   await expect(page.getByText('EPUB', { exact: true })).toBeVisible();
 
   // Open the reader.
-  await page.getByRole('button', { name: 'Continue Reading' }).click();
+  await page.getByRole('button', { name: /^(Start|Continue) reading$/ }).click();
   await expect(page).toHaveURL(/\/read\//);
-  await expect(page.getByRole('button', { name: 'Close reader' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close the book' })).toBeVisible();
 
   // Close — this ends the session and shows the (skippable) reflection prompt.
-  await page.getByRole('button', { name: 'Close reader' }).click();
+  await page.getByRole('button', { name: 'Close the book' }).click();
   await expect(page.getByRole('heading', { name: 'Session ended' })).toBeVisible();
   await page.getByRole('button', { name: 'Skip' }).click();
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
 
   // Reopening resumes rather than erroring — the reader manifest
   // resolves a same-edition start position from the session just ended.
-  await page.getByRole('button', { name: 'Continue Reading' }).click();
+  await page.getByRole('button', { name: /^(Start|Continue) reading$/ }).click();
   await expect(page).toHaveURL(/\/read\//);
-  await expect(page.getByRole('button', { name: 'Close reader' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close the book' })).toBeVisible();
 });

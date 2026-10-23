@@ -4,8 +4,10 @@ import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { Input } from '../../components/ui/Input';
 import { useCreateNote } from '../../lib/api/notes';
-import { useEndSession, useStartSession } from '../../lib/api/sessions';
+import { useEndSession, usePauseActiveSession, useStartSession } from '../../lib/api/sessions';
+import { ApiError } from '../../lib/api/client';
 import { errorMessage } from '../../lib/error-message';
+import { SessionConflict } from './SessionConflict';
 import { NoteComposerModal } from '../notes/NoteComposerModal';
 
 // Manual start/end flow for a physical copy (SRS §12.9, T-039) — Bunko
@@ -21,17 +23,22 @@ export function PhysicalSessionPanel({ copyId, workId }: { copyId: string; workI
   const [showNoteComposer, setShowNoteComposer] = useState(false);
 
   const startSession = useStartSession();
+  const pauseActiveSession = usePauseActiveSession();
+  const [conflict, setConflict] = useState<string | null>(null);
   const endSession = useEndSession();
   const createNote = useCreateNote(workId);
 
-  async function handleStart() {
+  async function handleStart(takeOver = false) {
     setError(null);
+    setConflict(null);
     try {
+      if (takeOver) await pauseActiveSession.mutateAsync();
       const session = await startSession.mutateAsync({ copyId });
       setSessionId(session.id);
       setSummary(null);
     } catch (err) {
-      setError(errorMessage(err, 'Could not start a reading session.'));
+      if (err instanceof ApiError && err.status === 409) setConflict(err.message);
+      else setError(errorMessage(err, 'Could not start a reading session.'));
     }
   }
 
@@ -68,9 +75,13 @@ export function PhysicalSessionPanel({ copyId, workId }: { copyId: string; workI
     return (
       <div className="flex flex-col gap-2">
         {error && <ErrorBanner message={error} />}
-        <Button onClick={handleStart} isLoading={startSession.isPending}>
-          <BookOpen className="h-4 w-4" /> Start Reading Session
-        </Button>
+        {conflict ? (
+          <SessionConflict message={conflict} onTakeOver={() => handleStart(true)} isLoading={pauseActiveSession.isPending || startSession.isPending} />
+        ) : (
+          <Button onClick={() => handleStart()} isLoading={startSession.isPending}>
+            <BookOpen className="h-4 w-4" /> Start a reading session
+          </Button>
+        )}
       </div>
     );
   }

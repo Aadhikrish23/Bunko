@@ -75,7 +75,7 @@ export function ContinueReadingButton({
   return (
     <>
       <Button onClick={handleClick} isLoading={resolvePosition.isPending}>
-        <BookOpenText className="h-4 w-4" /> Continue Reading
+        <BookOpenText className="h-4 w-4" /> {journeyId ? 'Continue reading' : 'Start reading'}
       </Button>
       {pendingConfirmation && (
         <ContinuityPrompt

@@ -3,6 +3,7 @@ import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
 import { upsertCanonicalPosition, type CanonicalPositionData } from '../continuity/canonical-position';
+import { markReadingIfWanted } from '../library/library.service';
 import { findUnitByClosestPage, findUnitByStructuralId, type ChapterGraph } from '../reader/chapter-graph';
 import type { EndSessionInput, LogSessionInput, ReportProgressInput, StartSessionInput } from './reading-sessions.schema';
 
@@ -43,6 +44,38 @@ function isWithinGraceWindow(pausedAt: Date, now: Date): boolean {
   return now.getTime() - pausedAt.getTime() <= graceWindowMs;
 }
 
+/**
+ * Reading time only (SRS §12.8): from start to `until`, minus every pause. A session that is
+ * paused right now stops counting at the moment it was paused.
+ */
+export function readingSeconds(
+  session: Pick<ReadingSession, 'startTime' | 'status' | 'pausedAt' | 'pausedSeconds'>,
+  until: Date,
+): number {
+  const stop = session.status === 'PAUSED' && session.pausedAt && session.pausedAt < until ? session.pausedAt : until;
+  return Math.max(0, Math.round((stop.getTime() - session.startTime.getTime()) / 1000) - session.pausedSeconds);
+}
+
+/** Back to ACTIVE, adding the pause that just ended to the paused total. */
+async function resume(session: ReadingSession, now: Date): Promise<ReadingSession> {
+  const pausedFor = session.pausedAt ? Math.max(0, Math.round((now.getTime() - session.pausedAt.getTime()) / 1000)) : 0;
+  return prisma.readingSession.update({
+    where: { id: session.id },
+    data: { status: 'ACTIVE', pausedAt: null, pausedSeconds: session.pausedSeconds + pausedFor },
+  });
+}
+
+async function conflictMessage(active: ReadingSession): Promise<string> {
+  const copy = await prisma.copy.findUnique({
+    where: { id: active.copyId },
+    select: { edition: { select: { work: { select: { title: true } } } } },
+  });
+  const title = copy?.edition.work.title;
+  return title
+    ? `You're still in a reading session for “${title}”. End or pause it first.`
+    : "You're still in another reading session. End or pause it first.";
+}
+
 // State machine per SRS §12.7: [Not Started] -> [Active] -> [Paused] ->
 // [Active] -> [Ended]. Only one ACTIVE session per user at a time.
 export async function startSession(userId: string, input: StartSessionInput, now = new Date()): Promise<SessionDto> {
@@ -55,7 +88,7 @@ export async function startSession(userId: string, input: StartSessionInput, now
     if (activeSession.copyId === input.copyId) {
       return toSessionDto(activeSession);
     }
-    throw new AppError('CONFLICT', 'Another session is already active for this user');
+    throw new AppError('CONFLICT', await conflictMessage(activeSession));
   }
 
   const copy = await prisma.copy.findFirst({
@@ -75,11 +108,7 @@ export async function startSession(userId: string, input: StartSessionInput, now
     orderBy: { updatedAt: 'desc' },
   });
   if (pausedSession && isWithinGraceWindow(pausedSession.updatedAt, now)) {
-    const resumed = await prisma.readingSession.update({
-      where: { id: pausedSession.id },
-      data: { status: 'ACTIVE' },
-    });
-    return toSessionDto(resumed);
+    return toSessionDto(await resume(pausedSession, now));
   }
 
   const journey = await prisma.readingJourney.upsert({
@@ -99,24 +128,40 @@ export async function startSession(userId: string, input: StartSessionInput, now
       startPosition: input.startPosition ?? null,
     },
   });
+  await markReadingIfWanted(userId, copy.edition.workId);
 
   return toSessionDto(session);
 }
 
-export async function reportProgress(userId: string, sessionId: string, input: ReportProgressInput): Promise<void> {
-  const session = await requireOwnSession(userId, sessionId);
+export async function reportProgress(
+  userId: string,
+  sessionId: string,
+  input: ReportProgressInput,
+  now = new Date(),
+): Promise<void> {
+  let session = await requireOwnSession(userId, sessionId);
+  // A page turn in a session the idle sweep paused means the reader is back: resume it
+  // (still within the grace window, and only if no other session took over meanwhile).
+  if (session.status === 'PAUSED' && isWithinGraceWindow(session.updatedAt, now)) {
+    const other = await prisma.readingSession.findFirst({ where: { userId, status: 'ACTIVE' }, select: { id: true } });
+    if (!other) session = await resume(session, now);
+  }
   if (session.status !== 'ACTIVE') {
     throw new AppError('CONFLICT', 'Cannot report progress on a session that is not active');
   }
   await prisma.readingSession.update({ where: { id: sessionId }, data: { endPosition: input.position } });
 }
 
-export async function pauseSession(userId: string, sessionId: string): Promise<SessionDto> {
+export async function pauseSession(userId: string, sessionId: string, now = new Date()): Promise<SessionDto> {
   const session = await requireOwnSession(userId, sessionId);
+  if (session.status === 'PAUSED') return toSessionDto(session);
   if (session.status !== 'ACTIVE') {
     throw new AppError('CONFLICT', 'Only an active session can be paused');
   }
-  const updated = await prisma.readingSession.update({ where: { id: sessionId }, data: { status: 'PAUSED' } });
+  const updated = await prisma.readingSession.update({
+    where: { id: sessionId },
+    data: { status: 'PAUSED', pausedAt: now },
+  });
   return toSessionDto(updated);
 }
 
@@ -139,10 +184,16 @@ export async function endSession(
     // Idempotent: the same payload replayed returns the existing result
     // rather than an error (docs/API_SPEC.md §6); a materially different
     // payload is a conflict.
-    const samePayload =
-      (input.endPosition ?? null) === session.endPosition && (input.reflection ?? null) === session.reflection;
+    const samePosition = input.endPosition === undefined || input.endPosition === session.endPosition;
+    const samePayload = samePosition && (input.reflection ?? null) === session.reflection;
     if (samePayload) {
       return toSessionDto(session);
+    }
+    // The reflection asked for after a session ends (SRS §12.10) arrives after the end itself.
+    if (samePosition && input.reflection && !session.reflection) {
+      return toSessionDto(
+        await prisma.readingSession.update({ where: { id: sessionId }, data: { reflection: input.reflection } }),
+      );
     }
     throw new AppError('CONFLICT', 'Session already ended with different data');
   }
@@ -153,8 +204,8 @@ export async function endSession(
     throw new AppError('VALIDATION_ERROR', 'endPosition is required to end a physical reading session');
   }
 
-  const endTime = now;
-  const durationSeconds = Math.max(0, Math.round((endTime.getTime() - session.startTime.getTime()) / 1000));
+  const endTime = session.status === 'PAUSED' && session.pausedAt ? session.pausedAt : now;
+  const durationSeconds = readingSeconds(session, now);
 
   const updated = await prisma.readingSession.update({
     where: { id: sessionId },
@@ -162,6 +213,7 @@ export async function endSession(
       status: 'ENDED',
       endTime,
       durationSeconds,
+      pausedAt: null,
       endPosition: input.endPosition ?? session.endPosition,
       reflection: input.reflection ?? session.reflection,
     },
@@ -254,6 +306,7 @@ export async function logSession(userId: string, input: LogSessionInput, now = n
       reflection: input.reflection ?? null,
     },
   });
+  await markReadingIfWanted(userId, copy.edition.workId);
 
   const newer = await prisma.readingSession.findFirst({
     where: { journeyId: journey.id, status: 'ENDED', endTime: { gt: endTime }, id: { not: session.id } },

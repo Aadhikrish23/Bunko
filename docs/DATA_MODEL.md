@@ -96,6 +96,10 @@ model UserWork {
   work      Work     @relation(fields: [workId], references: [id])
   status    ReadingStatus @default(WANT_TO_READ)
   addedAt   DateTime @default(now())
+  // When the status last became FINISHED (SRS §18.2 completion date);
+  // cleared when it changes to anything else. Backfilled for books already
+  // Finished from their last reading session (T-105, R2-20).
+  finishedAt DateTime?
 
   shelves ShelfWork[]
 
@@ -224,6 +228,11 @@ model ReadingSession {
   endPosition      String?
   reflection       String?  // free-text, optional (SRS §12.10)
   device           String?
+  // Time away from the book isn't reading time (SRS §12.8). pausedAt marks
+  // the start of the current pause; pausedSeconds sums finished pauses and
+  // is subtracted from durationSeconds (T-105, R2-06).
+  pausedAt         DateTime?
+  pausedSeconds    Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

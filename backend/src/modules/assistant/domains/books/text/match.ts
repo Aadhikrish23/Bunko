@@ -44,6 +44,8 @@ export function titleScore(query: string, title: string): number {
   const main = bare(mainTitle(title));
   if (q === full) return 100;
   if (q === main) return 97;
+  // The title's opening words: "klara" for "Klara and the Sun", "a little life" for "A Little Life".
+  if (`${main} `.startsWith(`${q} `) && q.replace(/\s/g, '').length >= 4) return 88;
   const qWords = q.split(' ');
   const mainWords = main.split(' ');
   const fullWords = full.split(' ');

@@ -203,6 +203,9 @@ export async function groundPlan(plan: IntentPlan, input: GroundingInput): Promi
         t.name = owned.title;
         continue;
       }
+      // Close to one of their own books: the tool asks which one rather than adding a
+      // stranger's book with a similar name.
+      if (best && best.score >= 70) continue;
       // Not in the library. Being added in this same message?
       if ([...adding].some((a) => titleScore(t.name, a) >= 85)) continue;
       if (AUTO_ADD.has(i.type) && !(i.type === BookIntent.OrganizeShelf && i.parameters?.some((p) => p.type === IntentParameterType.Boolean && (p.value === false || p.value === 'false')))) {

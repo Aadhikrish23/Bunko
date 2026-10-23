@@ -9,6 +9,7 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { useDeleteWork, useUpdateWorkStatus, useWork } from '../../lib/api/works';
 import { errorMessage } from '../../lib/error-message';
 import { BookSummaryPanel } from '../ai/BookSummaryPanel';
+import { BookHighlights } from '../notes/BookHighlights';
 import { NotesPanel } from '../notes/NotesPanel';
 import { ReviewPanel } from '../reviews/ReviewPanel';
 import { BookSoundtrackPanel } from '../soundtrack/BookSoundtrackPanel';
@@ -20,7 +21,8 @@ import { ContinueReadingButton } from './ContinueReadingButton';
 import { PhysicalSessionPanel } from './PhysicalSessionPanel';
 import { SeriesPanel } from './SeriesPanel';
 import { ShelfAssignmentPanel } from './ShelfAssignmentPanel';
-import { STATUS_OPTIONS, StatusBadge } from './StatusBadge';
+import { STATUS_OPTIONS } from './StatusBadge';
+import { cleanSynopsis } from './synopsis';
 
 const SYNOPSIS_COLLAPSE_LENGTH = 320;
 
@@ -86,11 +88,14 @@ export function BookDetailPage() {
             {data.seriesName && <p className="text-sm italic text-paper-700">{data.seriesName}</p>}
           </div>
 
-          {data.description && <Synopsis text={data.description} />}
+          {data.description && <Synopsis text={cleanSynopsis(data.description)} />}
 
-          <div className="flex items-center gap-3">
-            <StatusBadge status={data.status} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <label htmlFor={`status-${data.id}`} className="text-sm text-paper-700">
+              Status
+            </label>
             <select
+              id={`status-${data.id}`}
               value={data.status}
               onChange={(e) =>
                 updateStatus.mutate({ workId: data.id, status: e.target.value as (typeof STATUS_OPTIONS)[number]['value'] })
@@ -103,6 +108,11 @@ export function BookDetailPage() {
                 </option>
               ))}
             </select>
+            {data.status === 'FINISHED' && data.finishedAt && (
+              <span className="text-sm text-paper-700">
+                Finished {new Date(data.finishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            )}
           </div>
 
           <button
@@ -180,6 +190,13 @@ export function BookDetailPage() {
         <h2 className="mb-3 font-display text-lg text-paper-900">Notes</h2>
         <NotesPanel workId={data.id} />
         <BookSummaryPanel workId={data.id} />
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="mb-3 font-display text-lg text-paper-900">Highlights &amp; quotes</h2>
+        <BookHighlights
+          editionIds={data.editions.filter((e) => e.format !== 'PHYSICAL' && e.copyId).map((e) => e.id)}
+        />
       </Card>
 
       <Card className="p-5">

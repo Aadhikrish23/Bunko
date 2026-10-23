@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { NetworkError, api } from './api/client';
+import { api, refreshSession } from './api/client';
 import { getAccessToken, setAccessToken } from './api/token-store';
 import type { AuthResponseData, AuthUser } from './api/types';
 import { deleteUserDatabase, getOfflineUser, setOfflineUser } from './offline/idb';
@@ -63,32 +63,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // recent effect run is allowed to apply its result.
     let cancelled = false;
 
+    // Both StrictMode runs share the one refresh request (refreshSession is single-flight), so
+    // the rotated cookie is never presented twice.
     async function restore() {
+      const result = await refreshSession();
+      if (cancelled) return;
       try {
-        const data = await api.post<{ accessToken: string }>('/auth/refresh');
-        // Bail before writing anything shared (the token store) if a
-        // newer effect run has already superseded this one — by the
-        // time this await resolves, StrictMode's synchronous
-        // mount/cleanup/remount cycle has already flipped `cancelled`
-        // for a stale first run, so it never touches the token store at
-        // all rather than writing then trying to "undo" it.
-        if (cancelled) return;
-        setAccessToken(data.accessToken);
-        const profile = await api.get<AuthUser>('/users/me');
-        if (cancelled) return;
-        rememberUser(profile);
-        setUser(profile);
-      } catch (err) {
-        if (cancelled) return;
-        setAccessToken(null);
-        // No network (not a rejected session): keep the last signed-in
-        // user so their downloaded books still open (T-072). The real
-        // session is restored when the network returns.
-        const cached = err instanceof NetworkError ? cachedUser() : null;
-        if (cached) {
-          setOfflineUser(cached.id);
-          setUser(cached);
+        if (result === 'refreshed') {
+          const profile = await api.get<AuthUser>('/users/me');
+          if (cancelled) return;
+          rememberUser(profile);
+          setUser(profile);
+        } else if (result === 'offline') {
+          // No network (not a rejected session): keep the last signed-in
+          // user so their downloaded books still open (T-072). The real
+          // session is restored when the network returns.
+          const cached = cachedUser();
+          if (cached) {
+            setOfflineUser(cached.id);
+            setUser(cached);
+          }
         }
+      } catch {
+        // The profile didn't load; the sign-in page is the honest fallback.
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -105,14 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function reconnect() {
       if (getAccessToken() || !user) return;
-      try {
-        const data = await api.post<{ accessToken: string }>('/auth/refresh');
-        setAccessToken(data.accessToken);
-      } catch (err) {
-        if (!(err instanceof NetworkError)) {
-          setUser(null);
-          setOfflineUser(null);
-        }
+      if ((await refreshSession()) === 'rejected') {
+        setUser(null);
+        setOfflineUser(null);
       }
     }
     window.addEventListener('online', reconnect);

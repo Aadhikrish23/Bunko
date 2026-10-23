@@ -35,10 +35,43 @@ function resolvePath(baseDir: string, relative: string): string {
   return resolved.join('/');
 }
 
-function stripHtml(xhtml: string): string {
-  return xhtml
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ');
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', mdash: '—', ndash: '–', hellip: '…',
+};
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, code: string) => {
+    if (code[0] === '#') {
+      const n = code[1] === 'x' || code[1] === 'X' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : whole;
+    }
+    return NAMED_ENTITIES[code.toLowerCase()] ?? whole;
+  });
+}
+
+const BLOCK_TAGS = 'p|div|h[1-6]|li|blockquote|section|article|tr|dd|dt|figcaption|pre|header|footer|aside';
+
+const sameWords = (a: string, b: string) => normalizeText(a) === normalizeText(b);
+
+/**
+ * A chapter's readable text: the body only (never <head>/<title>), one paragraph per block
+ * element separated by a blank line, entities decoded. A leading heading that repeats the
+ * chapter's own title is dropped -- the reader prints the title itself.
+ */
+export function xhtmlToText(xhtml: string, label: string | null): string {
+  const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(xhtml)?.[1] ?? xhtml;
+  const marked = body
+    .replace(/<(script|style|head)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(new RegExp(`<\\/?(?:${BLOCK_TAGS})(?:\\s[^>]*)?>`, 'gi'), '\n\n')
+    .replace(/<[^>]+>/g, '');
+  const paragraphs = decodeEntities(marked)
+    .split(/\n\s*\n/)
+    .map((p) => p.split('\n').map((line) => line.replace(/[ \t ]+/g, ' ').trim()).filter(Boolean).join('\n'))
+    .filter((p) => p.length > 0);
+  if (label && paragraphs.length > 1 && sameWords(paragraphs[0]!, label)) paragraphs.shift();
+  return paragraphs.join('\n\n');
 }
 
 interface NavEntry {
@@ -175,22 +208,22 @@ export function indexEpub(buffer: Buffer): ChapterGraph {
     const manifestEntry = manifestById.get(idref);
     const href = manifestEntry?.href ?? idref;
 
+    const navLabel = labelByHref.get(href) ?? null;
     let text = '';
     if (manifestEntry) {
       const contentEntry = zip.getEntry(manifestEntry.href);
       if (contentEntry) {
-        text = stripHtml(contentEntry.getData().toString('utf8'));
+        text = xhtmlToText(contentEntry.getData().toString('utf8'), navLabel);
       }
     }
-    const normalized = normalizeText(text);
 
     return {
       structuralId: idref,
-      label: labelByHref.get(href) ?? idref,
+      label: navLabel ?? idref,
       order: index,
       pageNumber: null, // EPUB has no native page numbers; continuity relies on structural/anchor matching
-      textAnchors: generateTextAnchors(normalized),
-      text: text.replace(/\s+/g, ' ').trim(),
+      textAnchors: generateTextAnchors(normalizeText(text)),
+      text,
     };
   });
 

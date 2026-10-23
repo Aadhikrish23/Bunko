@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { Modal } from '../../components/ui/Modal';
-import { useStartSession } from '../../lib/api/sessions';
+import { usePauseActiveSession, useStartSession } from '../../lib/api/sessions';
 import { useWork } from '../../lib/api/works';
+import { ApiError } from '../../lib/api/client';
 import { errorMessage } from '../../lib/error-message';
+import { SessionConflict } from './SessionConflict';
 import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
@@ -26,23 +28,28 @@ export function BookQuickActionModal({ workId, onClose }: BookQuickActionModalPr
   const navigate = useNavigate();
   const workQuery = useWork(workId);
   const startSession = useStartSession();
+  const pauseActiveSession = usePauseActiveSession();
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
   const work = workQuery.data;
   const digitalEdition = work?.editions.find((e) => (e.format === 'EPUB' || e.format === 'PDF') && Boolean(e.copyId));
   const physicalEdition = work?.editions.find((e) => e.format === 'PHYSICAL' && Boolean(e.copyId));
 
-  async function handleStartSession() {
+  async function handleStartSession(takeOver = false) {
     if (!physicalEdition?.copyId) return;
     setError(null);
+    setConflict(null);
     try {
+      if (takeOver) await pauseActiveSession.mutateAsync();
       await startSession.mutateAsync({ copyId: physicalEdition.copyId });
       onClose();
       // The session timer and "end session" live on the book page.
       navigate(`/library/${workId}`);
     } catch (err) {
-      setError(errorMessage(err, 'Could not start a reading session.'));
+      if (err instanceof ApiError && err.status === 409) setConflict(err.message);
+      else setError(errorMessage(err, 'Could not start a reading session.'));
     }
   }
 
@@ -85,13 +92,20 @@ export function BookQuickActionModal({ workId, onClose }: BookQuickActionModalPr
               </div>
 
               {error && <ErrorBanner message={error} />}
+              {conflict && (
+                <SessionConflict
+                  message={conflict}
+                  onTakeOver={() => handleStartSession(true)}
+                  isLoading={pauseActiveSession.isPending || startSession.isPending}
+                />
+              )}
 
               <div className="mt-1 flex flex-col gap-2">
                 {digitalEdition && (
                   <ContinueReadingButton journeyId={work.journeyId} edition={digitalEdition} coverImageUrl={work.coverImageUrl} />
                 )}
                 {physicalEdition && (
-                  <Button variant={digitalEdition ? 'secondary' : 'primary'} onClick={handleStartSession} isLoading={startSession.isPending}>
+                  <Button variant={digitalEdition ? 'secondary' : 'primary'} onClick={() => handleStartSession()} isLoading={startSession.isPending}>
                     <Play className="h-4 w-4" /> Start a reading session
                   </Button>
                 )}

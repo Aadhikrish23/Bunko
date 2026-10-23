@@ -70,16 +70,40 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   return url.toString();
 }
 
-async function tryRefresh(): Promise<boolean> {
+export type RefreshResult = 'refreshed' | 'rejected' | 'offline';
+
+let refreshInFlight: Promise<RefreshResult> | null = null;
+
+async function refreshOnce(): Promise<RefreshResult> {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, { method: 'POST', credentials: 'include' });
-    if (!response.ok) return false;
+    if (!response.ok) return 'rejected';
     const json = (await response.json()) as Envelope<{ accessToken: string }>;
     setAccessToken(json.data.accessToken);
-    return true;
+    return 'refreshed';
   } catch {
-    return false;
+    return 'offline';
   }
+}
+
+/**
+ * Trades the refresh cookie for a new access token. Refresh tokens rotate on every use, so two
+ * refreshes racing with the same cookie sign the reader out (the loser looks like token reuse).
+ * Callers in this tab share the one request in flight, and tabs take turns through a Web Lock,
+ * so each sends the cookie the previous refresh just set.
+ */
+export function refreshSession(): Promise<RefreshResult> {
+  if (!refreshInFlight) {
+    const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    // request() resolves with the callback's settled result; the DOM typings don't unwrap it.
+    const run = locks
+      ? (locks.request('bunko-auth-refresh', () => refreshOnce()) as unknown as Promise<RefreshResult>)
+      : refreshOnce();
+    refreshInFlight = run.finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
 }
 
 async function request<T>(path: string, options: RequestOptions, retryOn401 = true): Promise<Envelope<T>> {
@@ -101,11 +125,11 @@ async function request<T>(path: string, options: RequestOptions, retryOn401 = tr
   }
 
   if (response.status === 401 && retryOn401 && token) {
-    const refreshed = await tryRefresh();
-    if (refreshed) {
+    if ((await refreshSession()) === 'refreshed') {
       return request<T>(path, options, false);
     }
-    setAccessToken(null);
+    // Only drop the token that failed, never one a newer sign-in has set meanwhile.
+    if (getAccessToken() === token) setAccessToken(null);
   }
 
   if (response.status === 204) {

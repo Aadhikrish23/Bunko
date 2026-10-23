@@ -334,6 +334,513 @@
           "status": "Fixed"
         }
       ]
+    },
+    {
+      "round": 2,
+      "date": "2026-10-23",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100; assistant model not configured (no NVIDIA_API_KEY), tester told so. Fresh seeded account with an original 5-chapter EPUB.",
+      "scores": {
+        "first_impression_onboarding": {
+          "score": 8,
+          "reason": "Calm login and a 3-step welcome for a new account; quick sign-up. No Goodreads/StoryGraph import."
+        },
+        "library_adding_finding_books": {
+          "score": 7,
+          "reason": "Rich results and the status choice on add are lovely, but search took 10-15s, a one-letter typo found nothing, covers slow."
+        },
+        "book_page_and_details": {
+          "score": 6,
+          "reason": "Clean, nice privacy line, but rating/favourite silently lost without 'Save review'; no progress, dates or highlights on the page."
+        },
+        "reading_experience": {
+          "score": 5,
+          "reason": "Strong appearance panel, search, chapter jumps, resume; but no paragraph breaks, titles printed three times, highlights not drawn, no selection in 3D Flip, font change resets position, broken phone layout."
+        },
+        "tracking_journal_statistics": {
+          "score": 6,
+          "reason": "Excellent manual log; but reflection Save does nothing, raw 'epubcfi(...)' in the journal, inflated session time, a stale session blocks new ones, no finish dates."
+        },
+        "shelves_organizing": {
+          "score": 7,
+          "reason": "Charming bookcase with genre rows, instant shelf creation; empty shelf can't add books, faint 'Covers' toggle, unlabeled tabs."
+        },
+        "notes_highlights_reviews": {
+          "score": 5,
+          "reason": "Good selection popover and margin notes; highlights not drawn, reader notes absent from the book page, no central notes view, no review confirmation."
+        },
+        "assistant_chat": {
+          "score": 6,
+          "reason": "Exact commands and undo work, honest about the missing model, excellent privacy text; brittle with natural phrasing; 'dnf'd klara' added a different book."
+        },
+        "look_and_feel": {
+          "score": 8,
+          "reason": "Feels hand-crafted for book lovers; some developer text and low-contrast controls."
+        },
+        "speed_reliability": {
+          "score": 5,
+          "reason": "Slow search and covers, logged out once on refresh, dead reflection save, stuck active session, shrunken reader after closing a session."
+        },
+        "overall": {
+          "score": 6,
+          "reason": "Has the soul of a reader's app; reading/highlighting and session tracking still have rough edges."
+        }
+      },
+      "praise": [
+        "Feels made by people who love books: the wooden bookcase with genre rows, the sepia reader with a warmth slider, serif headings, 'Session ended... Nice work.'",
+        "Plain, excellent privacy wording around AI (translation and the assistant).",
+        "Manual 'Log reading' is great: current read first, page-order validation, a clear confirmation.",
+        "Adding a book flows well: the status choice is part of adding, then 'Add a copy'.",
+        "The assistant does what it can reliably and reversibly, with a working undo."
+      ],
+      "issues": [
+        {
+          "id": "R2-01",
+          "area": "notes_highlights_reviews",
+          "severity": "major",
+          "title": "Highlights are saved but never drawn on the page text",
+          "steps": "Paginated mode, selected a passage, chose green; reopened the book.",
+          "expected": "The passage shows green highlighting.",
+          "actual": "Listed in the Highlights panel, but the text stays plain.",
+          "root_cause": "Highlights were stored with their text and chapter but the reflowed pages were plain strings; nothing located the saved text on a page.",
+          "fix": "Each page now keeps the character offsets of its text, saved highlights are found in the chapter (forgiving line breaks) and drawn in their colour, stronger on light paper.",
+          "files": [
+            "frontend/src/features/reader/flow-layout.ts",
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-02",
+          "area": "reading_experience",
+          "severity": "major",
+          "title": "Reflowed text has no paragraph breaks and repeats each chapter title",
+          "steps": "Opened the novella and turned pages.",
+          "expected": "Proper paragraphs; title once.",
+          "actual": "Each chapter is one block starting 'The Last Lantern The Last Lantern Aldmere had...' under a heading saying the same.",
+          "root_cause": "EPUB extraction stripped every tag and collapsed whitespace, so <title> + <h1> + paragraphs became one run ('The Last Lantern The Last Lantern Aldmere...').",
+          "fix": "Body only, one paragraph per block element, entities decoded, a heading that repeats the chapter title dropped; chapter graph v4 re-indexes existing books.",
+          "files": [
+            "backend/src/modules/reader/epub-indexer.ts",
+            "backend/src/modules/reader/chapter-graph.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-03",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "'dnf'd klara' added a different book",
+          "steps": "'dnf'd klara, the robot pov wasnt for me' with Klara and the Sun owned.",
+          "expected": "Mark Klara and the Sun DNF, or ask.",
+          "actual": "'I've added Klāre by Otto Hinnerk to your library as Did Not Finish.'",
+          "root_cause": "'klara' covered 1 of 4 title words (score 75 < 80), so it wasn't treated as the owned book and the auto-add searched the catalogue.",
+          "fix": "A title's opening words name it (score 88); a near match to an owned title never auto-adds a stranger's book, the tool asks instead.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/text/match.ts",
+            "backend/src/modules/assistant/domains/books/pipeline/planChecks.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-04",
+          "area": "tracking_journal_statistics",
+          "severity": "major",
+          "title": "Reflection 'Save' after a session does nothing",
+          "steps": "Reader X > typed a reflection > Save (x3).",
+          "expected": "Saves and closes.",
+          "actual": "Dialog stays open, no message; the reflection never reaches the Journal.",
+          "root_cause": "Save sent the end call again with a reflection; the server treated the already-ended session's new reflection as 'different data' (409) and the error was swallowed.",
+          "fix": "A reflection can follow the end (only when none exists); errors are shown; Save/Skip return to the book page.",
+          "files": [
+            "backend/src/modules/reading-sessions/reading-sessions.service.ts",
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/reader/ReflectionPrompt.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-05",
+          "area": "tracking_journal_statistics",
+          "severity": "major",
+          "title": "A stale reader session blocks new sessions with a developer-style error",
+          "steps": "Left the reader by navigating away; later 'Start a reading session' on another book.",
+          "expected": "Start a timer, or offer to end the old one.",
+          "actual": "'Another session is already active for this user' and nothing shows or ends it.",
+          "root_cause": "Leaving the reader without closing it left the session ACTIVE; the 409 text was developer wording with no way out.",
+          "fix": "Leaving the reader pauses its session; the clash names the book ('You're still in a reading session for ...') and offers 'Pause that one and start here'.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/library/SessionConflict.tsx",
+            "backend/src/modules/reading-sessions/reading-sessions.service.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-06",
+          "area": "tracking_journal_statistics",
+          "severity": "major",
+          "title": "Session time includes time away from the reader",
+          "steps": "Left the reader open in the background, came back, closed it.",
+          "expected": "Only active reading time.",
+          "actual": "'6 min of reading' for about a minute.",
+          "root_cause": "Duration was end minus start, including time away.",
+          "fix": "Sessions record paused time (pausedAt, pausedSeconds); a hidden tab pauses and resumes; the idle sweep pauses from the last page turn; paused time is subtracted.",
+          "files": [
+            "backend/prisma/schema.prisma",
+            "backend/src/modules/reading-sessions/*",
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-07",
+          "area": "tracking_journal_statistics",
+          "severity": "major",
+          "title": "Journal shows a raw internal position",
+          "steps": "Journal after a reader session.",
+          "expected": "'Chapter 4, 67%'.",
+          "actual": "'6 min · EPUB · epubcfi(/6/2!/4/2/1:0) → ch4'",
+          "root_cause": "The journal printed stored positions (CFI, chapter ids) as-is.",
+          "fix": "Entries carry startLabel/endLabel: chapter titles (from the chapter graph, CFIs by spine step), 'p. N' for pages.",
+          "files": [
+            "backend/src/modules/journal/journal.service.ts",
+            "frontend/src/features/journal/JournalPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-08",
+          "area": "reading_experience",
+          "severity": "major",
+          "title": "Can't select text in the default 3D Flip mode",
+          "steps": "Drag-select and double-click in 3D Flip.",
+          "expected": "Text selects; highlight popover appears.",
+          "actual": "Dragging starts a page curl; only works after switching to Paginated, with no hint.",
+          "root_cause": "react-pageflip took mouse and touch input in 3D Flip mode, so a drag curled the page instead of selecting.",
+          "fix": "The flipbook no longer takes pointer input: text selects in every mode; pages turn with the buttons, arrow keys or a swipe.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-09",
+          "area": "reading_experience",
+          "severity": "major",
+          "title": "Phone reader shows ~6 lines in a tiny inset card",
+          "steps": "Mobile 375x812, reader.",
+          "expected": "Text fills the screen.",
+          "actual": "Small inner card, ~6 lines per page; bookmark and View Original missing from the toolbar.",
+          "root_cause": "Pages were always A4 halves of a two-page spread, tiny on a phone; ten toolbar icons overflowed.",
+          "fix": "Below 768px one page fills the screen; Note, Translate, Music, View Original and 'Not where you left off?' move into a More menu.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/ai/TranslatePanel.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-10",
+          "area": "book_page_and_details",
+          "severity": "major",
+          "title": "Rating and Favourite silently lost without 'Save review'",
+          "steps": "Clicked 5 stars and Favourite, refreshed.",
+          "expected": "Saved instantly or warned.",
+          "actual": "All empty after refresh; no 'Saved' confirmation even when saving works.",
+          "root_cause": "Stars and Favourite only changed the form; nothing saved until 'Save review'.",
+          "fix": "Rating, favourite and reread save on click with a 'Saved.' note; unsaved review text is kept.",
+          "files": [
+            "frontend/src/features/reviews/ReviewPanel.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-11",
+          "area": "speed_reliability",
+          "severity": "major",
+          "title": "Logged out on refresh mid-session",
+          "steps": "~6 min after sign-in, refreshed the reader.",
+          "expected": "Stay signed in.",
+          "actual": "Sent to /login, then landed on Library.",
+          "root_cause": "Refresh tokens rotate on every use; two refreshes with the same cookie (StrictMode's double restore, parallel 401s, several tabs reloading) made the loser look like token reuse and signed the reader out.",
+          "fix": "One refresh at a time: shared within a tab and serialised across tabs with a Web Lock; a failed refresh never clears a newer token.",
+          "files": [
+            "frontend/src/lib/api/client.ts",
+            "frontend/src/lib/auth-context.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-12",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "Changing font size resets to the start",
+          "steps": "Page 2 of 8 > font +2.",
+          "expected": "Same passage.",
+          "actual": "'Page 1 of 10', back at chapter 1.",
+          "root_cause": "Re-pagination re-anchored to the chapter's first page, and the flipbook wasn't remounted at the new index.",
+          "fix": "Position is chapter + character offset; after any re-layout the reader lands on the page holding that passage.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/reader/flow-layout.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-13",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "'View Original' loses your place and has no way back",
+          "steps": "At 67% > View Original.",
+          "expected": "Same position; toggle back.",
+          "actual": "Opens at chapter 1, 0%; no side padding, default Times; only Close.",
+          "root_cause": "The original view ignored the reading view's position (epub.js only finds an idref with '#') and had only Close.",
+          "fix": "Opens at the chapter you were on; 'Back to reading view' button.",
+          "files": [
+            "frontend/src/features/reader/ReaderPage.tsx",
+            "frontend/src/features/reader/EpubReader.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-14",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "Reader renders shrunken after closing a session",
+          "steps": "X > Session ended > Skip.",
+          "expected": "Back to the library, or a normal reader.",
+          "actual": "A small card mid-screen; X vs Skip inconsistent.",
+          "root_cause": "The reflection prompt replaced the reader, and Save/Skip went 'back' in history, sometimes into the reading view of the ended session.",
+          "fix": "The prompt sits over the book; both readers return to the book page afterwards.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/reader/ReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-15",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "Pages half empty; first spread's left page blank",
+          "steps": "Read the first spreads on desktop.",
+          "expected": "Pages fill.",
+          "actual": "Text stops two-thirds down; next spread has one line then a new chapter.",
+          "root_cause": "Pagination estimated characters per page (deliberately conservative) and the first page was laid out as a lone 'cover'.",
+          "fix": "Pages are measured with the real fonts in an offscreen copy of the page (about 97% full, nothing clipped); the cover slot is used only for a real cover.",
+          "files": [
+            "frontend/src/features/reader/flow-layout.ts",
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-16",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "'mins left' estimate depends on layout",
+          "steps": "Changed font size, chapter list, mobile.",
+          "expected": "Stable estimate.",
+          "actual": "~32, ~40, ~68, ~50 at the same spot.",
+          "root_cause": "'mins left' was pages left x 4.",
+          "fix": "Progress and time left come from characters read (about 230 words a minute), the same at any font size.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/reader/ReaderProgressScrubber.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-17",
+          "area": "reading_experience",
+          "severity": "minor",
+          "title": "Arrow keys don't turn pages",
+          "steps": "Right arrow in the reader.",
+          "expected": "Next page.",
+          "actual": "Nothing.",
+          "root_cause": "No keyboard handling in the reading view.",
+          "fix": "Left/Right arrows and Page Up/Down turn pages (not while typing or in a dialog).",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-18",
+          "area": "notes_highlights_reviews",
+          "severity": "minor",
+          "title": "Reader highlights/notes absent from the book page; no central notes view",
+          "steps": "Highlight with a margin note > book page.",
+          "expected": "Listed on the book page.",
+          "actual": "'Notes: No notes yet.'",
+          "root_cause": "The book page listed notes only; highlights lived in the reader.",
+          "fix": "'Highlights & quotes' on the book page, newest first, with colour, margin note and a link back into the book. (A separate all-books notes page isn't built.)",
+          "files": [
+            "frontend/src/features/notes/BookHighlights.tsx",
+            "frontend/src/features/library/BookDetailPage.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R2-19",
+          "area": "assistant_chat",
+          "severity": "minor",
+          "title": "Natural follow-ups and phrasing variants fail",
+          "steps": "'finsihed circe, 4 stars and put it on comfort reads', 'put it on comfort reads', 'put circe on comfort reads', 'actually undo that'.",
+          "expected": "Handled, or each simple command.",
+          "actual": "The same canned 'not set up' reply each time; a message typed while pending wasn't sent on Enter.",
+          "root_cause": "'put X on Y' needed the word 'shelf'; 'it' was bound to the previous turn's subject; 'actually undo that' wasn't recognised.",
+          "fix": "Shelves named without 'shelf' (and 'add X to Y' when Y is a shelf or X is theirs); 'it' is the book named in the same message; undo accepts fillers. The tester's sentence now does status, rating and shelf without a model.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/conversation/quickCommands.ts",
+            "backend/src/modules/assistant/domains/books/pipeline/preRoute.ts",
+            "backend/src/modules/assistant/domains/books/pipeline/undo.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-20",
+          "area": "tracking_journal_statistics",
+          "severity": "minor",
+          "title": "No finish dates, so 'this year' can't be answered",
+          "steps": "Marked books Finished; asked 'how many books did i read this year'.",
+          "expected": "Finish dates; yearly count.",
+          "actual": "'Bunko can only tell which were this year from logged reading sessions...'",
+          "root_cause": "No completion date was stored.",
+          "fix": "UserWork.finishedAt (SRS §18.2), set when marked Finished, backfilled from the last session; shown on the book page; 'this year' uses it.",
+          "files": [
+            "backend/prisma/schema.prisma",
+            "backend/src/modules/library/library.service.ts",
+            "backend/src/modules/assistant/domains/books/conversation/libraryAnswers.ts",
+            "frontend/src/features/library/BookDetailPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-21",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Book search slow and typo-intolerant",
+          "steps": "'tomorow and tomorrow and tomorrow'.",
+          "expected": "Right book within a couple of seconds.",
+          "actual": "10-15s spinner, unrelated results.",
+          "root_cause": "Catalogue providers are slow on a cold query and have no fuzzy matching; results are cached for an hour after the first search.",
+          "fix": "Not changed this round (needs a provider-side change).",
+          "files": [],
+          "status": "Open"
+        },
+        {
+          "id": "R2-22",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Status doesn't follow reading; no progress shown",
+          "steps": "Read to 67%, back to Library.",
+          "expected": "Status Reading; progress on the card.",
+          "actual": "Still Want to Read; no progress; 'Continue Reading' before ever opening.",
+          "root_cause": "Opening a book never changed its status; the button always said 'Continue Reading'.",
+          "fix": "Starting or logging a session moves Want to Read to Reading (never Finished/DNF); 'Start reading' until the first session. (Progress on cards not built.)",
+          "files": [
+            "backend/src/modules/library/library.service.ts",
+            "backend/src/modules/reading-sessions/reading-sessions.service.ts",
+            "frontend/src/features/library/ContinueReadingButton.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R2-23",
+          "area": "tracking_journal_statistics",
+          "severity": "minor",
+          "title": "Languages 'Unknown 6' and lowercase 'english'; EPUB reading added no pages",
+          "steps": "Statistics > Languages.",
+          "expected": "'English'; EPUB pages counted.",
+          "actual": "'Unknown 6 books', 'english 1 book'; pages read only from the manual log.",
+          "root_cause": "The page passed language names through Intl.DisplayNames, which reads 'english' as a valid code and returns it lowercased; books with no language said 'Unknown'.",
+          "fix": "Only codes are looked up, names are capitalised; missing language reads 'Not recorded'. (EPUB pages need a start position; unchanged.)",
+          "files": [
+            "frontend/src/features/statistics/chart-format.ts",
+            "frontend/src/features/statistics/StatisticsPage.tsx"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R2-24",
+          "area": "shelves_organizing",
+          "severity": "minor",
+          "title": "An empty shelf offers no way to add books",
+          "steps": "New shelf '2026 faves'.",
+          "expected": "An 'Add books' picker.",
+          "actual": "Text only, no button.",
+          "root_cause": "No way to add books from a shelf.",
+          "fix": "'Add books' on custom shelves and in the empty state: a searchable picker of library books.",
+          "files": [
+            "frontend/src/features/shelves/AddToShelfDialog.tsx",
+            "frontend/src/features/shelves/ShelvesPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-25",
+          "area": "shelves_organizing",
+          "severity": "polish",
+          "title": "Low-contrast toggle and unlabeled shelf tabs",
+          "steps": "Shelves page.",
+          "expected": "Readable toggle; named tabs.",
+          "actual": "'Covers' dark brown on near-black; tabs read as unnamed buttons; odd brown scrollbar strip.",
+          "root_cause": "Inactive toggle text at 70% opacity on near-black; dark wood scrollbar on the paper background.",
+          "fix": "Full-strength toggle text; shelf tabs say their name and count and report pressed state; light paper scrollbar.",
+          "files": [
+            "frontend/src/features/shelves/ShelvesPage.tsx",
+            "frontend/src/index.css"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-26",
+          "area": "tracking_journal_statistics",
+          "severity": "polish",
+          "title": "Journal order wrong; entries can't be edited",
+          "steps": "Logged a session after another the same day.",
+          "expected": "Newest first; edit/delete.",
+          "actual": "Newer entry below the older; clicking opens the book.",
+          "root_cause": "Journal sorted by start time, so a session logged after the fact sorted by when it began.",
+          "fix": "Sorted by when sessions ended. (Editing an entry isn't built.)",
+          "files": [
+            "backend/src/modules/journal/journal.service.ts"
+          ],
+          "status": "Partly fixed"
+        },
+        {
+          "id": "R2-27",
+          "area": "book_page_and_details",
+          "severity": "polish",
+          "title": "Duplicate status, marketing-blurb synopsis, small icon issues",
+          "steps": "Book pages and reader toolbar.",
+          "expected": "One status control, clean synopsis, labelled icons.",
+          "actual": "Pill plus dropdown; synopsis starts with press quotes; unlabeled icon; bookmark icon never fills.",
+          "root_cause": "Status showed as a pill and a dropdown; catalogue copy opens with press quotes; bookmark icon never reflected state.",
+          "fix": "One labelled status control; leading press quotes and ALL-CAPS banners trimmed for display; the bookmark fills when the chapter is bookmarked.",
+          "files": [
+            "frontend/src/features/library/BookDetailPage.tsx",
+            "frontend/src/features/library/synopsis.ts",
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R2-28",
+          "area": "first_impression_onboarding",
+          "severity": "polish",
+          "title": "No import or account basics for switchers",
+          "steps": "Welcome screen and Settings.",
+          "expected": "Import, yearly goal, export, change password.",
+          "actual": "None present.",
+          "root_cause": "Import (SRS §37), reading goals, export and password change aren't in the MVP scope.",
+          "fix": "Not built; needs product approval.",
+          "files": [],
+          "status": "Won't fix (needs approval)"
+        }
+      ]
     }
   ]
 }

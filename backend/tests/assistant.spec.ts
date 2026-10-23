@@ -68,6 +68,32 @@ test.describe('assistant changes the library (T-098 – T-100)', () => {
     expect(await statusOf(testUser.userId, ids.Ulysses!)).toBe('DID_NOT_FINISH');
   });
 
+  test('"finsihed circe, 4 stars and put it on comfort reads" does all three without a model (R2-19)', async ({ authedRequest, testUser }) => {
+    const ids = await library(authedRequest, [{ title: 'Circe', authors: ['Madeline Miller'] }, { title: 'Dune' }]);
+    await chat(authedRequest, 'create a shelf called comfort reads');
+    await chat(authedRequest, 'finsihed circe, 4 stars and put it on comfort reads');
+    expect(await statusOf(testUser.userId, ids.Circe!)).toBe('FINISHED');
+    const review = await prisma.review.findUnique({ where: { userId_workId: { userId: testUser.userId, workId: ids.Circe! } } });
+    expect(review?.rating).toBe(4);
+    const shelf = await prisma.shelf.findFirst({
+      where: { userId: testUser.userId },
+      include: { works: { include: { userWork: { include: { work: true } } } } },
+    });
+    expect(shelf?.works.map((w) => w.userWork.work.title)).toEqual(['Circe']);
+
+    const undone = await chat(authedRequest, 'actually undo that');
+    expect(undone.message).not.toMatch(/nothing for me to undo/i);
+    expect(await statusOf(testUser.userId, ids.Circe!)).toBe('WANT_TO_READ');
+  });
+
+  test('a first name of an owned title is that book, never a new one (R2-03)', async ({ authedRequest, testUser }) => {
+    const ids = await library(authedRequest, [{ title: 'Klara and the Sun', authors: ['Kazuo Ishiguro'] }, { title: 'Circe' }]);
+    const reply = await chat(authedRequest, "dnf'd klara, the robot pov wasnt for me");
+    expect(reply.message).not.toContain('added');
+    expect(await statusOf(testUser.userId, ids['Klara and the Sun']!)).toBe('DID_NOT_FINISH');
+    expect(await prisma.userWork.count({ where: { userId: testUser.userId } })).toBe(2);
+  });
+
   test('rates (with the reader\'s own words) and deletes a review', async ({ authedRequest, testUser }) => {
     const ids = await library(authedRequest, [{ title: 'Dune', authors: ['Frank Herbert'] }]);
     const rated = await chat(authedRequest, 'rate dune 4, loved the worldbuilding');

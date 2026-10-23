@@ -65,6 +65,10 @@ test.describe('bucket labels', () => {
 test.describe('languageLabel', () => {
   test('turns ISO codes into names and passes other values through', () => {
     expect(languageLabel('en')).toBe('English');
+    // R2-23: names pass through, capitalised, never lowercased by Intl.
+    expect(languageLabel('English')).toBe('English');
+    expect(languageLabel('english')).toBe('English');
+    expect(languageLabel('Tamil')).toBe('Tamil');
     expect(languageLabel('ta')).toBe('Tamil');
     expect(languageLabel('Klingon dialect')).toBe('Klingon dialect');
   });

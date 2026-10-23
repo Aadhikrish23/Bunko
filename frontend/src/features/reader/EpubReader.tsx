@@ -371,7 +371,9 @@ export function EpubReader({
               if (startPosition.startsWith('epubcfi(')) {
                 target = startPosition;
               } else {
-                const spineItem = book.spine.get(startPosition);
+                // A chapter's structuralId is its spine idref, which epub.js only looks up
+                // with a leading "#"; a bare string is taken as an href.
+                const spineItem = book.spine.get(startPosition) ?? book.spine.get(`#${startPosition}`);
                 if (spineItem?.href) {
                   target = spineItem.href;
                 }
@@ -474,7 +476,8 @@ export function EpubReader({
       if (jumpToPosition.startsWith('epubcfi(')) {
         renditionRef.current.display(jumpToPosition).catch(() => {});
       } else {
-        const spineItem = bookRef.current.spine.get(jumpToPosition);
+        const spine = bookRef.current.spine;
+        const spineItem = spine.get(jumpToPosition) ?? spine.get(`#${jumpToPosition}`);
         const target = spineItem?.href || jumpToPosition;
         renditionRef.current.display(target).catch(() => {});
       }

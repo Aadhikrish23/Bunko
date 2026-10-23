@@ -76,10 +76,10 @@ export function JournalPage() {
                 <p className="mt-0.5 text-sm text-paper-800">
                   <span className="font-medium">{formatDuration(entry.durationSeconds)}</span>
                   <span className="text-paper-700"> · {FORMAT[entry.book.format]}</span>
-                  {entry.startPosition && entry.endPosition ? (
-                    <span className="text-paper-700"> · {entry.startPosition} → {entry.endPosition}</span>
-                  ) : entry.endPosition && !/^(epubcfi|outline-|[a-z0-9_-]{8,}$)/i.test(entry.endPosition) ? (
-                    <span className="text-paper-700"> · stopped at {entry.endPosition}</span>
+                  {entry.startLabel && entry.endLabel && entry.startLabel !== entry.endLabel ? (
+                    <span className="text-paper-700"> · {entry.startLabel} → {entry.endLabel}</span>
+                  ) : entry.endLabel ? (
+                    <span className="text-paper-700"> · stopped at {entry.endLabel}</span>
                   ) : null}
                 </p>
                 {entry.reflection && <p className="mt-1 text-sm italic text-paper-600">“{entry.reflection}”</p>}

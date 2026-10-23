@@ -19,7 +19,7 @@ test('start and end a physical reading session, then see it in the journal', asy
   await page.getByRole('button', { name: 'Physical copy' }).click();
   await expect(page.getByRole('dialog', { name: 'Add an edition' })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Start Reading Session' }).click();
+  await page.getByRole('button', { name: 'Start a reading session' }).click();
   await page.getByRole('button', { name: 'End Session' }).click();
   await page.getByLabel('Ending chapter / page').fill('Chapter 10');
   await page.getByLabel('Reflection (optional)').fill('Political tension is increasing.');

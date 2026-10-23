@@ -1454,7 +1454,8 @@ paths:
 
   /reading-sessions/{sessionId}/pause:
     post:
-      summary: Pause an active session (idle timeout or manual)
+      summary: Pause an active session (idle timeout, a hidden reader tab, or leaving the reader)
+      description: "Paused time is not reading time (SRS §12.8): it is subtracted from the session's durationSeconds. Pausing an already-paused session returns it unchanged. Starting a session again for the same copy within the grace window resumes this one, and so does reporting progress on it."
       parameters:
         - $ref: "#/components/parameters/SessionId"
       responses:
@@ -1494,6 +1495,7 @@ paths:
   /reading-sessions/{sessionId}/end:
     post:
       summary: End a session (idempotent, SRS §12.9 step 4-5)
+      description: "durationSeconds counts reading time only, without paused time. Repeating the same payload returns the ended session. A reflection may be added afterwards (SRS §12.10) by repeating the call with it, as long as the session has none yet and endPosition is omitted or unchanged; any other change is 409."
       parameters:
         - $ref: "#/components/parameters/SessionId"
       requestBody:
@@ -1514,6 +1516,7 @@ paths:
   /journal:
     get:
       summary: Chronological journal of reading sessions (SRS §12.5)
+      description: "Ended sessions, most recently finished first (a session logged after the fact sorts by when it ended)."
       parameters:
         - in: query
           name: workId
@@ -2098,6 +2101,11 @@ components:
               type: array
               items: { type: string }
             status: { $ref: "#/components/schemas/ReadingStatus" }
+            finishedAt:
+              type: string
+              format: date-time
+              nullable: true
+              description: "When the book was marked Finished (SRS §18.2 completion date); null unless its status is FINISHED"
             editions:
               type: array
               items: { $ref: "#/components/schemas/EditionResponse" }
@@ -2272,6 +2280,8 @@ components:
         startPosition: { type: string, nullable: true }
         endPosition: { type: string, nullable: true }
         reflection: { type: string, nullable: true }
+        startLabel: { type: string, nullable: true, description: "Where the session started, in words: a chapter title or \"p. 80\"; null when unknown" }
+        endLabel: { type: string, nullable: true, description: "Where it stopped, in words" }
         book:
           type: object
           description: "The book the session was with, so an entry can name and link to it"

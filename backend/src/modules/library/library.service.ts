@@ -20,6 +20,8 @@ export interface WorkSummaryDto {
   title: string;
   authors: string[];
   status: string;
+  // When the reader finished it (SRS §18.2 completion date); null unless Finished.
+  finishedAt: Date | null;
   // copyId is the caller's own copy of this edition, if one exists yet
   // (null right after an edition is created but before a copy is
   // attached) — exposed so the frontend can start a session or open the
@@ -77,6 +79,7 @@ function toWorkDto(
     title: userWork.work.title,
     authors: userWork.work.authors.map((wa) => wa.author.name),
     status: userWork.status,
+    finishedAt: userWork.finishedAt,
     editions: userWork.work.editions.map((edition) => ({
       id: edition.id,
       format: edition.format,
@@ -444,10 +447,21 @@ export async function updateWork(userId: string, workId: string, input: UpdateWo
   if (!existing) {
     throw new AppError('NOT_FOUND', 'Work not found in your library');
   }
-  if (input.status) {
-    await prisma.userWork.update({ where: { userId_workId: { userId, workId } }, data: { status: input.status } });
+  if (input.status && input.status !== existing.status) {
+    await prisma.userWork.update({
+      where: { userId_workId: { userId, workId } },
+      data: { status: input.status, finishedAt: input.status === 'FINISHED' ? new Date() : null },
+    });
   }
   return getUserWorkOrThrow(userId, workId);
+}
+
+/**
+ * Opening or logging a session for a book still marked Want to Read means it's being read
+ * (SRS §6.2, automatic where possible). Finished and Did Not Finish stay: that's a reread.
+ */
+export async function markReadingIfWanted(userId: string, workId: string): Promise<void> {
+  await prisma.userWork.updateMany({ where: { userId, workId, status: 'WANT_TO_READ' }, data: { status: 'READING' } });
 }
 
 export async function deleteWork(userId: string, workId: string): Promise<void> {

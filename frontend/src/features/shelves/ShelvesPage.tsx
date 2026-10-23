@@ -21,6 +21,7 @@ import { groupWorksForShelf } from './group-works';
 import { ShelfRow } from './ShelfRow';
 
 import { BookQuickActionModal } from '../library/BookQuickActionModal';
+import { AddToShelfDialog } from './AddToShelfDialog';
 
 const STATUS_RACKS: { status: ReadingStatus; label: string }[] = [
   { status: 'READING', label: 'Currently Reading' },
@@ -48,6 +49,7 @@ export function ShelvesPage() {
 
   // Active shelf filter: 'all' | 'status:<STATUS>' | 'shelf:<SHELF_ID>'
   const [activeTabId, setActiveTabId] = useState<string>('all');
+  const [isAddingBooks, setIsAddingBooks] = useState(false);
   // The account's saved drag-order for the active view, synced so it
   // follows the reader across devices instead of staying stuck in one
   // browser's localStorage (shelf-order.ts stays as the instant-write
@@ -375,7 +377,7 @@ export function ShelvesPage() {
         </div>
 
         <div
-          className="scrollbar-wood flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5"
+          className="scrollbar-paper flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5"
           style={{ maskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent)' }}
         >
           {shelfTabs.map((tab) => {
@@ -385,6 +387,8 @@ export function ShelvesPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTabId(tab.id)}
+                aria-pressed={isActive}
+                aria-label={`${tab.label}, ${tab.count} ${tab.count === 1 ? 'book' : 'books'}`}
                 className={`group focus-visible:focus-ring relative flex flex-shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs transition-all duration-150 ${
                   isActive
                     ? 'bg-[#382315] text-wood-200 shadow-md ring-1 ring-wood-400/50'
@@ -436,7 +440,16 @@ export function ShelvesPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {activeTab.isCustom && activeTab.shelfId && (
+              <button
+                type="button"
+                onClick={() => setIsAddingBooks(true)}
+                className="focus-visible:focus-ring inline-flex items-center gap-1.5 rounded-md border border-wood-400/60 px-2.5 py-1 text-xs font-medium text-wood-100 hover:bg-white/10"
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add books
+              </button>
+            )}
             {/* View Mode Switcher: Covers vs Spines */}
             <div className="inline-flex rounded-lg border border-wood-900/50 bg-[#25180f] p-0.5 text-xs font-medium">
               <button
@@ -446,7 +459,7 @@ export function ShelvesPage() {
                 className={`rounded-md px-2.5 py-1 transition-colors ${
                   viewMode === 'cover'
                     ? 'bg-wood-100 text-wood-900 shadow-sm font-semibold'
-                    : 'text-wood-200/70 hover:text-wood-100'
+                    : 'text-wood-100 hover:bg-white/10'
                 }`}
               >
                 Covers
@@ -458,7 +471,7 @@ export function ShelvesPage() {
                 className={`rounded-md px-2.5 py-1 transition-colors ${
                   viewMode === 'spine'
                     ? 'bg-wood-100 text-wood-900 shadow-sm font-semibold'
-                    : 'text-wood-200/70 hover:text-wood-100'
+                    : 'text-wood-100 hover:bg-white/10'
                 }`}
               >
                 Spines
@@ -487,8 +500,15 @@ export function ShelvesPage() {
             <p className="mt-1 text-xs text-wood-200/85">
               {lowerQuery
                 ? 'Try a different title or author.'
-                : 'Add books from your library or assign them to this collection.'}
+                : activeTab.isCustom
+                  ? 'Pick books from your library to put on it.'
+                  : 'Books you add to your library appear here.'}
             </p>
+            {!lowerQuery && activeTab.isCustom && activeTab.shelfId && (
+              <Button size="sm" className="mt-4" onClick={() => setIsAddingBooks(true)}>
+                <Plus className="h-4 w-4" aria-hidden="true" /> Add books
+              </Button>
+            )}
           </div>
         ) : (
           racks.map((rack, rackIdx) => (
@@ -522,6 +542,15 @@ export function ShelvesPage() {
         <BookQuickActionModal
           workId={quickActionWorkId}
           onClose={() => setQuickActionWorkId(null)}
+        />
+      )}
+
+      {isAddingBooks && activeTab.shelfId && (
+        <AddToShelfDialog
+          shelfId={activeTab.shelfId}
+          shelfName={activeTab.label}
+          works={works.data?.items ?? []}
+          onClose={() => setIsAddingBooks(false)}
         />
       )}
 

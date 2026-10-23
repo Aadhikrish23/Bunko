@@ -1,5 +1,5 @@
 import { Heart, Repeat, Star } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -20,9 +20,16 @@ export function ReviewPanel({ workId }: { workId: string }) {
   const [hoverRating, setHoverRating] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [marksSaved, setMarksSaved] = useState(false);
+  // The review text as last saved, so a fresh server copy (after a star click saves) doesn't
+  // wipe text still being written.
+  const savedBodyRef = useRef('');
 
   useEffect(() => {
-    if (review.data !== undefined) setDraft(toDraft(review.data));
+    if (review.data === undefined) return;
+    const fresh = toDraft(review.data);
+    setDraft((current) => (current.body.trim() !== savedBodyRef.current.trim() ? { ...fresh, body: current.body } : fresh));
+    savedBodyRef.current = fresh.body;
   }, [review.data]);
 
   if (review.isLoading) {
@@ -41,6 +48,21 @@ export function ReviewPanel({ workId }: { workId: string }) {
     setJustSaved(false);
   }
 
+  // Rating, favourite and reread are one click each and save straight away (R2-10); only the
+  // written review waits for its button.
+  function saveMarks(patch: Partial<Pick<ReviewDraft, 'rating' | 'isFavourite' | 'rereadIntention'>>) {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    setMarksSaved(false);
+    const marks = { rating: next.rating, isFavourite: next.isFavourite, rereadIntention: next.rereadIntention };
+    const body = savedBodyRef.current.trim() || null;
+    if (review.data && isEmptyDraft({ ...marks, body: body ?? '' })) {
+      remove.mutate(undefined, { onSuccess: () => setMarksSaved(true) });
+      return;
+    }
+    upsert.mutate({ ...marks, body }, { onSuccess: () => setMarksSaved(true) });
+  }
+
   function handleSave() {
     upsert.mutate(
       {
@@ -56,6 +78,7 @@ export function ReviewPanel({ workId }: { workId: string }) {
   return (
     <div className="flex flex-col gap-4">
       {upsert.isError && <ErrorBanner message={errorMessage(upsert.error, 'Could not save your review.')} />}
+      {remove.isError && <ErrorBanner message={errorMessage(remove.error, 'Could not update your review.')} />}
 
       <fieldset>
         <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-paper-700">Your rating</legend>
@@ -67,7 +90,7 @@ export function ReviewPanel({ workId }: { workId: string }) {
                 name={`rating-${workId}`}
                 value={value}
                 checked={draft.rating === value}
-                onChange={() => update({ rating: value })}
+                onChange={() => saveMarks({ rating: value })}
                 className="peer sr-only"
               />
               <Star
@@ -84,7 +107,7 @@ export function ReviewPanel({ workId }: { workId: string }) {
           {draft.rating !== null && (
             <button
               type="button"
-              onClick={() => update({ rating: null })}
+              onClick={() => saveMarks({ rating: null })}
               className="focus-visible:focus-ring ml-1 min-h-[44px] rounded-md px-2 text-xs text-paper-700 hover:text-paper-900"
             >
               Clear rating
@@ -97,7 +120,7 @@ export function ReviewPanel({ workId }: { workId: string }) {
         <button
           type="button"
           aria-pressed={draft.isFavourite}
-          onClick={() => update({ isFavourite: !draft.isFavourite })}
+          onClick={() => saveMarks({ isFavourite: !draft.isFavourite })}
           className={`focus-visible:focus-ring inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors ${
             draft.isFavourite
               ? 'border-ember-500 bg-ember-500/10 text-ember-600'
@@ -110,7 +133,7 @@ export function ReviewPanel({ workId }: { workId: string }) {
         <button
           type="button"
           aria-pressed={draft.rereadIntention}
-          onClick={() => update({ rereadIntention: !draft.rereadIntention })}
+          onClick={() => saveMarks({ rereadIntention: !draft.rereadIntention })}
           className={`focus-visible:focus-ring inline-flex min-h-[44px] items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors ${
             draft.rereadIntention
               ? 'border-moss-500 bg-moss-100 text-moss-700'
@@ -120,6 +143,11 @@ export function ReviewPanel({ workId }: { workId: string }) {
           <Repeat aria-hidden="true" className="h-4 w-4" />
           Want to reread
         </button>
+        {marksSaved && !upsert.isPending && (
+          <span role="status" className="self-center text-sm text-moss-700">
+            Saved.
+          </span>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5">

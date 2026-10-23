@@ -47,29 +47,35 @@ const STATUS_ASKS: { pattern: RegExp; status: ReadingStatus; none: string; some:
 ];
 
 /**
- * "Finished this year": Bunko stores no finish date, so this goes by reading sessions -- a
- * Finished book whose last logged session ended this year. Undefined when no Finished book
- * has sessions at all (nothing to go on).
+ * Books finished this calendar year: by the date they were marked Finished, or for books
+ * finished before Bunko kept that date, by their last reading session. Undefined when no
+ * finished book has either (nothing to go on).
  */
 async function finishedThisYear(userId: string, books: BookRecord[]): Promise<BookRecord[] | undefined> {
   const finished = books.filter((b) => b.status === 'FINISHED');
   if (finished.length === 0) return [];
-  const sessions = await prisma.readingSession.groupBy({
-    by: ['journeyId'],
-    where: { userId, endTime: { not: null }, journey: { workId: { in: finished.map((b) => b._id) } } },
-    _max: { endTime: true },
-  });
-  if (sessions.length === 0) return undefined;
-  const journeys = await prisma.readingJourney.findMany({
-    where: { id: { in: sessions.map((s) => s.journeyId) } },
-    select: { id: true, workId: true },
-  });
-  const workByJourney = new Map(journeys.map((j) => [j.id, j.workId]));
   const start = new Date(new Date().getFullYear(), 0, 1);
-  const ids = new Set(
-    sessions.filter((s) => s._max.endTime && s._max.endTime >= start).map((s) => workByJourney.get(s.journeyId)),
-  );
-  return finished.filter((b) => ids.has(b._id));
+  const undated = finished.filter((b) => !b.finishedAt);
+  const lastSession = new Map<string, Date>();
+  if (undated.length > 0) {
+    const sessions = await prisma.readingSession.groupBy({
+      by: ['journeyId'],
+      where: { userId, endTime: { not: null }, journey: { workId: { in: undated.map((b) => b._id) } } },
+      _max: { endTime: true },
+    });
+    const journeys = await prisma.readingJourney.findMany({
+      where: { id: { in: sessions.map((s) => s.journeyId) } },
+      select: { id: true, workId: true },
+    });
+    const workByJourney = new Map(journeys.map((j) => [j.id, j.workId]));
+    for (const s of sessions) {
+      const workId = workByJourney.get(s.journeyId);
+      if (workId && s._max.endTime) lastSession.set(workId, s._max.endTime);
+    }
+  }
+  const when = (b: BookRecord) => b.finishedAt ?? lastSession.get(b._id) ?? null;
+  if (finished.every((b) => when(b) === null)) return undefined;
+  return finished.filter((b) => (when(b) ?? 0) >= start);
 }
 
 export interface AnswerContext {
@@ -147,11 +153,11 @@ export async function answerFromLibrary(question: string, ctx: AnswerContext): P
       const thisYear = await finishedThisYear(ctx.userId, books);
       if (thisYear === undefined) {
         const finished = books.filter((b) => b.status === 'FINISHED');
-        return `You've marked ${countWord(finished.length, 'book')} Finished in all. Bunko can only tell which were this year from logged reading sessions, and those books have none.`;
+        return `You've marked ${countWord(finished.length, 'book')} Finished in all, but none has a finish date yet. Books you mark Finished from now on are dated.`;
       }
       return thisYear.length
-        ? `Going by your reading sessions, you've finished ${countWord(thisYear.length, 'book')} this year: ${titlesOf(thisYear)}.`
-        : "Going by your reading sessions, you haven't finished a book this year yet.";
+        ? `You've finished ${countWord(thisYear.length, 'book')} this year: ${titlesOf(thisYear)}.`
+        : "You haven't finished a book this year yet.";
     }
     const by = (s: ReadingStatus) => books.filter((b) => b.status === s).length;
     if (/\b(finished|read)\b/.test(q) && !/\breading\b/.test(q)) return `You've finished ${countWord(by('FINISHED'), 'book')}.`;

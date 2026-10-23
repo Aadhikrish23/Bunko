@@ -14,13 +14,15 @@ import { listJoin, rankByTitle } from '../text/match';
 // review, notes, shelves -- removes books that plan added, and deletes shelves it created
 // (if still empty). One level: the last change only, for half an hour.
 
-export const UNDO_ASK = /^\s*(?:please\s+)?(undo|undo (that|it|this|the last (one|change|thing))|revert( that| it)?|take (that|it) back|put it back|never ?mind,? undo)[.!]*\s*$/i;
+export const UNDO_ASK =
+  /^\s*(?:(?:actually|ok(?:ay)?|oh|oops|wait|no|hmm|sorry|um|ugh)[,!.\s]+)*(?:please\s+)?(?:can you\s+)?(undo|undo (that|it|this|the last (one|change|thing))|revert( that| it)?|take (that|it) back|put it back|never ?mind,? undo)(?:\s+please)?[.!]*\s*$/i;
 
 interface BookState {
   workId: string;
   title: string;
   status: ReadingStatus;
   addedAt: Date;
+  finishedAt: Date | null;
   review: { rating: number | null; body: string | null; isFavourite: boolean; rereadIntention: boolean } | null;
   shelfIds: string[];
   noteIds: string[];
@@ -51,6 +53,7 @@ async function bookState(userId: string, workId: string): Promise<BookState | un
     title: uw.work.title,
     status: uw.status as ReadingStatus,
     addedAt: uw.addedAt,
+    finishedAt: uw.finishedAt,
     review: review ? { rating: review.rating, body: review.body, isFavourite: review.isFavourite, rereadIntention: review.rereadIntention } : null,
     shelfIds: uw.shelves.map((s) => s.shelfId),
     noteIds: notes.map((n) => n.id),
@@ -100,13 +103,20 @@ export async function undoLastChange(userId: string): Promise<string> {
     const now = await bookState(userId, before.workId);
     if (!now) {
       // Removed by that change: back into the library, as it was.
-      await prisma.userWork.create({ data: { userId, workId: before.workId, status: before.status, addedAt: before.addedAt } });
+      await prisma.userWork.create({
+        data: { userId, workId: before.workId, status: before.status, addedAt: before.addedAt, finishedAt: before.finishedAt },
+      });
       for (const shelfId of before.shelfIds) await assignWorkToShelf(userId, shelfId, { workId: before.workId }).catch(() => undefined);
       done.push(`put ${before.title} back in your library`);
       continue;
     }
     if (now.status !== before.status) {
       await updateWork(userId, before.workId, { status: before.status });
+      // The original finish date, not "now".
+      await prisma.userWork.update({
+        where: { userId_workId: { userId, workId: before.workId } },
+        data: { finishedAt: before.finishedAt },
+      });
       done.push(`set ${before.title} back to ${STATUS_LABEL[before.status]}`);
     }
     const r1 = JSON.stringify(before.review);

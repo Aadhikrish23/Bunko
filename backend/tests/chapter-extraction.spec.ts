@@ -1,6 +1,6 @@
 import { createWorker } from 'tesseract.js';
 import { test, expect } from './fixtures/auth.fixture';
-import { indexEpub } from '../src/modules/reader/epub-indexer';
+import { indexEpub, xhtmlToText } from '../src/modules/reader/epub-indexer';
 import {
   indexPdf,
   joinTextItems,
@@ -49,6 +49,20 @@ test.describe('chapter text extraction (flow-reader foundation)', () => {
     // normalized copy — this is real readable text.
     expect(graph.units[0]!.text).not.toContain('<p>');
     expect(graph.units[0]!.text).not.toContain('<h1>');
+  });
+
+  test('xhtmlToText keeps paragraphs, decodes entities, and drops the <title> and a repeated heading (R2-02)', () => {
+    const xhtml =
+      '<?xml version="1.0"?><html><head><title>The Last Lantern</title><style>p{}</style></head><body>' +
+      '<h1>The Last Lantern</h1><p>Aldmere had   one lantern&#8217;s worth\n of oil.</p>' +
+      '<p>It was enough &amp; more.<br/>She said so.</p></body></html>';
+    expect(xhtmlToText(xhtml, 'The Last Lantern')).toBe(
+      'Aldmere had one lantern’s worth\nof oil.\n\nIt was enough & more.\nShe said so.',
+    );
+  });
+
+  test('xhtmlToText keeps a heading that is not the chapter title', () => {
+    expect(xhtmlToText('<body><h2>Part One</h2><p>Text.</p></body>', 'Chapter 1')).toBe('Part One\n\nText.');
   });
 
   test('indexEpub reads real chapter titles from an EPUB3 nav.xhtml table of contents', () => {

@@ -8,6 +8,7 @@ function mockWork(id: string, title: string): Work {
     title,
     authors: ['Test Author'],
     status: 'READING',
+    finishedAt: null,
     editions: [],
     journeyId: null,
     genres: [],

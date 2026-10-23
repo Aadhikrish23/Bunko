@@ -50,7 +50,15 @@ export function ReaderPage() {
   const { editionId } = useParams<{ editionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const journeyId = (location.state as { journeyId?: string | null } | null)?.journeyId ?? null;
+  const routeState = location.state as
+    | { journeyId?: string | null; structuralId?: string | null; fromReadingView?: boolean }
+    | null;
+  const journeyId = routeState?.journeyId ?? null;
+  // Opened from the reading view: start at the chapter the reader was on there (R2-13).
+  // PDF outline entries ("outline-3") aren't page numbers, so those open at the saved page.
+  const readingViewStart =
+    routeState?.structuralId && !routeState.structuralId.startsWith('outline-') ? routeState.structuralId : null;
+  const fromReadingView = routeState?.fromReadingView === true;
   const manifest = useReaderManifest(editionId);
   const reportProgress = useReportProgress();
   const endSession = useEndSession();
@@ -80,11 +88,13 @@ export function ReaderPage() {
   } | null>(null);
 
   const [savedPosition, setSavedPosition] = useState<string | null>(() => {
+    if (readingViewStart) return readingViewStart;
     if (editionId) {
       return localStorage.getItem(`bunko_pos_${editionId}`) ?? null;
     }
     return null;
   });
+  const [reflectionError, setReflectionError] = useState<string | null>(null);
 
   const [currentProgressPercent, setCurrentProgressPercent] = useState(0);
   const [toc, setToc] = useState<EpubTocItem[]>([]);
@@ -96,7 +106,6 @@ export function ReaderPage() {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
   const [endedSession, setEndedSession] = useState<{ durationSeconds: number | null } | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const [isFlipping, setIsFlipping] = useState(false);
   const [flipDirection, setFlipDirection] = useState<'next' | 'prev'>('next');
@@ -179,9 +188,11 @@ export function ReaderPage() {
   }
 
 
+  const bookPath = manifest.data?.workId ? `/library/${manifest.data.workId}` : '/library';
+
   async function handleClose() {
     if (!manifest.data) {
-      navigate(-1);
+      navigate(bookPath);
       return;
     }
     try {
@@ -190,21 +201,27 @@ export function ReaderPage() {
         endPosition: currentPositionRef.current ?? undefined,
       });
       setEndedSession({ durationSeconds: session.durationSeconds });
-    } catch (err) {
-      setError(errorMessage(err, 'Could not end the session.'));
-      navigate(-1);
+    } catch {
+      navigate(bookPath);
     }
   }
 
+  // Back to the book, not "back": that could be the reading view of the session that just ended.
   async function handleReflectionSubmit(reflection: string | null) {
     if (manifest.data && reflection) {
-      await endSession.mutateAsync({
-        sessionId: manifest.data.sessionId,
-        endPosition: currentPositionRef.current ?? undefined,
-        reflection,
-      });
+      setReflectionError(null);
+      try {
+        await endSession.mutateAsync({
+          sessionId: manifest.data.sessionId,
+          endPosition: currentPositionRef.current ?? undefined,
+          reflection,
+        });
+      } catch (err) {
+        setReflectionError(errorMessage(err, 'Your reflection could not be saved.'));
+        return;
+      }
     }
-    navigate(-1);
+    navigate(bookPath, { replace: true });
   }
 
   function handleAddBookmark() {
@@ -264,9 +281,6 @@ export function ReaderPage() {
     );
   }
 
-  if (endedSession) {
-    return <ReflectionPrompt durationSeconds={endedSession.durationSeconds} onSubmit={handleReflectionSubmit} isSubmitting={endSession.isPending} />;
-  }
 
   return (
     <div className="flex h-screen flex-col bg-paper-100">
@@ -274,11 +288,21 @@ export function ReaderPage() {
         <button
           type="button"
           onClick={handleClose}
-          aria-label="Close reader"
+          aria-label="Close the book"
+          title="Close the book"
           className="focus-visible:focus-ring rounded-md p-2 text-paper-600 hover:bg-paper-100"
         >
           <X className="h-4.5 w-4.5" />
         </button>
+        {fromReadingView && (
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="focus-visible:focus-ring mr-auto ml-1 rounded-md px-2 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+          >
+            Back to reading view
+          </button>
+        )}
 
         <div className="flex items-center gap-1">
           {manifest.data.format === 'EPUB' && toc.length > 0 && (
@@ -476,11 +500,6 @@ export function ReaderPage() {
         </div>
       </header>
 
-      {error && (
-        <div className="px-4 pt-2">
-          <ErrorBanner message={error} />
-        </div>
-      )}
 
       {showCorrection && journeyId && (
         <CorrectPositionDialog journeyId={journeyId} onClose={() => setShowCorrection(false)} />
@@ -545,6 +564,15 @@ export function ReaderPage() {
           isSaving={createNote.isPending}
           onSave={handleSaveNote}
           onClose={() => setShowNoteComposer(false)}
+        />
+      )}
+
+      {endedSession && (
+        <ReflectionPrompt
+          durationSeconds={endedSession.durationSeconds}
+          onSubmit={handleReflectionSubmit}
+          isSubmitting={endSession.isPending}
+          error={reflectionError}
         />
       )}
 

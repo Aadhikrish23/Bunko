@@ -4,7 +4,7 @@ import { IntentTargetType } from '../../../intent/IntentTargetType';
 import { BookIntent } from '../intent/BookIntent';
 import { toStatus, isPausedWord } from '../data/status';
 import { statedScore } from '../pipeline/patterns';
-import { titleScore } from '../text/match';
+import { matchShelf, titleScore } from '../text/match';
 
 // Plain one-step commands, read without the model: "add piranesi", "rate dune 4",
 // "finished circe", "note for dune: ...", "put dune on my sci-fi shelf". Deliberately strict:
@@ -42,13 +42,15 @@ const STATUS_VERBS =
  */
 export function splitBookList(raw: string, ownedTitles: string[] = []): string[] {
   const whole = clean(raw);
-  const isOwned = (s: string) => ownedTitles.some((t) => titleScore(s, t) >= 80);
+  const score = (s: string) => Math.max(0, ...ownedTitles.map((t) => titleScore(s, t)));
+  const isOwned = (s: string) => score(s) >= 80;
   if (!/,|\s(?:and|&)\s/i.test(whole) || isOwned(whole)) return [whole];
   const pieces = whole.split(/\s*,\s*(?:and\s+)?|\s+(?:and|&)\s+/i).map(clean).filter(Boolean);
   const out: string[] = [];
   for (let i = 0; i < pieces.length; i++) {
     const joined = i + 1 < pieces.length ? `${pieces[i]} and ${pieces[i + 1]}` : undefined;
-    if (joined && isOwned(joined) && !isOwned(pieces[i]!)) {
+    // "pride" opens "Pride and Prejudice", but the joined words name it better.
+    if (joined && isOwned(joined) && score(joined) > score(pieces[i]!)) {
       out.push(joined);
       i++;
     } else {
@@ -85,8 +87,8 @@ function maskTitles(message: string, ownedTitles: string[]): { text: string; res
 }
 
 /** One clause -> one intent per book (or a status + rating pair), or undefined. */
-export function parseCommand(clause: string, ownedTitles: string[] = []): AIIntent[] | undefined {
-  const parsed = parseSingle(clause);
+export function parseCommand(clause: string, ownedTitles: string[] = [], shelfNames: string[] = []): AIIntent[] | undefined {
+  const parsed = parseSingle(clause, ownedTitles, shelfNames);
   if (!parsed) return undefined;
   // A list of books in one command becomes one intent per book.
   return parsed.flatMap((i) => {
@@ -97,7 +99,9 @@ export function parseCommand(clause: string, ownedTitles: string[] = []): AIInte
   });
 }
 
-function parseSingle(clause: string): AIIntent[] | undefined {
+const LIBRARY_PLACE = /^(?:my\s+)?(?:library|list|reading list|want to read list|tbr)$/i;
+
+function parseSingle(clause: string, ownedTitles: string[] = [], shelfNames: string[] = []): AIIntent[] | undefined {
   const text = clean(clause);
   if (!text) return undefined;
   let m: RegExpMatchArray | null;
@@ -110,6 +114,25 @@ function parseSingle(clause: string): AIIntent[] | undefined {
   }
   if ((m = text.match(/^(?:please\s+)?(?:put|add|move|shelve|file)\s+(.+?)\s+(?:on|onto|to|in|into|under)\s+(?:my\s+|the\s+)?(.+?)\s+shelf$/i))) {
     return [intent(BookIntent.OrganizeShelf, [shelfT(clean(m[2]!)), bookT(clean(m[1]!))])];
+  }
+  // "put circe on comfort reads", "add circe to comfort reads": a shelf without the word
+  // "shelf". "add" needs a shelf the reader has (otherwise "add X to Y" may be a title);
+  // a status ("put it on hold", "move it to reading") is a status.
+  if ((m = text.match(/^(?:please\s+)?(put|shelve|file|move|add)\s+(.+?)\s+(on|onto|to|in|into|under)\s+(?:my\s+|the\s+)?(.+)$/i))) {
+    const [, verb, book, prep, place] = m as unknown as [string, string, string, string, string];
+    const status = toStatus(place);
+    const paused = isPausedWord(`${prep} ${place}`);
+    const known = matchShelf(place, shelfNames.map((name) => ({ name })));
+    // "add circe to book club": Circe is theirs, and "circe to book club" names no book of theirs.
+    const score = (s: string) => Math.max(0, ...ownedTitles.map((t) => titleScore(s, t)));
+    const whole = text.replace(/^(?:please\s+)?\S+\s+/i, '');
+    const ownBook = score(book) >= 80 && score(whole) < score(book);
+    if ((status || paused) && /^(put|move)$/i.test(verb)) {
+      return [intent(BookIntent.SetStatus, [bookT(clean(book))], [{ type: IntentParameterType.Status, value: status ?? `${prep} ${place}` }])];
+    }
+    if (!status && !paused && !LIBRARY_PLACE.test(place) && (known || ownBook || !/^add$/i.test(verb))) {
+      return [intent(BookIntent.OrganizeShelf, [shelfT(known?.name ?? clean(place)), bookT(clean(book))])];
+    }
   }
   if ((m = text.match(/^(?:please\s+)?(?:add\s+(?:a\s+)?note|note)\s+(?:for|on|to|about)\s+(.+?)\s*:\s*(.+)$/i))) {
     return [intent(BookIntent.AddNote, [bookT(clean(m[1]!))], [{ type: IntentParameterType.Text, value: m[2]!.trim() }])];
@@ -187,12 +210,12 @@ export function splitClauses(message: string): string[] {
 }
 
 /** Every clause of a message as intents, or undefined if any clause isn't a plain command. */
-export function parseCommands(message: string, ownedTitles: string[] = []): AIIntent[] | undefined {
+export function parseCommands(message: string, ownedTitles: string[] = [], shelfNames: string[] = []): AIIntent[] | undefined {
   const { text, restore } = maskTitles(message, ownedTitles);
   const clauses = splitClauses(text);
   const out: AIIntent[] = [];
   for (const clause of clauses) {
-    const parsed = parseCommand(clause, ownedTitles);
+    const parsed = parseCommand(clause, ownedTitles, shelfNames);
     if (!parsed) return undefined;
     out.push(...parsed);
   }

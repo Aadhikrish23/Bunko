@@ -9,7 +9,9 @@ import { answerFromLibrary } from '../conversation/libraryAnswers';
 import { parseCommands } from '../conversation/quickCommands';
 import { withPageBook } from '../conversation/normalize';
 import { isQuestionOnly, lastNamedTitle } from './planChecks';
-import { DISCOVERY_ASK, EXPLICIT_ACTION, LOOKS_LIKE_QUESTION, RECOMMEND_ASK } from './patterns';
+import { DISCOVERY_ASK, EXPLICIT_ACTION, LOOKS_LIKE_QUESTION, POINTS_BACK, RECOMMEND_ASK } from './patterns';
+import { IntentTargetType } from '../../../intent/IntentTargetType';
+import { namedTitles } from '../text/match';
 import { undoLastChange, UNDO_ASK } from './undo';
 
 /**
@@ -55,8 +57,18 @@ export async function preRoute({ userId, requestId, message, client, session, re
   }
 
   // "rate dune 4", "finished circe", "put dune on my sci-fi shelf": no model needed.
-  const quick = parseCommands(withPageBook(message, pageTitle), titles);
-  if (quick) return plan(quick);
+  const quick = parseCommands(withPageBook(message, pageTitle), titles, shelves.map((s) => s.name));
+  if (quick) {
+    // "finished circe, 4 stars and put it on comfort reads": "it" is the book this message
+    // names, not whatever the last turn was about.
+    const named = namedTitles(message, titles);
+    if (named.length === 1) {
+      for (const i of quick) {
+        i.targets = i.targets.map((t) => (t.type === IntentTargetType.Book && POINTS_BACK.test(t.name.trim()) ? { ...t, name: named[0]! } : t));
+      }
+    }
+    return plan(quick);
+  }
 
   try {
     return { kind: 'plan', plan: await model.planWithRetry(withPageBook(message, pageTitle), requestContext) };

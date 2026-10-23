@@ -1,6 +1,9 @@
 import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { logger } from '../../lib/logger';
+import { readingSeconds } from './reading-sessions.service';
+
+const LAST_PAGE_ALLOWANCE_MS = 60_000;
 
 export interface IdleTimeoutSweepResult {
   pausedCount: number;
@@ -35,16 +38,21 @@ export async function runIdleTimeoutSweep(now: Date = new Date()): Promise<IdleT
   });
 
   for (const session of idleActiveSessions) {
+    // Reading stopped around the last page turn; the minute after it covers reading that page.
+    const lastReading = new Date(Math.min(session.updatedAt.getTime() + LAST_PAGE_ALLOWANCE_MS, now.getTime()));
     if (session.updatedAt < endCutoffFromActive) {
-      const endTime = new Date(session.updatedAt.getTime() + idleThresholdMs);
-      const durationSeconds = Math.max(0, Math.round((endTime.getTime() - session.startTime.getTime()) / 1000));
       await prisma.readingSession.update({
         where: { id: session.id },
-        data: { status: 'ENDED', endTime, durationSeconds },
+        data: {
+          status: 'ENDED',
+          endTime: lastReading,
+          durationSeconds: readingSeconds(session, lastReading),
+          pausedAt: null,
+        },
       });
       endedCount += 1;
     } else {
-      await prisma.readingSession.update({ where: { id: session.id }, data: { status: 'PAUSED' } });
+      await prisma.readingSession.update({ where: { id: session.id }, data: { status: 'PAUSED', pausedAt: lastReading } });
       pausedCount += 1;
     }
   }
@@ -57,13 +65,10 @@ export async function runIdleTimeoutSweep(now: Date = new Date()): Promise<IdleT
     where: { status: 'PAUSED', updatedAt: { lt: new Date(now.getTime() - graceWindowMs) } },
   });
   for (const session of stalePausedSessions) {
-    const durationSeconds = Math.max(
-      0,
-      Math.round((session.updatedAt.getTime() - session.startTime.getTime()) / 1000),
-    );
+    const endTime = session.pausedAt ?? session.updatedAt;
     await prisma.readingSession.update({
       where: { id: session.id },
-      data: { status: 'ENDED', endTime: session.updatedAt, durationSeconds },
+      data: { status: 'ENDED', endTime, durationSeconds: readingSeconds(session, endTime), pausedAt: null },
     });
     endedCount += 1;
   }

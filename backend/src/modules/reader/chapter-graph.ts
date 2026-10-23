@@ -33,7 +33,11 @@ export interface ChapterUnit {
 // with no NCX now get real chapter titles from nav.xhtml instead of
 // falling back to the raw manifest id. Editions already indexed under
 // version 2 have none of this until they're re-indexed.
-export const CURRENT_CHAPTER_GRAPH_VERSION = 3;
+//
+// 4: EPUB chapter text keeps its paragraphs (blank line between blocks),
+// reads only the <body> (no <title> echo), decodes entities, and drops a
+// leading heading that repeats the chapter title.
+export const CURRENT_CHAPTER_GRAPH_VERSION = 4;
 
 export interface ChapterGraph {
   version: number;

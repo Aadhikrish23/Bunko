@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
+import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { Modal } from '../../components/ui/Modal';
 
 // Non-blocking, optional, one-tap-to-skip — matches the flow diagram in
@@ -8,18 +9,22 @@ export function ReflectionPrompt({
   durationSeconds,
   onSubmit,
   isSubmitting,
+  error = null,
 }: {
   durationSeconds: number | null;
   onSubmit: (reflection: string | null) => void;
   isSubmitting: boolean;
+  error?: string | null;
 }) {
   const [reflection, setReflection] = useState('');
-  const minutes = durationSeconds ? Math.max(1, Math.round(durationSeconds / 60)) : 0;
+  const minutes = durationSeconds ? Math.round(durationSeconds / 60) : 0;
+  const summary = minutes >= 1 ? `${minutes} min of reading. Nice work.` : 'Under a minute of reading this time.';
 
   return (
     <Modal title="Session ended" onClose={() => onSubmit(null)}>
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-paper-700">{minutes} min of reading. Nice work.</p>
+        <p className="text-sm text-paper-700">{summary}</p>
+        {error && <ErrorBanner message={error} />}
         <textarea
           autoFocus
           placeholder="Add a quick reflection (optional)…"

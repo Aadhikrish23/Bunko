@@ -5,6 +5,7 @@ import { normalizeSlang, resolveOrdinals } from '../src/modules/assistant/domain
 import { parseCommands, splitBookList } from '../src/modules/assistant/domains/books/conversation/quickCommands';
 import { statedScore, wasAskedFor } from '../src/modules/assistant/domains/books/pipeline/patterns';
 import { toStars } from '../src/modules/assistant/domains/books/actions/reviewTools';
+import { UNDO_ASK } from '../src/modules/assistant/domains/books/pipeline/undo';
 
 // T-103: the books pack's pure pieces. No server or database.
 
@@ -116,10 +117,36 @@ test.describe('plain commands', () => {
   test('a typo in an owned title still matches it (R1-04)', () => {
     expect(titleScore('tomorow and tomorrow', 'Tomorrow, and Tomorrow, and Tomorrow')).toBeGreaterThanOrEqual(80);
     expect(titleScore('tomorrow', 'Tomorrow, and Tomorrow, and Tomorrow')).toBeGreaterThanOrEqual(80);
+    // R2-03: a title's first word names the book.
+    expect(titleScore('klara', 'Klara and the Sun')).toBeGreaterThanOrEqual(80);
+    expect(titleScore('klar', 'Klara and the Sun')).toBeLessThan(80);
   });
 
   test('anything that is not a plain command goes to the model', () => {
     expect(parseCommands('what do you think of dune?')).toBeUndefined();
     expect(parseCommands('I loved that one so much')).toBeUndefined();
+  });
+
+  // R2-19: the shelf without the word "shelf", a status that looks like a place, and "it".
+  test('shelves named without the word "shelf"', () => {
+    const owned = ['Circe', 'Piranesi', 'A Guide to the Galaxy'];
+    const shelves = ['Comfort Reads'];
+    const shape = (m: string) => parseCommands(m, owned, shelves)?.map((i) => [i.type, i.targets.map((t) => t.name), i.parameters.map((p) => p.value)]);
+    expect(shape('put circe on comfort reads')).toEqual([['OrganizeShelf', ['Comfort Reads', 'circe'], []]]);
+    expect(shape('add circe to comfort reads')).toEqual([['OrganizeShelf', ['Comfort Reads', 'circe'], []]]);
+    expect(shape('add circe to book club')).toEqual([['OrganizeShelf', ['book club', 'circe'], []]]);
+    expect(shape('finished circe, 4 stars and put it on comfort reads')).toEqual([
+      ['SetStatus', ['circe'], ['FINISHED']],
+      ['RateBook', ['circe'], [4]],
+      ['OrganizeShelf', ['Comfort Reads', 'it'], []],
+    ]);
+    expect(shape('put piranesi on hold')).toEqual([['SetStatus', ['piranesi'], ['on hold']]]);
+    expect(shape('add a guide to the galaxy')).toEqual([['AddBook', ['a guide to the galaxy'], []]]);
+    expect(shape('add dune to my library')).toEqual([['AddBook', ['dune'], []]]);
+  });
+
+  test('undo with the words people actually use', () => {
+    for (const m of ['undo', 'actually undo that', 'oops, undo', 'ok undo that please']) expect(UNDO_ASK.test(m)).toBe(true);
+    expect(UNDO_ASK.test('undo the rating for dune')).toBe(false);
   });
 });

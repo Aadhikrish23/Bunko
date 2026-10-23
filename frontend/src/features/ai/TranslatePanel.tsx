@@ -140,7 +140,7 @@ export function TranslatePanel({
   }
 
   return (
-    <div className="absolute right-0 top-full z-30 mt-1 w-72 rounded-md border border-paper-200 bg-paper-50 p-3 text-left shadow-lg">
+    <div className="fixed inset-x-2 top-14 z-30 rounded-md border border-paper-200 bg-paper-50 p-3 text-left shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-1 sm:w-72">
       <div className="mb-2 flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-sm font-semibold text-paper-900">
           <Languages aria-hidden="true" className="h-4 w-4 text-moss-600" /> Translate

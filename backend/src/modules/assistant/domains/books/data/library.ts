@@ -19,6 +19,7 @@ export interface BookRecord {
   genres: string[];
   seriesName: string | null;
   addedAt: Date;
+  finishedAt: Date | null;
 }
 
 /** The whole library, newest first, in one query (a reader's library is hundreds of books, not millions). */
@@ -53,6 +54,7 @@ export async function loadLibrary(userId: string): Promise<BookRecord[]> {
       genres: row.work.genres,
       seriesName: row.work.series?.name ?? null,
       addedAt: row.addedAt,
+      finishedAt: row.finishedAt,
     };
   });
 }

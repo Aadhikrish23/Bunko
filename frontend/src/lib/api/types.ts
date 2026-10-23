@@ -42,6 +42,8 @@ export interface Work {
   title: string;
   authors: string[];
   status: ReadingStatus;
+  /** When it was marked Finished; null otherwise. */
+  finishedAt: string | null;
   editions: EditionSummary[];
   journeyId: string | null;
   genres: string[];
@@ -96,6 +98,9 @@ export interface ReadingSession {
 
 export interface JournalEntry extends ReadingSession {
   book: { workId: string; title: string; coverImageUrl: string | null; format: EditionFormat };
+  /** Where the session started and stopped, in words ("The Customs House", "p. 112"). */
+  startLabel: string | null;
+  endLabel: string | null;
   annotations: Annotation[];
   notes: Note[];
 }
