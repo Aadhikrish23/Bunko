@@ -32,8 +32,11 @@ const clean = (s: string) =>
     .replace(TRAILING_FILLER, '')
     .trim();
 
+// "started reading circe": "started" is the verb and "reading" is filler before the title,
+// not part of it -- without the optional group, "reading" fell into the title match and the
+// whole phrase was searched for as "reading circe" (R5-05).
 const STATUS_VERBS =
-  /^(?:i\s*(?:'m|am|have|'ve)?\s*)?(?:just\s+|finally\s+|now\s+)?(started|starting|began|begun|finished|completed|dnf|gave up on|giving up on|abandoned|dropped|quit|am reading|'m reading|reading)\s+(.+)$/i;
+  /^(?:i\s*(?:'m|am|have|'ve)?\s*)?(?:just\s+|finally\s+|now\s+)?(started|starting|began|begun|finished|completed|dnf|gave up on|giving up on|abandoned|dropped|quit|am reading|'m reading|reading)(?:\s+reading)?\s+(.+)$/i;
 
 /**
  * "dune and circe", "dune, circe & piranesi" -> separate books -- but "Pride and Prejudice"

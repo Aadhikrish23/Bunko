@@ -249,7 +249,7 @@ export function FlowReaderPage() {
   const [activeSelection, setActiveSelection] = useState<{ text: string; x: number; y: number; position: string } | null>(
     null
   );
-  const [endedSession, setEndedSession] = useState<{ durationSeconds: number | null } | null>(null);
+  const [endedSession, setEndedSession] = useState<{ durationSeconds: number | null; endPosition?: string } | null>(null);
   const [reflectionError, setReflectionError] = useState<string | null>(null);
 
   const [containerSize, setContainerSize] = useState({ width: 600, height: 800 });
@@ -755,18 +755,20 @@ export function FlowReaderPage() {
       return;
     }
     closedRef.current = true;
+    // Captured once here and reused for the reflection save below -- the position can keep
+    // moving in the background for a moment after close (a late-firing scroll/progress
+    // update), and the server only accepts a reflection added after the fact when the
+    // position still matches exactly what the session ended at (R5-02).
+    const endPosition = currentPositionRef.current ?? undefined;
     try {
-      const session = await endSession.mutateAsync({
-        sessionId,
-        endPosition: currentPositionRef.current ?? undefined,
-      });
+      const session = await endSession.mutateAsync({ sessionId, endPosition });
       // Opening a book for a few seconds isn't a reading session: it leaves no journal entry.
       if ((session.durationSeconds ?? 0) < 60 && !isOfflineSessionId(sessionId)) {
         await api.delete(`/reading-sessions/${sessionId}`).catch(() => undefined);
         navigate(bookPath);
         return;
       }
-      setEndedSession({ durationSeconds: session.durationSeconds });
+      setEndedSession({ durationSeconds: session.durationSeconds, endPosition });
     } catch {
       navigate(bookPath);
     }
@@ -778,7 +780,7 @@ export function FlowReaderPage() {
     if (sessionId && reflection) {
       setReflectionError(null);
       try {
-        await endSession.mutateAsync({ sessionId, endPosition: currentPositionRef.current ?? undefined, reflection });
+        await endSession.mutateAsync({ sessionId, endPosition: endedSession?.endPosition, reflection });
       } catch (err) {
         setReflectionError(errorMessage(err, 'Your reflection could not be saved.'));
         return;
@@ -1399,13 +1401,14 @@ export function FlowReaderPage() {
       </header>
 
 
-      {(showBookmarks || showMore) && (
+      {(showBookmarks || showMore || showTranslatePanel) && (
         <div
           aria-hidden="true"
           className="fixed inset-0 z-20"
           onClick={() => {
             setShowBookmarks(false);
             setShowMore(false);
+            setShowTranslatePanel(false);
           }}
         />
       )}

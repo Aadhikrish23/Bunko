@@ -30,7 +30,12 @@ export function useAssignWorkToShelf() {
   return useMutation({
     mutationFn: ({ shelfId, workId }: { shelfId: string; workId: string }) =>
       api.post(`/shelves/${shelfId}/works`, { workId }),
+    // Adding a work to a shelf is an upsert server-side, so a dropped connection
+    // is always safe to retry once rather than leaving the reader's click looking
+    // like it did nothing.
+    retry: 1,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['works'] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['shelves'] }),
   });
 }
 

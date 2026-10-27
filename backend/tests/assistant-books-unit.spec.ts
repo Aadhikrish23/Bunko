@@ -84,6 +84,13 @@ test.describe('plain commands', () => {
     expect(intents.map((i) => i.type)).toEqual(['SetStatus', 'RateBook']);
   });
 
+  test('"reading" after the verb is filler, not part of the title (R5-05)', () => {
+    expect(parseCommands('i started reading circe')![0]!.targets[0]!.name).toBe('circe');
+    expect(parseCommands('finished reading piranesi')![0]!.targets[0]!.name).toBe('piranesi');
+    // A bare "reading" is still itself a verb, as before.
+    expect(parseCommands('reading dune')![0]!.targets[0]!.name).toBe('dune');
+  });
+
   test('book lists split into owned books only, never inside a title', () => {
     expect(splitBookList('dune and circe', ['Dune', 'Circe'])).toEqual(['dune', 'circe']);
     // Not known books: "and" may belong to a title, so it stays whole for the model.

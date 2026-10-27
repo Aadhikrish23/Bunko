@@ -105,7 +105,7 @@ export function ReaderPage() {
   const removeBookmark = useRemoveBookmark(editionId);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
-  const [endedSession, setEndedSession] = useState<{ durationSeconds: number | null } | null>(null);
+  const [endedSession, setEndedSession] = useState<{ durationSeconds: number | null; endPosition?: string } | null>(null);
 
   const [isFlipping, setIsFlipping] = useState(false);
   const [flipDirection, setFlipDirection] = useState<'next' | 'prev'>('next');
@@ -195,12 +195,17 @@ export function ReaderPage() {
       navigate(bookPath);
       return;
     }
+    // Captured once here and reused for the reflection save below -- the position can keep
+    // moving in the background for a moment after close, and the server only accepts a
+    // reflection added after the fact when the position still matches exactly what the
+    // session ended at (R5-02).
+    const endPosition = currentPositionRef.current ?? undefined;
     try {
       const session = await endSession.mutateAsync({
         sessionId: manifest.data.sessionId,
-        endPosition: currentPositionRef.current ?? undefined,
+        endPosition,
       });
-      setEndedSession({ durationSeconds: session.durationSeconds });
+      setEndedSession({ durationSeconds: session.durationSeconds, endPosition });
     } catch {
       navigate(bookPath);
     }
@@ -213,7 +218,7 @@ export function ReaderPage() {
       try {
         await endSession.mutateAsync({
           sessionId: manifest.data.sessionId,
-          endPosition: currentPositionRef.current ?? undefined,
+          endPosition: endedSession?.endPosition,
           reflection,
         });
       } catch (err) {

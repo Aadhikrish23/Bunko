@@ -57,4 +57,18 @@ export const AIConfig = {
   nvidiaPrimaryTimeout: process.env.NVIDIA_PRIMARY_TIMEOUT ? parseInt(process.env.NVIDIA_PRIMARY_TIMEOUT, 10) : 6000,
 };
 
+/**
+ * Whether the assistant chat (this module, NVIDIA/Ollama/mock) has what it needs to
+ * answer -- distinct from modules/ai's aiConfigured(), which only looks at the separate
+ * Claude-backed ai-service (semantic search, summaries, translation). Settings bundles
+ * "Assistant and book summaries" under one toggle, so its availability notice needs
+ * both checks or it calls the assistant unset-up while it's demonstrably answering
+ * (R5-09).
+ */
+export function isAssistantConfigured(): boolean {
+  if (aiProvider === "nvidia") return Boolean(process.env.NVIDIA_API_KEY);
+  if (aiProvider === "ollama") return Boolean(process.env.OLLAMA_BASE_URL && process.env.OLLAMA_MODEL);
+  return aiProvider === "mock";
+}
+
 export default AIConfig;

@@ -19,9 +19,12 @@ export function ReflectionPrompt({
   const [reflection, setReflection] = useState('');
   const minutes = durationSeconds ? Math.round(durationSeconds / 60) : 0;
   const summary = minutes >= 1 ? `${minutes} min of reading. Nice work.` : 'Under a minute of reading this time.';
+  // Escape/the modal's own X are the same as Skip for an empty box, but not when the reader
+  // already typed something -- that's worth keeping, not silently throwing away (R5-02).
+  const dismiss = () => onSubmit(reflection.trim() || null);
 
   return (
-    <Modal title="Session ended" onClose={() => onSubmit(null)}>
+    <Modal title="Session ended" onClose={dismiss}>
       <div className="flex flex-col gap-4">
         <p className="text-sm text-paper-700">{summary}</p>
         {error && <ErrorBanner message={error} />}

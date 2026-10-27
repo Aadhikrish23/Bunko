@@ -46,14 +46,16 @@ export function AddToShelfDialog({
   async function handleAdd() {
     setSaving(true);
     setError(null);
-    try {
-      for (const workId of chosen) await assign.mutateAsync({ shelfId, workId });
-      onClose();
-    } catch (err) {
-      setError(errorMessage(err, 'Some books could not be added.'));
-    } finally {
-      setSaving(false);
+    const results = await Promise.allSettled(
+      Array.from(chosen).map((workId) => assign.mutateAsync({ shelfId, workId })),
+    );
+    setSaving(false);
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed) {
+      setError(errorMessage(failed.reason, 'Some books could not be added.'));
+      return;
     }
+    onClose();
   }
 
   const everyBookIsOnIt = works.length > 0 && works.every((w) => w.shelfIds.includes(shelfId));

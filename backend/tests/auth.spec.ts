@@ -71,7 +71,9 @@ test.describe('POST /auth/login', () => {
 });
 
 test.describe('POST /auth/refresh', () => {
-  test('rotates the refresh token and rejects reuse of the old one', async ({ request }) => {
+  test('rotates the refresh token, tolerates one immediate replay of the old one, and rejects it once it is no longer current or previous (R5-06)', async ({
+    request,
+  }) => {
     const email = `rotate-${randomUUID()}@example.com`;
     const registerResponse = await request.post('/api/v1/auth/register', {
       data: { email, password: 'correct-horse-battery-staple', displayName: 'Rotation Check' },
@@ -85,18 +87,36 @@ test.describe('POST /auth/refresh', () => {
     const secondCookie = extractCookie(firstRefresh, 'refreshToken');
     expect(secondCookie).not.toBe(firstCookie);
 
-    // Replaying the original (now-rotated) refresh token must be rejected.
+    // A request that raced the rotation above and is still holding the old token (e.g. a
+    // second tab, or a burst of calls right as the access token expired) is not signed out:
+    // it gets the pair rotation already produced, not a fresh rotation of its own.
     const replay = await request.post('/api/v1/auth/refresh', {
       headers: { Cookie: firstCookie },
     });
-    expect(replay.status()).toBe(401);
-    expect((await replay.json()).error.code).toBe('UNAUTHENTICATED');
+    expect(replay.status()).toBe(200);
+    const replayCookie = extractCookie(replay, 'refreshToken');
+    expect(replayCookie).toBe(secondCookie);
 
     // The rotated (second) token still works.
     const secondRefresh = await request.post('/api/v1/auth/refresh', {
       headers: { Cookie: secondCookie },
     });
     expect(secondRefresh.status()).toBe(200);
+    const thirdCookie = extractCookie(secondRefresh, 'refreshToken');
+
+    // Now that a third token has been issued, the original (first) token is neither
+    // current nor the immediately-previous one, so reusing it is rejected.
+    const staleReplay = await request.post('/api/v1/auth/refresh', {
+      headers: { Cookie: firstCookie },
+    });
+    expect(staleReplay.status()).toBe(401);
+    expect((await staleReplay.json()).error.code).toBe('UNAUTHENTICATED');
+
+    // The newest token is unaffected.
+    const thirdRefresh = await request.post('/api/v1/auth/refresh', {
+      headers: { Cookie: thirdCookie },
+    });
+    expect(thirdRefresh.status()).toBe(200);
   });
 
   test('rejects a missing refresh token', async ({ request }) => {

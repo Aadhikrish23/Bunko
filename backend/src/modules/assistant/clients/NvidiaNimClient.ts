@@ -76,8 +76,13 @@ export class NvidiaNimClient {
           // max_tokens before it gets there (observed: 45-60s responses, some truncated
           // to pure reasoning prose with no JSON at all). Structured intent extraction
           // needs the direct answer, not a visible chain of thought, so it's turned off.
-          // Models without the switch ignore it.
+          // Models without the switch ignore it. gpt-oss (the fallback model) uses its
+          // own reasoning_effort knob instead of chat_template_kwargs and defaults to
+          // medium, which showed the same symptom on off-topic prompts (R5-04: a
+          // question with no good book-domain answer gave it the most to "reason"
+          // about, burning the whole budget before replying or timing out outright).
           chat_template_kwargs: { thinking: false },
+          reasoning_effort: "low",
         },
         {
           headers: {

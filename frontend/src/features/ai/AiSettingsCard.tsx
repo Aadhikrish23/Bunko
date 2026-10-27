@@ -98,15 +98,25 @@ export function AiSettingsCard() {
             onChange={(on) => change('translation', on)}
           />
           {available &&
-            (!available.semanticSearch ||
-              (!available.generative && current.generative) ||
-              (!available.translation && current.translation)) && (
-              <p className="text-xs text-ember-600">
-                {available.semanticSearch
-                  ? 'The Assistant, book summaries and translation aren’t set up on this server yet.'
-                  : 'AI features aren’t set up on this server yet — your choice is saved for when they are.'}
-              </p>
-            )}
+            (() => {
+              // Search by meaning and chapter translation run on one backend; the
+              // Assistant can run on a separate one and be up when that isn't (R5-09:
+              // this used to say "AI features aren't set up" while the Assistant was
+              // demonstrably answering).
+              const unavailable = [
+                !available.semanticSearch && 'search by meaning',
+                !available.generative && current.generative && 'the Assistant',
+                !available.translation && current.translation && 'chapter translation',
+              ].filter((v): v is string => Boolean(v));
+              if (unavailable.length === 0) return null;
+              return (
+                <p className="text-xs text-ember-600">
+                  {unavailable.length === 1 ? unavailable[0] : `${unavailable.slice(0, -1).join(', ')} and ${unavailable.at(-1)}`}
+                  {unavailable.length === 1 ? " isn't" : " aren't"} set up on this server yet — your choice is saved for when{' '}
+                  {unavailable.length === 1 ? 'it is' : 'they are'}.
+                </p>
+              );
+            })()}
         </div>
       )}
       {pending && (

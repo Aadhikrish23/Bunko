@@ -49,6 +49,13 @@ export function useCreateWork() {
     mutationFn: (input: CreateWorkInput) => api.post<Work>('/works', input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['works'] });
+      // A book added without one gets its cover found on the server a few
+      // seconds later (library.service.ts fillCoverInBackground); nothing
+      // pushes that update to the client, so without this the library grid
+      // kept showing the placeholder until the reader happened to revisit
+      // the page later, even though the book's own page already had the
+      // real cover by then (R5-08).
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ['works'] }), 6_000);
     },
   });
 }

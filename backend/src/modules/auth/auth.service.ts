@@ -83,6 +83,11 @@ export async function login(input: LoginInput): Promise<{ user: AuthUser; tokens
   return { user: toAuthUser(user), tokens: issueTokens(user.id, user.email, refreshJti) };
 }
 
+// How long a just-rotated-away refresh token still works. Covers two requests
+// that both held the previous token (e.g. a burst of calls right as the
+// access token expires) without opening a real reuse window (R5-06).
+const REFRESH_GRACE_MS = 10_000;
+
 export async function refresh(refreshToken: string): Promise<AuthTokens> {
   let payload: RefreshTokenPayload;
   try {
@@ -92,15 +97,35 @@ export async function refresh(refreshToken: string): Promise<AuthTokens> {
   }
 
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-  if (!user || user.currentRefreshTokenId !== payload.jti) {
-    // Reuse of an already-rotated (or otherwise stale) refresh token —
-    // a security-relevant event worth its own log line (SRS §32).
-    logger.warn({ userId: payload.sub }, 'refresh token reuse detected');
+  if (!user) {
     throw new AppError('UNAUTHENTICATED', 'Refresh token has already been used or revoked');
   }
 
-  const newJti = randomUUID();
-  await prisma.user.update({ where: { id: user.id }, data: { currentRefreshTokenId: newJti } });
+  if (user.currentRefreshTokenId === payload.jti) {
+    const newJti = randomUUID();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        currentRefreshTokenId: newJti,
+        previousRefreshTokenId: payload.jti,
+        previousRefreshTokenExpiresAt: new Date(Date.now() + REFRESH_GRACE_MS),
+      },
+    });
+    return issueTokens(user.id, user.email, newJti);
+  }
 
-  return issueTokens(user.id, user.email, newJti);
+  const withinGrace =
+    user.previousRefreshTokenId === payload.jti &&
+    !!user.previousRefreshTokenExpiresAt &&
+    user.previousRefreshTokenExpiresAt.getTime() > Date.now();
+  if (withinGrace && user.currentRefreshTokenId) {
+    // Already rotated by a concurrent request; hand back the pair that
+    // rotation already produced instead of rotating again.
+    return issueTokens(user.id, user.email, user.currentRefreshTokenId);
+  }
+
+  // Reuse of an already-rotated (or otherwise stale) refresh token —
+  // a security-relevant event worth its own log line (SRS §32).
+  logger.warn({ userId: payload.sub }, 'refresh token reuse detected');
+  throw new AppError('UNAUTHENTICATED', 'Refresh token has already been used or revoked');
 }

@@ -1536,7 +1536,14 @@
           "title": "\"Add book\" button in the Shelves page's \"Add books to [shelf]\" dialog does not work",
           "steps": "Shelves > created a new shelf 'rainy day reads' via '+ New Shelf' > clicked 'Add books' on the empty shelf > checked Circe and Piranesi > clicked 'Add book' (repeated with ref clicks, coordinate clicks, and Enter while focused).",
           "expected": "Selected books get added to the shelf and the dialog closes/updates the count.",
-          "actual": "Nothing happens -- dialog stays open, shelf still shows '0 books'. Workaround: toggling the shelf tag on each book's own detail page works correctly."
+          "actual": "Nothing happens -- dialog stays open, shelf still shows '0 books'. Workaround: toggling the shelf tag on each book's own detail page works correctly.",
+          "root_cause": "The shelf-assign request could fail client-side (an aborted fetch) even though the server's upsert had already succeeded, leaving the dialog stuck with no feedback and the reader unsure whether it worked.",
+          "fix": "Adding a work to a shelf is retried once automatically (the server call is an idempotent upsert), multiple selected books are added with Promise.allSettled instead of a sequential loop that stopped at the first failure, and the shelves list is always refreshed afterward.",
+          "files": [
+            "frontend/src/features/shelves/AddToShelfDialog.tsx",
+            "frontend/src/lib/api/shelves.ts"
+          ],
+          "status": "Fixed"
         },
         {
           "id": "R5-02",
@@ -1545,7 +1552,15 @@
           "title": "Reflection typed into the reader's \"Session ended\" dialog is never saved",
           "steps": "Finished 'The Lantern Keeper of Aldmere' in the reader > 'Close the book' > 'Session ended / 6 min of reading. Nice work.' dialog > typed a reflection > Save.",
           "expected": "The reflection text appears in the Journal entry, the book's Notes, or its Review.",
-          "actual": "The reflection text is gone entirely. The Journal entry shows an unrelated earlier highlight instead; Notes/Review stay empty even after reload."
+          "actual": "The reflection text is gone entirely. The Journal entry shows an unrelated earlier highlight instead; Notes/Review stay empty even after reload.",
+          "root_cause": "The position used to end a session was re-read live when the reflection was saved moments later; if it had moved in the background since the book was actually closed, the server rejected the mismatched reflection as a conflict with the session already-ended, and dismissing the prompt (Escape/X) discarded whatever had been typed without saving it.",
+          "fix": "The ending position is captured once when the book closes and reused for the reflection save, so it can no longer drift; dismissing the prompt now saves a typed reflection the same as clicking Save, instead of throwing it away.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx",
+            "frontend/src/features/reader/ReaderPage.tsx",
+            "frontend/src/features/reader/ReflectionPrompt.tsx"
+          ],
+          "status": "Fixed"
         },
         {
           "id": "R5-03",
@@ -1554,7 +1569,14 @@
           "title": "Logged reading session date is off by one day",
           "steps": "Journal > 'Log reading' > book Piranesi, Day field showed '28-10-2026' (today), Minutes 45, From page 10, To page 55, reflection text, 'Log reading'.",
           "expected": "Journal entry shows 'Oct 28, 2026' matching the selected date.",
-          "actual": "Entry is listed under 'Oct 27, 2026' -- one day earlier, suggesting a timezone conversion bug."
+          "actual": "Entry is listed under 'Oct 27, 2026' -- one day earlier, suggesting a timezone conversion bug.",
+          "root_cause": "Logging a session for 'today' used the live clock as the end time; subtracting the session's length could roll the computed start time before local midnight, and the journal files an entry by its start time -- so a session logged for today could show up a day earlier.",
+          "fix": "The live clock is only used when the session fits entirely within the chosen day; otherwise (and for every past date) it anchors to noon on that day, same as before.",
+          "files": [
+            "frontend/src/features/journal/LogSessionDialog.tsx",
+            "frontend/src/features/journal/log-session-date.ts"
+          ],
+          "status": "Fixed"
         },
         {
           "id": "R5-04",
@@ -1563,7 +1585,13 @@
           "title": "Off-topic assistant questions reliably time out (even on retry)",
           "steps": "In Assistant chat, after several successful book-related exchanges, sent 'whats the weather like today'. Waited 30s -> timeout message. Clicked 'Try again', waited another 30s.",
           "expected": "Either a quick graceful redirect, or at least a successful retry.",
-          "actual": "Both the original attempt and the retry timed out after ~30s each with the same message. A normal on-topic question sent right after answered correctly within ~10s, so the failure seems specific to off-topic prompts."
+          "actual": "Both the original attempt and the retry timed out after ~30s each with the same message. A normal on-topic question sent right after answered correctly within ~10s, so the failure seems specific to off-topic prompts.",
+          "root_cause": "The fallback model (gpt-oss, used since no NVIDIA_MODEL is configured) defaults to a higher reasoning effort than the Nemotron 'thinking' switch already disabled; an off-topic question gave it the most to reason about, so it burned its whole time budget without replying, and a retry hit the same model again within its unhealthy cooldown.",
+          "fix": "Every NVIDIA NIM call now also sends reasoning_effort: low, which applies to gpt-oss independently of the Nemotron-specific switch.",
+          "files": [
+            "backend/src/modules/assistant/clients/NvidiaNimClient.ts"
+          ],
+          "status": "Fixed"
         },
         {
           "id": "R5-05",
@@ -1572,7 +1600,13 @@
           "title": "Natural phrasing \"i started reading circe\" fails to resolve the book despite Circe being in the library and just discussed",
           "steps": "After being recommended 'Circe by Madeline Miller' in the previous message, typed 'i started reading circe'.",
           "expected": "The assistant recognizes 'circe' as the book just discussed and marks it Reading.",
-          "actual": "\"I couldn't find a book called 'reading circe'...\" -- it matched the whole phrase as a title instead of parsing 'started reading' as the verb phrase. Retyping with the full title worked."
+          "actual": "\"I couldn't find a book called 'reading circe'...\" -- it matched the whole phrase as a title instead of parsing 'started reading' as the verb phrase. Retyping with the full title worked.",
+          "root_cause": "'started reading circe' matched 'started' as the verb and left 'reading circe' as the title text, so it searched the catalogue for a nonexistent book instead of recognising the owned title.",
+          "fix": "An optional 'reading' is now consumed as filler right after started/starting/began/begun/finished/completed, before the title is read.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/conversation/quickCommands.ts"
+          ],
+          "status": "Fixed"
         },
         {
           "id": "R5-06",
@@ -1581,7 +1615,16 @@
           "title": "Unexpected full session logout with no warning, not reproduced on retry",
           "steps": "On a book detail page (The Name of the Wind), clicked 'Add note', typed a note, clicked the '+ Add note' trigger button.",
           "expected": "Note dialog opens or note saves; if a session genuinely expired, a clear message should explain why.",
-          "actual": "The app silently navigated to /login with all session state lost, no toast or explanation. Logging back in and repeating the exact steps worked fine every subsequent time."
+          "actual": "The app silently navigated to /login with all session state lost, no toast or explanation. Logging back in and repeating the exact steps worked fine every subsequent time.",
+          "root_cause": "Refresh tokens rotate strictly on first use; two requests that both held the same token (a burst of calls right as the 15-minute access token expired) raced to rotate it, and the loser was treated as reuse and signed the reader out with no warning.",
+          "fix": "A rotated-away refresh token still works for a 10-second grace window, handing back the pair the winning request already produced instead of rotating again or rejecting it; reuse outside that window (or of any older token) is still rejected and logged as before.",
+          "files": [
+            "backend/prisma/schema.prisma",
+            "backend/src/modules/auth/auth.service.ts",
+            "docs/DATA_MODEL.md",
+            "backend/tests/auth.spec.ts"
+          ],
+          "status": "Fixed"
         },
         {
           "id": "R5-07",
@@ -1590,7 +1633,13 @@
           "title": "Toolbar tooltip/panel overlays get stuck open and block clicks underneath",
           "steps": "In the reader, clicked the Translate icon (shows 'isn't set up on this server yet' tooltip), then clicked other toolbar icons or chapter-list entries without first dismissing the Translate tooltip.",
           "expected": "Clicking elsewhere should dismiss the previous tooltip automatically, or at least not intercept the click.",
-          "actual": "The tooltip stays on top, intercepting clicks meant for elements beneath it. Escape or its own close button dismisses it, but a casual user wouldn't know to do that and would think the buttons are broken."
+          "actual": "The tooltip stays on top, intercepting clicks meant for elements beneath it. Escape or its own close button dismisses it, but a casual user wouldn't know to do that and would think the buttons are broken.",
+          "root_cause": "The reader's Escape-and-click-outside handling (added in round 4) covered the Bookmarks and More menus but was never extended to the Translate panel added afterward, so it had no way to close except its own X or Escape, and sat on top of other toolbar controls intercepting their clicks.",
+          "fix": "The same click-outside backdrop that closes Bookmarks and More now also closes the Translate panel.",
+          "files": [
+            "frontend/src/features/reader/FlowReaderPage.tsx"
+          ],
+          "status": "Fixed"
         },
         {
           "id": "R5-08",
@@ -1599,7 +1648,14 @@
           "title": "Library grid cover art falls back to a generic placeholder even when real cover art exists",
           "steps": "Added 'The Name of the Wind' via the Assistant, then viewed the Library grid.",
           "expected": "Since the book's detail page and quick-view popup both show real cover art, the grid thumbnail should match.",
-          "actual": "The Library grid shows a generic orange 'T' placeholder tile, while every other metadata field is correctly enriched."
+          "actual": "The Library grid shows a generic orange 'T' placeholder tile, while every other metadata field is correctly enriched.",
+          "root_cause": "A book added without a cover gets one found by the server a few seconds later in the background; nothing told the client to refetch, so the library grid kept showing the placeholder indefinitely once its initial fetch had already run, even though the book's own page (fetched fresh on each visit) already had the real cover.",
+          "fix": "Adding a book, from the dialog or through the assistant, now also refreshes the library list a few seconds later to pick up a cover the background search finds.",
+          "files": [
+            "frontend/src/lib/api/works.ts",
+            "frontend/src/lib/api/assistant.ts"
+          ],
+          "status": "Fixed"
         },
         {
           "id": "R5-09",
@@ -1608,7 +1664,16 @@
           "title": "Settings page AI-features copy contradicts actual working behavior",
           "steps": "Settings > 'AI features' section.",
           "expected": "Messaging consistent with the Assistant chat being clearly live and working with a real AI model.",
-          "actual": "Footer text reads \"AI features aren't set up on this server yet -- your choice is saved for when they are\", which is stale and could confuse a user about whether their data is actually being sent anywhere."
+          "actual": "Footer text reads \"AI features aren't set up on this server yet -- your choice is saved for when they are\", which is stale and could confuse a user about whether their data is actually being sent anywhere.",
+          "root_cause": "'Assistant and book summaries' is one Settings toggle over two independent backends -- ai-service (Claude, for summaries/search/translation) and the assistant's own NVIDIA/Ollama client (for chat) -- but the availability check only ever looked at ai-service, so the notice said AI features weren't set up while the Assistant was demonstrably answering on NVIDIA.",
+          "fix": "Availability for the generative toggle now also counts the assistant's own provider being configured, and the notice names specifically which feature(s) -- search by meaning, the Assistant, chapter translation -- aren't set up, instead of a blanket claim.",
+          "files": [
+            "backend/src/modules/ai/ai.service.ts",
+            "backend/src/modules/assistant/config/AIConfig.ts",
+            "frontend/src/features/ai/AiSettingsCard.tsx",
+            "backend/tests/ai.spec.ts"
+          ],
+          "status": "Fixed"
         }
       ]
     }

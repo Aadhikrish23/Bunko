@@ -4,6 +4,7 @@ import { test, expect } from './fixtures/auth.fixture';
 import { prisma } from '../src/config/prisma';
 import { hashChapterText } from '../src/modules/ai/chapter-hash';
 import { CURRENT_CHAPTER_GRAPH_VERSION } from '../src/modules/reader/chapter-graph';
+import { isAssistantConfigured } from '../src/modules/assistant/config/AIConfig';
 
 // These run without an ai-service configured (the default test setup), so
 // they cover consent, scoping, and graceful degradation; the generation
@@ -56,10 +57,14 @@ test.describe('AI features without consent or service', () => {
     expect((await authedRequest.post('/api/v1/ai/insights')).status()).toBe(403);
   });
 
-  test('with consent but no ai-service configured, features report unavailable (503)', async ({ authedRequest }) => {
+  test('with consent but no ai-service configured, the ai-service features report unavailable (503)', async ({ authedRequest }) => {
     await authedRequest.put('/api/v1/ai/consent', { data: { semanticSearch: true, generative: true, translation: false } });
     const status = (await (await authedRequest.get('/api/v1/ai/status')).json()).data;
-    expect(status.available).toEqual({ semanticSearch: false, generative: false, translation: false });
+    // semanticSearch and translation only ever run on ai-service, so they stay unavailable.
+    // generative also covers the assistant's own NVIDIA/Ollama backend (R5-09), so it tracks
+    // whatever this environment's .env configured for that -- never hard-coded here, or the
+    // test would start failing the moment a developer's own key is configured locally.
+    expect(status.available).toEqual({ semanticSearch: false, generative: isAssistantConfigured(), translation: false });
 
     const search = await authedRequest.get('/api/v1/ai/search?q=courage');
     expect(search.status()).toBe(503);

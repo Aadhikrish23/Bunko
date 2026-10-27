@@ -23,6 +23,13 @@ model User {
   // (SRS §23.2). MVP tracks a single active session per user — a real
   // multi-device model is DeviceSession (Phase 9, DATA_MODEL.md §5).
   currentRefreshTokenId String?
+  // The jti rotation replaced, kept for a short grace window so two
+  // requests that both held the now-superseded token (one tab firing a
+  // burst of calls right as the access token expires) don't sign the
+  // reader out — only a refresh token outside this window, or that
+  // matches neither id, counts as reuse (R5-06).
+  previousRefreshTokenId        String?
+  previousRefreshTokenExpiresAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

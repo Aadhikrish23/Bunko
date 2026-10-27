@@ -23,6 +23,11 @@ export function useAssistantChat() {
     onSuccess: (reply) => {
       if (reply.status === 'SUCCESS' || reply.status === 'PARTIAL') {
         for (const queryKey of LIBRARY_KEYS) void queryClient.invalidateQueries({ queryKey });
+        // A book the assistant adds without a cover gets one found on the server a few
+        // seconds later (library.service.ts fillCoverInBackground); nothing pushes that
+        // update to the client, so the library grid kept the placeholder until the
+        // reader happened to revisit later (R5-08).
+        setTimeout(() => queryClient.invalidateQueries({ queryKey: ['works'] }), 6_000);
       }
     },
   });

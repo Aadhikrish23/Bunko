@@ -6,13 +6,13 @@ import { useCreateCopy, useCreateEdition } from '../../lib/api/editions';
 import { useLogSession } from '../../lib/api/sessions';
 import { useWorks } from '../../lib/api/works';
 import { errorMessage } from '../../lib/error-message';
+import { chooseEndedAt, toDateKey } from './log-session-date';
 
 const field = 'focus-visible:focus-ring w-full rounded-md border border-paper-300 bg-paper-50 px-3 py-2 text-sm text-paper-900';
 const label = 'flex flex-col gap-1.5 text-sm font-medium text-paper-800';
 
 function today(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return toDateKey(new Date());
 }
 
 /**
@@ -57,8 +57,7 @@ export function LogSessionDialog({ workId, onClose }: { workId?: string; onClose
         const edition = await createEdition.mutateAsync({ workId: chosen.id, format: 'PHYSICAL' });
         copyId = (await createCopy.mutateAsync({ editionId: edition.id })).id;
       }
-      // Noon on the chosen day for a past date; now for today.
-      const endedAt = date === today() ? new Date() : new Date(`${date}T12:00:00`);
+      const endedAt = chooseEndedAt(date, mins, new Date());
       await logSession.mutateAsync({
         copyId,
         endedAt: endedAt.toISOString(),

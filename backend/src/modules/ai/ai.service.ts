@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../lib/app-error';
 import { redisConnection } from '../../lib/queue';
 import { aiConfigured, callAi } from './ai-client';
+import { isAssistantConfigured } from '../assistant/config/AIConfig';
 import { scheduleAiIndex } from './ai-index';
 import type { ConsentInput } from './ai.schema';
 import { TRANSLATION_LANGUAGES, type TranslationLanguage } from './translation-languages';
@@ -31,8 +32,14 @@ const HEALTH_TTL_MS = 60_000;
 
 // Translation uses the same Claude access as generated insights.
 export async function availability(): Promise<AiStatus['available']> {
-  if (!aiConfigured()) return { semanticSearch: false, generative: false, translation: false };
-  if (healthCache && Date.now() - healthCache.at < HEALTH_TTL_MS) return healthCache.value;
+  // "Assistant and book summaries" is one Settings toggle over two independent
+  // backends (ai-service for summaries, this module's own NVIDIA/Ollama client
+  // for chat) -- generative is available when either can actually answer.
+  const assistantReady = isAssistantConfigured();
+  if (!aiConfigured()) return { semanticSearch: false, generative: assistantReady, translation: false };
+  if (healthCache && Date.now() - healthCache.at < HEALTH_TTL_MS) {
+    return { ...healthCache.value, generative: healthCache.value.generative || assistantReady };
+  }
   let value: AiStatus['available'];
   try {
     const health = await callAi<HealthResponse>('GET', '/health', undefined, 5_000);
@@ -42,6 +49,7 @@ export async function availability(): Promise<AiStatus['available']> {
     value = { semanticSearch: false, generative: false, translation: false };
   }
   healthCache = { at: Date.now(), value };
+  if (assistantReady) return { ...value, generative: true };
   return value;
 }
 
