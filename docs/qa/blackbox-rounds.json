@@ -1469,6 +1469,148 @@
           "status": "Open"
         }
       ]
+    },
+    {
+      "round": 5,
+      "date": "2026-10-28",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100 with AI_PROVIDER=nvidia and a real NVIDIA_API_KEY (live model calls, no mock). Seeded fresh account (qa.round5.1793127205@bunko.test) with AI consent pre-granted, a small library, two shelves, and one readable EPUB.",
+      "scores": {
+        "first_impression_onboarding": {
+          "score": 8,
+          "reason": "Clean, calm, book-themed login; already signed in to the seeded account so full onboarding wasn't seen, but nothing felt generic."
+        },
+        "library_adding_finding_books": {
+          "score": 7,
+          "reason": "Adding by title/author with real metadata/cover enrichment works well, but the library grid shows a generic placeholder tile even when the book's detail page has a real cover."
+        },
+        "book_page_and_details": {
+          "score": 8,
+          "reason": "Rich, well-organized page (description, series, shelves, rating, review, notes, highlights); rating and notes persisted reliably on retest."
+        },
+        "reading_experience": {
+          "score": 9,
+          "reason": "Genuinely delightful EPUB reader: 3D-flip and scroll modes, 4 legible themes, font/line/margin controls, in-book search, working highlights, bookmarks, and a thoughtful end-of-book flow."
+        },
+        "tracking_journal_statistics": {
+          "score": 6,
+          "reason": "Logging/viewing/deleting sessions works with a nice delete confirmation, but a logged date was off by one day and a typed session reflection was silently discarded."
+        },
+        "shelves_organizing": {
+          "score": 6,
+          "reason": "The physical bookshelf visualization is the best-looking part of the app, but the Shelves page's own 'Add books to shelf' dialog does nothing when you click Add book."
+        },
+        "notes_highlights_reviews": {
+          "score": 7,
+          "reason": "Highlighting with the color picker, the Highlights sidebar, and reviews/ratings/notes all saved and persisted, but the lost session reflection and some first-attempt save fragility hold it back."
+        },
+        "assistant_chat": {
+          "score": 7,
+          "reason": "Accurate and grounded on in-scope library questions with a working undo and clear loading states, but off-topic questions reliably time out even on retry, and 'i started reading circe' fails to parse despite Circe being the book just recommended."
+        },
+        "look_and_feel": {
+          "score": 9,
+          "reason": "Serif typography, warm paper palette, the physical bookshelf, thoughtful copy, and a transparent AI-data-use settings page -- feels made by book people, not a generic template."
+        },
+        "speed_reliability": {
+          "score": 6,
+          "reason": "Most interactions are fast, but real reproducible bugs surfaced: the broken shelf add-books dialog, a lost session reflection, an off-by-one journal date, one unexplained mid-session logout, and tooltips that get stuck open and block clicks underneath."
+        },
+        "overall": {
+          "score": 7,
+          "reason": "A charming, well-designed reading app with one of the best in-browser EPUB readers tested, let down by a handful of real functional bugs a careful reader would hit within a single normal session."
+        }
+      },
+      "praise": [
+        "The 3D-flip/scroll EPUB reader is excellent: real pagination with chapter titles, 4 legible reading themes, font/line-spacing/margin controls, in-book search that jumps to the exact page, and highlights that persist across reload.",
+        "The physical bookshelf visualization on the Shelves page (wood shelf texture, genre grouping, Covers/Spines toggle, drag to rearrange) is delightful and unlike any generic tracker UI.",
+        "The Assistant correctly grounds its answers in the user's actual library (accurate counts, correct want-to-read list, sensible recommendations) and has a working, reliable undo for its last action.",
+        "The 'Session ended' flow after finishing a book (reading-time summary, 'Finished [Book]?' prompt, auto-set finish date) mirrors how a real reader thinks about wrapping up a book.",
+        "Settings' AI-features section is unusually transparent about exactly what data is sent to which third-party service and when -- genuinely trust-building rather than generic boilerplate."
+      ],
+      "issues": [
+        {
+          "id": "R5-01",
+          "area": "shelves_organizing",
+          "severity": "blocker",
+          "title": "\"Add book\" button in the Shelves page's \"Add books to [shelf]\" dialog does not work",
+          "steps": "Shelves > created a new shelf 'rainy day reads' via '+ New Shelf' > clicked 'Add books' on the empty shelf > checked Circe and Piranesi > clicked 'Add book' (repeated with ref clicks, coordinate clicks, and Enter while focused).",
+          "expected": "Selected books get added to the shelf and the dialog closes/updates the count.",
+          "actual": "Nothing happens -- dialog stays open, shelf still shows '0 books'. Workaround: toggling the shelf tag on each book's own detail page works correctly."
+        },
+        {
+          "id": "R5-02",
+          "area": "tracking_journal_statistics",
+          "severity": "major",
+          "title": "Reflection typed into the reader's \"Session ended\" dialog is never saved",
+          "steps": "Finished 'The Lantern Keeper of Aldmere' in the reader > 'Close the book' > 'Session ended / 6 min of reading. Nice work.' dialog > typed a reflection > Save.",
+          "expected": "The reflection text appears in the Journal entry, the book's Notes, or its Review.",
+          "actual": "The reflection text is gone entirely. The Journal entry shows an unrelated earlier highlight instead; Notes/Review stay empty even after reload."
+        },
+        {
+          "id": "R5-03",
+          "area": "tracking_journal_statistics",
+          "severity": "minor",
+          "title": "Logged reading session date is off by one day",
+          "steps": "Journal > 'Log reading' > book Piranesi, Day field showed '28-10-2026' (today), Minutes 45, From page 10, To page 55, reflection text, 'Log reading'.",
+          "expected": "Journal entry shows 'Oct 28, 2026' matching the selected date.",
+          "actual": "Entry is listed under 'Oct 27, 2026' -- one day earlier, suggesting a timezone conversion bug."
+        },
+        {
+          "id": "R5-04",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Off-topic assistant questions reliably time out (even on retry)",
+          "steps": "In Assistant chat, after several successful book-related exchanges, sent 'whats the weather like today'. Waited 30s -> timeout message. Clicked 'Try again', waited another 30s.",
+          "expected": "Either a quick graceful redirect, or at least a successful retry.",
+          "actual": "Both the original attempt and the retry timed out after ~30s each with the same message. A normal on-topic question sent right after answered correctly within ~10s, so the failure seems specific to off-topic prompts."
+        },
+        {
+          "id": "R5-05",
+          "area": "assistant_chat",
+          "severity": "minor",
+          "title": "Natural phrasing \"i started reading circe\" fails to resolve the book despite Circe being in the library and just discussed",
+          "steps": "After being recommended 'Circe by Madeline Miller' in the previous message, typed 'i started reading circe'.",
+          "expected": "The assistant recognizes 'circe' as the book just discussed and marks it Reading.",
+          "actual": "\"I couldn't find a book called 'reading circe'...\" -- it matched the whole phrase as a title instead of parsing 'started reading' as the verb phrase. Retyping with the full title worked."
+        },
+        {
+          "id": "R5-06",
+          "area": "speed_reliability",
+          "severity": "major",
+          "title": "Unexpected full session logout with no warning, not reproduced on retry",
+          "steps": "On a book detail page (The Name of the Wind), clicked 'Add note', typed a note, clicked the '+ Add note' trigger button.",
+          "expected": "Note dialog opens or note saves; if a session genuinely expired, a clear message should explain why.",
+          "actual": "The app silently navigated to /login with all session state lost, no toast or explanation. Logging back in and repeating the exact steps worked fine every subsequent time."
+        },
+        {
+          "id": "R5-07",
+          "area": "look_and_feel",
+          "severity": "minor",
+          "title": "Toolbar tooltip/panel overlays get stuck open and block clicks underneath",
+          "steps": "In the reader, clicked the Translate icon (shows 'isn't set up on this server yet' tooltip), then clicked other toolbar icons or chapter-list entries without first dismissing the Translate tooltip.",
+          "expected": "Clicking elsewhere should dismiss the previous tooltip automatically, or at least not intercept the click.",
+          "actual": "The tooltip stays on top, intercepting clicks meant for elements beneath it. Escape or its own close button dismisses it, but a casual user wouldn't know to do that and would think the buttons are broken."
+        },
+        {
+          "id": "R5-08",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Library grid cover art falls back to a generic placeholder even when real cover art exists",
+          "steps": "Added 'The Name of the Wind' via the Assistant, then viewed the Library grid.",
+          "expected": "Since the book's detail page and quick-view popup both show real cover art, the grid thumbnail should match.",
+          "actual": "The Library grid shows a generic orange 'T' placeholder tile, while every other metadata field is correctly enriched."
+        },
+        {
+          "id": "R5-09",
+          "area": "tracking_journal_statistics",
+          "severity": "polish",
+          "title": "Settings page AI-features copy contradicts actual working behavior",
+          "steps": "Settings > 'AI features' section.",
+          "expected": "Messaging consistent with the Assistant chat being clearly live and working with a real AI model.",
+          "actual": "Footer text reads \"AI features aren't set up on this server yet -- your choice is saved for when they are\", which is stale and could confuse a user about whether their data is actually being sent anywhere."
+        }
+      ]
     }
   ]
 }
