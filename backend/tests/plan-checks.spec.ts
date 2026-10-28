@@ -56,3 +56,48 @@ test.describe('normalizePlan (R7-01, R8-01)', () => {
     expect(plan.intents[0]!.targets![0]!.name).toBe('shelf called');
   });
 });
+
+test.describe('normalizePlan: create-and-organize targets the same shelf (R9-01)', () => {
+  function plan(organizeShelfName: string): IntentPlan {
+    return {
+      id: 'test-plan',
+      requestId: 'test-request',
+      intents: [
+        { type: 'CreateShelf', confidence: 1, targets: [{ type: IntentTargetType.Collection, name: 'Test Shelf Two' }], parameters: [] },
+        {
+          type: 'OrganizeShelf',
+          confidence: 1,
+          targets: [{ type: IntentTargetType.Collection, name: organizeShelfName }, { type: IntentTargetType.Book, name: 'Piranesi' }],
+          parameters: [],
+        },
+      ],
+    };
+  }
+
+  test('a single create + organize in one plan always targets the shelf just created', () => {
+    const p = plan('Test Shelf One'); // an older shelf the model pointed at by mistake
+    normalizePlan(p);
+    const organizeTarget = p.intents[1]!.targets!.find((t) => t.type === IntentTargetType.Collection)!;
+    expect(organizeTarget.name).toBe('Test Shelf Two');
+  });
+
+  test('leaves it alone when the organize target already matches the created shelf', () => {
+    const p = plan('Test Shelf Two');
+    normalizePlan(p);
+    const organizeTarget = p.intents[1]!.targets!.find((t) => t.type === IntentTargetType.Collection)!;
+    expect(organizeTarget.name).toBe('Test Shelf Two');
+  });
+
+  test('does not touch an OrganizeShelf when there is more than one in the plan (ambiguous)', () => {
+    const p = plan('Test Shelf One');
+    p.intents.push({
+      type: 'OrganizeShelf',
+      confidence: 1,
+      targets: [{ type: IntentTargetType.Collection, name: 'Sci-fi' }, { type: IntentTargetType.Book, name: 'Dune' }],
+      parameters: [],
+    });
+    normalizePlan(p);
+    const firstOrganize = p.intents[1]!.targets!.find((t) => t.type === IntentTargetType.Collection)!;
+    expect(firstOrganize.name).toBe('Test Shelf One');
+  });
+});

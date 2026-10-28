@@ -2013,6 +2013,93 @@
           "status": "Testing-environment limitation, not an app defect; EPUB reading and in-reader highlighting remain unverified by black-box testing to date"
         }
       ]
+    },
+    {
+      "round": 9,
+      "date": "2026-10-29",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100, ai-service :8001, live NVIDIA provider. Goal: verify all 4 round-8 fixes, then explore Settings, physical reading sessions, and general robustness.",
+      "scores": {
+        "library_adding_finding_books": { "score": 7, "reason": "Manual-add flow is smooth; marred by a likely testing-tool text-duplication artifact (R9-03) and no way to fix a typo except delete+re-add (R9-04)." },
+        "tracking_journal_statistics": { "score": 9, "reason": "Physical session flow (start -> note -> end with chapter+reflection) was flawless; Journal and Statistics both updated immediately and comprehensively." },
+        "assistant_chat": { "score": 6, "reason": "3 of 4 verified fixes held; the 4th (R8-02, create-shelf-then-add-to-it) reproduced again under slightly different multi-turn conditions -- found and fixed with a deterministic backstop this round, not just another prompt tweak." },
+        "shelves_organizing": { "score": 5, "reason": "Manual create/delete/filter all work well; the Assistant shelf-targeting regression (R9-01) undermined trust in this whole area until fixed." },
+        "look_and_feel": { "score": 9, "reason": "Warm, literary aesthetic holds up cleanly to 375px mobile width across Settings, Journal, and Shelves." },
+        "speed_reliability": { "score": 7, "reason": "No crashes, no data loss; refresh and back-navigation both recovered cleanly with login intact." },
+        "overall": { "score": 7, "reason": "Excellent journaling/stats and visual craft; the regressed assistant shelf-targeting bug (fixed this round with a deterministic, not just prompt-based, backstop) was the most consequential finding." }
+      },
+      "verifications": {
+        "R8-01_new_shelf_called_X": "PASS",
+        "R8-02_create_and_add_to_it": "FAIL (regressed under harder conditions: a second, different shelf already existed earlier in the conversation) -- fixed this round with a deterministic correction, not just a stronger prompt",
+        "R8-03_shortened_title_subject_switch": "PASS",
+        "R8-04_mid_title_reference_real_answer": "PASS"
+      },
+      "praise": [
+        "Physical reading-session flow is excellent end-to-end: start -> mid-session note -> end with chapter/page + reflection -> instant, well-formatted Journal entry and Statistics update.",
+        "AI-feature consent UX is a standout: explains exactly what data goes where before turning a feature on, and warns about cascading dependencies (turning off Search by meaning also turns off the Assistant and summaries) before doing it.",
+        "The Assistant handles very casual, typo-ridden natural language gracefully: \"finshed circe, loved it, 5 stars\" correctly set status, finished-date, and rating in one turn.",
+        "Visual design feels genuinely made for book lovers, holding up cleanly down to 375px mobile width.",
+        "General robustness is solid: refreshing mid-flow never produced a blank screen or lost session; browser back button navigated correctly between pages."
+      ],
+      "issues": [
+        {
+          "id": "R9-01",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "R8-02 (create-shelf-and-add-to-it) regressed under harder multi-turn conditions",
+          "steps": "1. \"put the great gatsby on a shelf called test shelf one\" (created correctly). 2. Later: \"make a shelf called test shelf two and add piranesi to it\".",
+          "expected": "Piranesi goes to \"Test Shelf Two\" (the one just created).",
+          "actual": "Assistant's own reply said it added Piranesi to \"Test Shelf One\" (the older shelf) despite also correctly creating \"Test Shelf Two\" -- confirmed via the Shelves page. R8-02's prompt-only fix held for its own simpler repro but not once a second, different shelf already existed earlier in the conversation.",
+          "root_cause": "R8-02 was fixed with a few-shot prompt example only; there is no deterministic code path for collection-pronoun resolution, and more conversational context (an existing second shelf) was apparently enough to outweigh the example under this condition.",
+          "fix": "Added a deterministic backstop in normalizePlan (planChecks.ts): when a single plan both creates exactly one shelf and organizes exactly one (different) shelf, it now redirects the OrganizeShelf's target to the just-created shelf, regardless of what the model returned -- not relying on prompt compliance alone. Narrowly scoped (only when there's exactly one CreateShelf and exactly one OrganizeShelf in the plan) to avoid mis-redirecting a plan that legitimately touches two different, unrelated shelves in one message. Three new unit tests; verified live against the real model with the exact multi-turn repro, and confirmed via the Shelves/Works API (not just the chat reply text) that each book landed on the correct shelf.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/pipeline/planChecks.ts",
+            "backend/tests/plan-checks.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R9-02",
+          "area": "assistant_chat",
+          "severity": "minor",
+          "title": "Generic deflection for an opinion question doesn't reference the book that was asked about",
+          "steps": "Sent \"what do you think of the great gatsby\".",
+          "expected": "Some on-topic response referencing the book, even if the assistant can't form opinions.",
+          "actual": "\"I'm not sure how to answer that from your library. You have 4 books (1 reading, 2 want to read, 1 finished)...\" -- generic, doesn't mention Gatsby at all.",
+          "root_cause": "answerFromLibrary() (libraryAnswers.ts) correctly identified the named book (about) but had no catch-all for when no narrower question pattern (rate/review/author/notes/shelf/status) matched, so it fell through to undefined and the caller's generic, book-unaware fallback.",
+          "fix": "Added a final case inside the `if (about)` block: when a book is identified but no narrower pattern matched, reply with what's actually known about that book (status, rating if any) instead of the library-wide generic fallback, while still being explicit that it can't give opinions (answers here are deliberately never from the model). Moved the pre-existing \"do I have X in my library\" check earlier in the same block so it still takes priority over the new catch-all (the edit otherwise made it unreachable, caught by typecheck). Verified live: both the opinion question and \"do I have X\" now answer correctly.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/conversation/libraryAnswers.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R9-03",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Reported manual-add title/author text duplication (not reproduced in source)",
+          "steps": "Reported: typed title/author across two interaction attempts; saved book had both fields doubled (\"The Fifth SeasonThe Fifth Season\").",
+          "investigation": "Checked AddBookDialog.tsx's manualTitle/manualAuthor fields: standard controlled inputs (value + onChange setting React state directly), with no code path that could concatenate/duplicate text on its own. The report itself noted the first typing attempt didn't visibly register before a retry -- consistent with the automation tool typing into the field twice (both landing) rather than an app bug.",
+          "status": "Not reproduced in source; likely a testing-tool artifact; no code change"
+        },
+        {
+          "id": "R9-04",
+          "area": "book_page_and_details",
+          "severity": "minor",
+          "title": "No way to edit a book's title/author after it's added",
+          "steps": "Looked for an inline edit control for title/author on a book's detail page.",
+          "actual": "Only \"Change cover\" is available near the title; the only way to fix a typo is to remove and re-add the book.",
+          "status": "Feature gap, not fixed this round -- better scoped as its own ticket (needs a backend PATCH extension and a title/author edit UI)"
+        },
+        {
+          "id": "R9-05",
+          "area": "look_and_feel",
+          "severity": "polish",
+          "title": "No password-change option in Settings",
+          "steps": "Reviewed Settings > Profile: only Name and Email are editable.",
+          "status": "Feature gap, not fixed this round -- a security-adjacent feature needing its own ticket (current-password verification, backend endpoint)"
+        }
+      ]
     }
   ]
 }

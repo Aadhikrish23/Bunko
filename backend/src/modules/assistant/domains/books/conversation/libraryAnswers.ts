@@ -130,6 +130,17 @@ export async function answerFromLibrary(question: string, ctx: AnswerContext): P
     if (/\b(status|finished|have i read|did i (read|finish)|am i reading|on my)\b/.test(q)) {
       return `${about.title} is marked ${STATUS_LABEL[about.status]}.`;
     }
+    if (/\b(do i have|is .+ in my library|have i got|do i own)\b/.test(q)) {
+      return `Yes, ${about.title} is in your library (${STATUS_LABEL[about.status]}).`;
+    }
+    // A named book, but no narrower pattern matched (an opinion/discussion
+    // question like "what do you think of X?" -- answers here are never
+    // from the model, so there's no opinion to give), still gets a
+    // book-aware reply instead of the generic library-wide fallback
+    // (R9-02: the reply didn't even mention the book that was asked about).
+    const parts = [`${about.title} is marked ${STATUS_LABEL[about.status]}`];
+    if (about.rating) parts.push(`you rated it ${countWord(about.rating, 'star')}`);
+    return `I can't give opinions, only what's in your library: ${listJoin(parts)}. Ask about a rating, review, notes, author or shelf for more.`;
   }
 
   // Shelves: "what shelves do I have", "what's on my sci-fi shelf".
@@ -183,9 +194,9 @@ export async function answerFromLibrary(question: string, ctx: AnswerContext): P
     return books.length ? `The last books you added: ${titlesOf(books.slice(0, 5))}.` : undefined;
   }
 
-  if (/\b(do i have|is .+ in my library|have i got|do i own)\b/.test(q)) {
-    if (about) return `Yes, ${about.title} is in your library (${STATUS_LABEL[about.status]}).`;
-  }
+  // "do i have X" with no X matched to a known book: no book to say yes/no
+  // about, so this falls through to the generic fallback like any other
+  // unanswerable question.
   return undefined;
 }
 

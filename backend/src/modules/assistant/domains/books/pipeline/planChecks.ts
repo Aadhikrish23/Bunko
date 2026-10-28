@@ -64,6 +64,26 @@ export function normalizePlan(plan: IntentPlan): void {
       t.type === IntentTargetType.Collection ? { ...t, name: stripCollectionNamePhrase(t.name) } : t,
     );
   }
+
+  // "make a shelf called X and add BOOK to it": a prompt example already
+  // teaches this (R8-02), but it isn't fully reliable once the
+  // conversation already has other shelves in context -- the model can
+  // still point the OrganizeShelf at an older shelf from earlier in the
+  // conversation instead of the one it just created in this same plan
+  // (R9-01, a reproduced regression of R8-02 under exactly that
+  // condition). A plan that both creates exactly one shelf and organizes
+  // exactly one (different) shelf is overwhelmingly "add to the one I
+  // just made" in natural single-message phrasing, so redirect it
+  // deterministically rather than trust the model every time.
+  const createShelfIntents = (plan.intents ?? []).filter((i) => i.type === BookIntent.CreateShelf);
+  const organizeShelfIntents = (plan.intents ?? []).filter((i) => i.type === BookIntent.OrganizeShelf);
+  if (createShelfIntents.length === 1 && organizeShelfIntents.length === 1) {
+    const createdTarget = createShelfIntents[0]!.targets?.find((t) => t.type === IntentTargetType.Collection);
+    const organizeTarget = organizeShelfIntents[0]!.targets?.find((t) => t.type === IntentTargetType.Collection);
+    if (createdTarget && organizeTarget && norm(createdTarget.name) !== norm(organizeTarget.name)) {
+      organizeTarget.name = createdTarget.name;
+    }
+  }
 }
 
 /**
