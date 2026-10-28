@@ -1,5 +1,6 @@
-"""Generated insights (T-082-T-085): gather the minimum data each feature needs
-for one user, then ask Claude. Nothing here is stored."""
+"""Generated insights (T-082-T-085, migrated to NVIDIA NIM in T-106/T-107):
+gather the minimum data each feature needs for one user, then ask the model.
+Nothing here is stored."""
 
 from __future__ import annotations
 

@@ -66,7 +66,10 @@ services:
       AI_DATABASE_URL: ${AI_DATABASE_URL:-postgresql://bunko_ai:change-me@postgres:5432/bunko}
       # Required — the service refuses to start without a 16+ char token.
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-}
+      NVIDIA_FALLBACK_MODELS: ${NVIDIA_FALLBACK_MODELS:-}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-}
     ports:
       - "127.0.0.1:8001:8001"
     volumes:

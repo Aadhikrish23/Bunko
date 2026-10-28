@@ -50,7 +50,7 @@ export function TranslatePanel({
   } else if (!status.data.consent.translation) {
     body = (
       <p className="text-sm text-paper-700">
-        Chapter translation is off. It sends a chapter’s text to Anthropic’s Claude API when you ask, so it needs your
+        Chapter translation is off. It sends a chapter’s text to NVIDIA’s AI service when you ask, so it needs your
         go-ahead first.{' '}
         <Link to="/settings" className="font-medium text-moss-700 underline">
           Turn it on in Settings
@@ -87,7 +87,7 @@ export function TranslatePanel({
             {state.kind === 'none' && (
               <>
                 <p className="mb-2 text-xs text-paper-600">
-                  Sends this chapter’s text ({chapter.length.toLocaleString()} characters) to Claude to translate into{' '}
+                  Sends this chapter’s text ({chapter.length.toLocaleString()} characters) to NVIDIA to translate into{' '}
                   {languageName}.
                 </p>
                 <Button size="sm" onClick={translate} isLoading={request.isPending} disabled={chapter.length === 0}>

@@ -536,8 +536,8 @@ model AiConsent {
   userId         String   @id
   user           User     @relation(fields: [userId], references: [id])
   semanticSearch Boolean  @default(false) // local embeddings, nothing leaves Bunko
-  generative     Boolean  @default(false) // excerpts sent to the Claude API
-  translation    Boolean  @default(false) // chapter text sent to the Claude API (Phase 11)
+  generative     Boolean  @default(false) // excerpts sent to NVIDIA NIM
+  translation    Boolean  @default(false) // chapter text sent to NVIDIA NIM (Phase 11)
   policyVersion  String
   updatedAt      DateTime @updatedAt
 }

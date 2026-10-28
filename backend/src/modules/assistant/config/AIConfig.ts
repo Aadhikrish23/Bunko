@@ -60,10 +60,11 @@ export const AIConfig = {
 /**
  * Whether the assistant chat (this module, NVIDIA/Ollama/mock) has what it needs to
  * answer -- distinct from modules/ai's aiConfigured(), which only looks at the separate
- * Claude-backed ai-service (semantic search, summaries, translation). Settings bundles
- * "Assistant and book summaries" under one toggle, so its availability notice needs
- * both checks or it calls the assistant unset-up while it's demonstrably answering
- * (R5-09).
+ * ai-service process (semantic search, summaries, translation -- also NVIDIA-backed as
+ * of T-106/T-107, but configured independently, so either can be up while the other
+ * isn't). Settings bundles "Assistant and book summaries" under one toggle, so its
+ * availability notice needs both checks or it calls the assistant unset-up while it's
+ * demonstrably answering (R5-09).
  */
 export function isAssistantConfigured(): boolean {
   if (aiProvider === "nvidia") return Boolean(process.env.NVIDIA_API_KEY);

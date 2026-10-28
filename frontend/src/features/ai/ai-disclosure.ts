@@ -9,10 +9,10 @@ export const SEMANTIC_SEARCH_DISCLOSURE =
 export const GENERATIVE_DISCLOSURE =
   'Powers the Assistant chat and book summaries. When you send the Assistant a message, Bunko sends it, the last few ' +
   'messages, and a summary of your library (titles, reading status, shelves) to NVIDIA’s AI service; a book summary ' +
-  'sends that book’s highlights, notes, and review to Anthropic’s Claude API. Data is sent only when you ask, and ' +
+  'sends that book’s highlights, notes, and review there too. Data is sent only when you ask, and ' +
   'Bunko doesn’t store the replies. It also needs Search by meaning turned on.';
 
 export const TRANSLATION_DISCLOSURE =
-  'When you ask to translate a chapter of a book in your library, Bunko sends that chapter’s text to Anthropic’s ' +
-  'Claude API, which translates it. Text is sent only when you ask, one chapter at a time. The translation is saved ' +
+  'When you ask to translate a chapter of a book in your library, Bunko sends that chapter’s text to NVIDIA’s AI ' +
+  'service, which translates it. Text is sent only when you ask, one chapter at a time. The translation is saved ' +
   'for you alone and never shown to other readers. Turning this off deletes your saved translations.';

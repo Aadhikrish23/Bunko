@@ -1137,6 +1137,64 @@ Depends on: T-102, T-104
 
 ---
 
+## Phase 13 — NVIDIA Migration, Shelves Merge & Assistant Launcher (Future v2+)
+
+Added by requirement change (SRS Change Log, 2026-10-28), dictated by the
+product owner in session. Ships as six sequenced PRs rather than one
+change — see the plan this phase was drafted from for the full rationale.
+
+### T-106 — Migrate ai-service generation (ask/summary/insights/recommendations) from Claude to NVIDIA NIM
+Depends on: T-096
+
+- [ ] `ai-service/app/llm.py`'s `Llm` interface (`generate_json`, `generate_text`, `.available`, `.model`) now calls NVIDIA NIM's OpenAI-compatible chat-completions endpoint instead of Anthropic's Claude API
+- [ ] `generate_json` (used by `ask`/`summarize_work`/`insights`/`recommendations` in `features.py`) parses and retries once on malformed JSON rather than depending solely on strict JSON mode
+- [ ] `ai-service/requirements.txt` drops `anthropic`; `docker-compose.yml`'s `ai-service` env drops `ANTHROPIC_API_KEY`
+- [ ] `docs/ARCHITECTURE.md` §8, `docs/AI_DATA_POLICY.md` §2, and the in-app disclosure (`frontend/src/features/ai/ai-disclosure.ts`) name NVIDIA NIM instead of Claude for generated insights; `AI_POLICY_VERSION` bumped
+- [ ] `features.py`/`prompts.py` unchanged
+
+### T-107 — Migrate chapter translation from Claude to NVIDIA NIM
+Depends on: T-106, T-087 – T-092 · SRS: §20.5
+
+- [ ] `translate()`'s streamed-text path in `llm.py` calls NVIDIA NIM instead of Claude
+- [ ] `docs/AI_DATA_POLICY.md` §3 names NVIDIA NIM instead of Claude for chapter translation
+
+### T-108 — Generic image-upload backend capability
+Depends on: T-024
+
+- [ ] New module (`backend/src/modules/images/`) accepts image uploads via the existing upload-url/confirm pattern (`files.service.ts`'s shape), with its own MIME allowlist and magic-byte sniffing for JPEG/PNG/WebP
+- [ ] Uploaded images resolve to a stable, publicly fetchable URL (not exposed by the existing `files` module, which has no read-URL capability today)
+- [ ] New `UploadedImage` Prisma model with its own storage-quota accounting, separate from the digital-file quota
+
+### T-109 — Cover-photo crop/upscale and NVIDIA-generated spine/cover art
+Depends on: T-108
+
+- [ ] A reader can upload a photo of a book's front and back cover; Bunko crops/extracts and upscales it for use as the book's cover
+- [ ] When no cover or spine image is supplied, Bunko generates a spine image via NVIDIA NIM, titled in the book's own language
+- [ ] `Work.spineImageUrl` and `Work.coverImageSource` (`'metadata' | 'upload' | 'generated'`) added to the schema; `fillCoverInBackground`'s background auto-fill never overwrites an uploaded or generated cover
+- [ ] `docs/DATA_MODEL.md` and `docs/AI_DATA_POLICY.md` updated for the new fields and data flow
+
+### T-110 — Merge Library into Shelves
+Depends on: none · SRS: §15, §29.2
+
+- [ ] The `/library` route and its nav entry are removed; Shelves absorbs Library's status filters, free-text search, and "Add a book" entry point
+- [ ] Offline fallback and first-run onboarding move from `LibraryPage` to `ShelvesPage`; `LibraryPage.tsx` deleted once absorbed
+
+### T-111 — Responsive shelf-row width and sort options
+Depends on: T-110
+
+- [ ] The fixed 7-covers/14-spines-per-row cap is replaced by a measured value based on actual container width, recalculated on resize
+- [ ] Sort options (title, author, date added, status, rating) added alongside the existing manual drag-to-reorder; applying a sort persists through the same `shelf-order.ts`/server-arrangement stack as a manual reorder
+- [ ] Drag-and-drop and the keyboard/touch `MoveButtons` fallback keep working at every row width
+
+### T-112 — Floating Assistant launcher
+Depends on: T-102 · SRS: §20.6
+
+- [ ] The `/assistant` page and its nav entry are removed; a bottom-right floating launcher opens the chat as an overlay from anywhere except the reader
+- [ ] `Thread`/`Composer`/`Starters`/`ConsentGate` extracted from `AssistantChatPage.tsx` into reusable components; thread state and the chat API hook (including its delayed library-cover re-invalidation) are unchanged
+- [ ] Text only, no voice input; SRS §20.6 updated to describe the launcher instead of "the Assistant page"
+
+---
+
 ## Ticket Count Summary
 
 | Phase | Tickets | Status |
@@ -1155,6 +1213,7 @@ Depends on: T-102, T-104
 | 10 — AI Layer | T-077 – T-086 (10) | **100% Complete** |
 | 11 — AI Chapter Translation | T-087 – T-092 (6) | **100% Complete** |
 | 12 — Library Assistant Chat | T-093 – T-105 (13) | **In Progress** |
+| 13 — NVIDIA Migration, Shelves Merge & Assistant Launcher | T-106 – T-112 (7) | **In Progress** |
 
 All ten roadmap phases are ticketed, plus Phase 11 (chapter translation, SRS §20.5) and Phase 12 (library assistant chat, SRS §20.6), both added by requirement change. Phase 10 lives in a separate
 `ai-service/` (Python/FastAPI) per `ARCHITECTURE.md` §8 — not a module

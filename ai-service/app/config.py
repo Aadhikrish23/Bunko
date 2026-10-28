@@ -16,8 +16,10 @@ class Settings:
     internal_token: str
     # Optional: without it, semantic search still works and generated
     # features report themselves unavailable.
-    anthropic_api_key: str | None
-    claude_model: str
+    nvidia_api_key: str | None
+    nvidia_model: str
+    nvidia_fallback_models: tuple[str, ...]
+    nvidia_base_url: str
     embedding_model: str
 
 
@@ -32,7 +34,17 @@ def get_settings() -> Settings:
     return Settings(
         database_url=database_url,
         internal_token=token,
-        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
-        claude_model=os.environ.get("CLAUDE_MODEL", "claude-opus-5-5"),
+        nvidia_api_key=os.environ.get("NVIDIA_API_KEY") or None,
+        nvidia_model=os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
+        # Tried in order after the primary model, same list the Express API's own
+        # NVIDIA client falls back to (backend/src/modules/assistant/config/AIConfig.ts) --
+        # a model can 404 ("not found for account") or sit unhealthy independently of
+        # the others on NVIDIA's shared endpoint.
+        nvidia_fallback_models=tuple(
+            m.strip()
+            for m in os.environ.get("NVIDIA_FALLBACK_MODELS", "openai/gpt-oss-20b").split(",")
+            if m.strip()
+        ),
+        nvidia_base_url=os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
         embedding_model=os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"),
     )

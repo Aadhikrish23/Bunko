@@ -2716,3 +2716,44 @@ implementation.
     NVIDIA NIM behind a swappable provider interface: a new external
     processor, disclosed in `docs/AI_DATA_POLICY.md`, and covered by the
     existing generated-insights consent and daily allowance.
+-   **2026-10-28 — Library/Shelves merge, cover photo upload and
+    AI-generated spine art, responsive shelf rows with sorting, a
+    floating Assistant launcher, and every generative AI feature moved
+    off Anthropic Claude onto NVIDIA NIM.** AI data-processing,
+    external-integration, and reading-behaviour change, dictated and
+    approved by the product owner in session (Phase 13,
+    `docs/TASKS.md` T-106–T-112). What changes:
+    -   *Provider.* Generated insights (book summaries, reading insights,
+        recommendations, the Q&A "ask") and chapter translation (§20.5)
+        move from Anthropic's Claude API to NVIDIA NIM, matching the
+        assistant chat's existing provider (§20.6). `docs/AI_DATA_POLICY.md`
+        §2/§3 and `AI_POLICY_VERSION` updated accordingly; no consent
+        category changes, only which external processor receives the
+        data already covered by the existing generated-insights and
+        translation consents.
+    -   *Cover art.* A reader may upload a photo of a book's front and
+        back cover; Bunko crops, extracts, and upscales it for use as
+        the book's cover. When no cover or spine image is supplied,
+        Bunko generates a spine image via NVIDIA NIM, titled in the
+        book's own language. This is a new category of AI data
+        processing (an uploaded photo, or the book's title/author/
+        language, sent to NVIDIA to produce cover art) and is disclosed
+        in `docs/AI_DATA_POLICY.md`; it does not require its own opt-in
+        consent beyond the account's existing generated-insights consent,
+        since it is an on-request, per-book action with no private
+        reading content involved.
+    -   *Navigation.* §29.2's navigation list drops the standalone
+        Library entry — Shelves (§15) becomes the one place to browse,
+        search, add, and organize books, replacing §15's prior
+        page-level split between the two.
+    -   *Shelf layout.* Shelf rows size to the reader's actual screen
+        width instead of a fixed book count, and gain sort options
+        (title, author, date added, status, rating) alongside the
+        existing manual drag-to-reorder.
+    -   *Assistant surface.* §20.6's "The Assistant page becomes a
+        chat..." is superseded: the chat moves from its own page to a
+        floating launcher available from anywhere in the app (except the
+        reader, which stays chrome-free per §29.4), opening as an
+        overlay. The chat's behavior, consent, and provider (§20.6) are
+        unchanged — only where it is presented. Text only; no voice
+        input.

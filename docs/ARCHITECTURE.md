@@ -176,27 +176,39 @@ decision, recorded now so later work doesn't re-litigate it:
   indexing, semantic search, and generation. Embeddings come from a
   **local** model (fastembed, `BAAI/bge-small-en-v1.5`, 384 dimensions),
   so semantic search never sends content to a third party; generated
-  insights call the **Claude API** (`claude-opus-5-5` with structured
-  outputs and server-side refusal fallback). Two separate per-user
+  insights call **NVIDIA NIM** (migrated from the Claude API in Phase 13,
+  T-106 — see the Change Log — matching the assistant chat's provider
+  below). `ai-service/app/llm.py`'s `Llm` class wraps the NVIDIA
+  chat-completions endpoint behind a stable interface
+  (`generate_json`/`generate_text`); structured output is produced by
+  embedding the target JSON Schema in the system prompt and parsing the
+  reply, with one retry on malformed JSON, rather than relying on a
+  provider-native structured-output mode. A primary model
+  (`NVIDIA_MODEL`) and fallback models (`NVIDIA_FALLBACK_MODELS`) are
+  tried in order on a per-model failure (observed live: one hosted model
+  can 404 "not found for account" while another on the same key answers
+  normally) — a bad key or rate limit, which applies to every model
+  alike, is not retried against the others. Two separate per-user
   consents, both off by default, gate them (`AiConsent`); the Express
   `ai/` module enforces consent, scoping, and a daily generation cap, and
   deletes a user's embeddings directly when they revoke. Without
-  `AI_SERVICE_URL`/`AI_SERVICE_TOKEN` (API) or `ANTHROPIC_API_KEY`
+  `AI_SERVICE_URL`/`AI_SERVICE_TOKEN` (API) or `NVIDIA_API_KEY`
   (ai-service), the features report unavailable instead of failing. The
   service runs under the `ai` Compose profile with the least-privilege
   role from `ai-service/scripts/create_ai_role.sql`. What reaches the
   provider, and when, is set out in `docs/AI_DATA_POLICY.md`.
-- **Chapter translation (Phase 11, T-087–T-092).** This follows the same
-  boundary. The Express `ai/` module checks the third consent
-  (`translation`), ownership of a digital copy, the chapter's length, and
-  a daily character budget. It then queues a BullMQ job
-  (`translation.worker.ts`) that splits the chapter at paragraph
-  boundaries and sends each piece to ai-service's `/internal/translate`,
-  which streams the Claude reply. Express sends the chapter text itself,
-  so ai-service needs no new database access. Results are stored per user
-  in `ChapterTranslation` and never shared across users (SRS §25.4). The
-  flow reader renders a translated chapter in place of the original,
-  through the same template.
+- **Chapter translation (Phase 11, T-087–T-092; provider migrated in
+  T-107).** This follows the same boundary. The Express `ai/` module
+  checks the third consent (`translation`), ownership of a digital copy,
+  the chapter's length, and a daily character budget. It then queues a
+  BullMQ job (`translation.worker.ts`) that splits the chapter at
+  paragraph boundaries and sends each piece to ai-service's
+  `/internal/translate`, which calls NVIDIA NIM and returns the reply.
+  Express sends the chapter text itself, so ai-service needs no new
+  database access. Results are stored per user in `ChapterTranslation`
+  and never shared across users (SRS §25.4). The flow reader renders a
+  translated chapter in place of the original, through the same
+  template.
 - **Library assistant chat (Phase 12, T-093–T-105).** This reuses the
   RoninArc AI module, and it runs inside the Express API, not ai-service,
   because its tools call Bunko's own services.

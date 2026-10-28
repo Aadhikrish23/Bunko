@@ -13,7 +13,7 @@ interface AiErrorBody {
   detail?: { code?: string; message?: string } | string;
 }
 
-// Generation can take a while (Claude thinking + a full answer); indexing
+// Generation can take a while (model reasoning + a full answer); indexing
 // a large library too.
 const DEFAULT_TIMEOUT_MS = 120_000;
 

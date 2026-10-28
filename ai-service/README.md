@@ -2,9 +2,10 @@
 
 The Phase 10 AI layer (`docs/ARCHITECTURE.md` §8, `docs/AI_DATA_POLICY.md`):
 semantic search over a reader's own highlights, notes, and reviews
-(local embeddings in pgvector), generated insights from the Claude API, and
-(Phase 11) chapter translation, also through the Claude API. For translation
-the API sends the chapter text itself, so this service reads nothing extra.
+(local embeddings in pgvector), generated insights from NVIDIA NIM, and
+(Phase 11) chapter translation, also through NVIDIA NIM (migrated from
+Claude in Phase 13, T-106/T-107). For translation the API sends the
+chapter text itself, so this service reads nothing extra.
 
 It is **internal only**. The Express API is its sole caller and enforces
 authentication, per-user consent, and the daily generation cap; this
@@ -17,8 +18,10 @@ service trusts the user id it's given and checks only the shared
 |---|---|---|
 | `AI_DATABASE_URL` | yes | The `bunko_ai` role from `scripts/create_ai_role.sql` — never the API's credentials |
 | `AI_SERVICE_TOKEN` | yes | Shared secret (16+ chars); the API's `AI_SERVICE_TOKEN` must match |
-| `ANTHROPIC_API_KEY` | no | Without it, semantic search works, and generated insights and translation report unavailable |
-| `CLAUDE_MODEL` | no | Defaults to `claude-opus-5-5` |
+| `NVIDIA_API_KEY` | no | Without it, semantic search works, and generated insights and translation report unavailable |
+| `NVIDIA_MODEL` | no | Defaults to `nvidia/nemotron-3-super-120b-a12b` |
+| `NVIDIA_FALLBACK_MODELS` | no | Comma-separated, tried in order if the primary model fails. Defaults to `openai/gpt-oss-20b` |
+| `NVIDIA_BASE_URL` | no | Defaults to `https://integrate.api.nvidia.com/v1` |
 | `EMBEDDING_MODEL` | no | Defaults to `BAAI/bge-small-en-v1.5` (384 dimensions — must match the migration) |
 
 ## Running

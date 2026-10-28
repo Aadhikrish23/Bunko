@@ -7,4 +7,4 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("AI_SERVICE_TOKEN", "test-internal-token-0123456789")
 os.environ.setdefault("AI_DATABASE_URL", "postgresql://unused:unused@localhost:1/unused")
-os.environ.pop("ANTHROPIC_API_KEY", None)
+os.environ.pop("NVIDIA_API_KEY", None)
