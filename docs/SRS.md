@@ -1410,12 +1410,16 @@ in place of the original.
 
 ## 20.6 Library Assistant Chat (Phase 12)
 
-*Added by requirement change, 2026-10 — see the Change Log.*
+*Added by requirement change, 2026-10 — see the Change Log. Updated
+2026-10-28 (Phase 13, T-112) — the chat moved from its own page to a
+floating launcher reachable from anywhere in the app except the
+reader; see the Change Log.*
 
-The Assistant page becomes a chat in which the reader manages their
-library in their own words: "add Dune and mark it reading", "rate
-Project Hail Mary 5, loved it", "I DNF'd that one", "put it on my
-Sci-fi shelf", "what should I read next?", "undo that".
+A chat, reached via the floating Assistant launcher, in which the
+reader manages their library in their own words: "add Dune and mark
+it reading", "rate Project Hail Mary 5, loved it", "I DNF'd that
+one", "put it on my Sci-fi shelf", "what should I read next?", "undo
+that".
 
 -   **Acts only through the app's own operations.** It adds and removes
     books, sets reading status, rates and reviews, deletes reviews,

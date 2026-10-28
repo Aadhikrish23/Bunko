@@ -1116,6 +1116,7 @@ Depends on: T-096 · SRS: §20.6
 
 - [x] Chat replaces the Assistant page: message list, "which one?" choices, yes/no cards, clear conversation
 - [x] Consent off, daily limit reached, and model unavailable each get a clear state; library views refresh after a change
+- [x] *Superseded 2026-10-28 by T-112* — the dedicated `/assistant` page is gone; this UI now lives in the floating launcher's drawer. The criteria above (message list, choices, consent/limit/unavailable states) still hold, just in that new shell.
 
 ### T-103 — Tests
 Depends on: T-098 – T-101
@@ -1191,9 +1192,9 @@ Depends on: T-110
 ### T-112 — Floating Assistant launcher
 Depends on: T-102 · SRS: §20.6
 
-- [ ] The `/assistant` page and its nav entry are removed; a bottom-right floating launcher opens the chat as an overlay from anywhere except the reader
-- [ ] `Thread`/`Composer`/`Starters`/`ConsentGate` extracted from `AssistantChatPage.tsx` into reusable components; thread state and the chat API hook (including its delayed library-cover re-invalidation) are unchanged
-- [ ] Text only, no voice input; SRS §20.6 updated to describe the launcher instead of "the Assistant page"
+- [x] The `/assistant` page and its nav entry are removed; a bottom-right floating launcher (`AssistantLauncher.tsx`) opens the chat as an overlay (`AssistantDrawer.tsx`) from anywhere except the reader — verified live at desktop width (420px panel, bottom-right) and mobile width (full-bleed bottom sheet with backdrop). Old `/assistant` links still work: `AssistantRedirect.tsx` opens the drawer and redirects to `/shelves`, via `AppShell`'s `openAssistant` passed through `useOutletContext`.
+- [x] `Prose`/`AssistantTurn`/`Starters`/`ConsentGate` extracted from the old `AssistantChatPage.tsx` into their own files under `features/assistant/`; `thread.ts` and `lib/api/assistant.ts` (including the delayed `['works']` re-invalidation) are unchanged — only the shell around them moved into `AssistantDrawer.tsx`
+- [x] Text only, no voice input (no new dependency added); SRS §20.6 updated to describe the launcher instead of "the Assistant page"
 
 ---
 

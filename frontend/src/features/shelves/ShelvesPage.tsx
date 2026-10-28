@@ -1,6 +1,7 @@
 import { Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
+import type { AppShellContext } from '../../components/layout/AppShell';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -45,6 +46,7 @@ function chunkWorks(works: Work[], size: number): Work[][] {
 }
 
 export function ShelvesPage() {
+  const { openAssistant } = useOutletContext<AppShellContext>();
   const works = useWorks({ pageSize: 100 });
   const shelves = useShelves();
   const createShelf = useCreateShelf();
@@ -440,9 +442,13 @@ export function ShelvesPage() {
                 <p className="font-medium text-paper-900">Or just tell the Assistant</p>
                 <p className="text-sm text-paper-700">
                   “I’m reading Piranesi”, “finished Circe, 4 stars”.{' '}
-                  <Link to="/assistant" className="focus-visible:focus-ring rounded font-medium text-moss-700 underline underline-offset-4">
+                  <button
+                    type="button"
+                    onClick={openAssistant}
+                    className="focus-visible:focus-ring rounded font-medium text-moss-700 underline underline-offset-4"
+                  >
                     Open the Assistant
-                  </Link>
+                  </button>
                 </p>
               </div>
             </li>

@@ -1,23 +1,31 @@
-import { BookOpen, LogOut, NotebookPen, Rows3, Settings as SettingsIcon, Sparkles, TrendingUp } from 'lucide-react';
+import { BookOpen, LogOut, NotebookPen, Rows3, Settings as SettingsIcon, TrendingUp } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { getSyncStatus, subscribeSyncStatus } from '../../lib/offline/outbox';
+import { AssistantDrawer } from '../../features/assistant/AssistantDrawer';
+import { AssistantLauncher } from '../../features/assistant/AssistantLauncher';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useAuth } from '../../lib/auth-context';
 
 // Shelves is the one place to browse, search, and add books (Phase 13,
-// T-110) — no separate Library nav entry.
+// T-110) — no separate Library nav entry. The Assistant is a floating
+// launcher (T-112), not a nav destination.
 const NAV_ITEMS = [
   { to: '/shelves', label: 'Shelves', icon: Rows3 },
   { to: '/journal', label: 'Journal', icon: NotebookPen },
   { to: '/statistics', label: 'Statistics', icon: TrendingUp },
-  { to: '/assistant', label: 'Assistant', icon: Sparkles },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
+
+/** What AssistantRedirect (the old /assistant bookmark's landing spot) gets via useOutletContext. */
+export interface AppShellContext {
+  openAssistant: () => void;
+}
 
 export function AppShell() {
   const { user, logout } = useAuth();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const pending = useSyncExternalStore(subscribeSyncStatus, () => getSyncStatus().pending);
 
   // Signing out deletes this device's offline data, including changes not
@@ -89,9 +97,12 @@ export function AppShell() {
       {/* Main Content View Container (responsive padding & 4K widescreen expansion) */}
       <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
         <div className="mx-auto w-full max-w-7xl 2xl:max-w-[1750px] 3xl:max-w-[2200px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
-          <Outlet />
+          <Outlet context={{ openAssistant: () => setAssistantOpen(true) } satisfies AppShellContext} />
         </div>
       </main>
+
+      <AssistantLauncher open={assistantOpen} onToggle={() => setAssistantOpen((v) => !v)} />
+      {assistantOpen && <AssistantDrawer onClose={() => setAssistantOpen(false)} />}
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-paper-200/90 bg-paper-100/95 px-1 py-2 backdrop-blur md:hidden shadow-lg">
