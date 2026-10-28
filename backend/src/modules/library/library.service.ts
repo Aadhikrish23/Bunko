@@ -1,7 +1,12 @@
+import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../../config/prisma';
+import { publicUrlFor, s3Client, S3_BUCKET } from '../../config/s3';
 import { AppError } from '../../lib/app-error';
 import { logger } from '../../lib/logger';
+import { PUBLIC_PREFIX } from '../images/images.service';
+import { generateSpineArt } from '../images/spine-art-client';
 import { discoverRelatedBooks, fetchWorkDescription, searchBookMetadata } from '../metadata/metadata.service';
 import type { CreateWorkInput, ListWorksQuery, UpdateWorkInput } from './library.schema';
 
@@ -42,6 +47,9 @@ export interface WorkSummaryDto {
   // time, ARCHITECTURE.md §11) but never returned — covers appeared only
   // in the "add a book" search results and vanished everywhere after.
   coverImageUrl: string | null;
+  // Uploaded or NVIDIA-generated spine art (T-109); null until one exists
+  // (the shelf falls back to its deterministic placeholder spine).
+  spineImageUrl: string | null;
   // Synopsis — stored on Work (DATA_MODEL.md §2), fetched best-effort
   // from Open Library at add time (see fetchWorkDescription).
   description: string | null;
@@ -91,6 +99,7 @@ function toWorkDto(
     seriesName: userWork.work.series?.name ?? null,
     shelfIds: userWork.shelves.map((sw) => sw.shelf.id),
     coverImageUrl: userWork.work.coverImageUrl,
+    spineImageUrl: userWork.work.spineImageUrl,
     description: userWork.work.description,
     originalLanguage: userWork.work.originalLanguage,
     language: userWork.work.language,
@@ -233,6 +242,11 @@ async function getUserWorkOrThrow(userId: string, workId: string): Promise<WorkS
   }
   // Same for a missing cover, and only one that's clearly this book (pickMatchingCover).
   if (!userWork.work.coverImageUrl) fillCoverInBackground(userWork.work.id, userWork.work.title, authorNames);
+  // A spine image only ever comes from an upload or generation (T-109) --
+  // never from metadata -- so the guard is simply "still missing."
+  if (!userWork.work.spineImageUrl) {
+    fillSpineArtInBackground(userWork.work.id, userWork.work.title, authorNames, userWork.work.language ?? userWork.work.originalLanguage);
+  }
 
   return toWorkDto(userWork, journey?.id ?? null, seriesWorks);
 }
@@ -270,9 +284,41 @@ function fillCoverInBackground(workId: string, title: string, authors: string[])
   void (async () => {
     const candidates = await searchBookMetadata(authors[0] ? `${title} ${authors[0]}` : title);
     const cover = pickMatchingCover(title, authors, candidates);
-    // Only fills a cover that is still missing (another add may have set one meanwhile).
-    if (cover) await prisma.work.updateMany({ where: { id: workId, coverImageUrl: null }, data: { coverImageUrl: cover } });
+    // Only fills a cover that is still missing and still metadata-sourced -- a
+    // reader's own upload or generated art (T-109) is never overwritten, even
+    // if this lookup, started before either existed, finishes after them.
+    if (cover) {
+      await prisma.work.updateMany({
+        where: { id: workId, coverImageUrl: null, coverImageSource: 'metadata' },
+        data: { coverImageUrl: cover },
+      });
+    }
   })().catch((err) => logger.warn({ err, workId }, 'Cover lookup failed'));
+}
+
+/**
+ * Generates spine art for a book with no spine/cover image supplied
+ * (T-109) -- best-effort, same "never blocks the reader" shape as
+ * fillCoverInBackground. A failure (including the live-verified case of
+ * NVIDIA's shared image models timing out or being unavailable) simply
+ * leaves the deterministic placeholder (frontend's spine-style.ts) in
+ * place; nothing here is shown to the reader as an error.
+ */
+function fillSpineArtInBackground(workId: string, title: string, authors: string[], language: string | null): void {
+  void (async () => {
+    const result = await generateSpineArt(title, authors, language);
+    if (!result) return;
+
+    const storageKey = `${PUBLIC_PREFIX}/generated/${randomUUID()}.jpg`;
+    await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET, Key: storageKey, Body: result.image, ContentType: 'image/jpeg' }));
+
+    // Only fills a spine image that is still missing -- an upload or an
+    // earlier generation (another request racing this one) wins.
+    await prisma.work.updateMany({
+      where: { id: workId, spineImageUrl: null },
+      data: { spineImageUrl: publicUrlFor(storageKey) },
+    });
+  })().catch((err) => logger.warn({ err, workId }, 'Spine art generation failed'));
 }
 
 export async function createWork(
@@ -312,7 +358,14 @@ export async function createWork(
 
     if (!work.coverImageUrl && newCover) {
       updateData.coverImageUrl = newCover;
+      updateData.coverImageSource = input.coverImageSource ?? 'metadata';
       work.coverImageUrl = newCover;
+    }
+    if (!work.spineImageUrl && input.spineImageUrl) {
+      updateData.spineImageUrl = input.spineImageUrl;
+      work.spineImageUrl = input.spineImageUrl;
+    } else if (!work.spineImageUrl) {
+      fillSpineArtInBackground(work.id, input.title, input.authors, input.language ?? input.originalLanguage ?? null);
     }
     if (!work.description && input.description) {
       updateData.description = input.description;
@@ -353,6 +406,7 @@ export async function createWork(
         : null);
 
     const coverImageUrl = input.coverImageUrl ?? null;
+    const spineImageUrl = input.spineImageUrl ?? null;
 
     work = await prisma.work.create({
       data: {
@@ -361,6 +415,8 @@ export async function createWork(
         genres: input.genres,
         description,
         coverImageUrl,
+        coverImageSource: coverImageUrl ? (input.coverImageSource ?? 'metadata') : 'metadata',
+        spineImageUrl,
         originalLanguage: input.originalLanguage ?? null,
         language: input.language ?? null,
         partsCount: input.partsCount ?? null,
@@ -386,6 +442,9 @@ export async function createWork(
       logger.warn({ err, workId: created.id }, 'Related-series discovery failed'),
     );
     if (!coverImageUrl) fillCoverInBackground(work.id, input.title, input.authors);
+    if (!spineImageUrl) {
+      fillSpineArtInBackground(work.id, input.title, input.authors, input.language ?? input.originalLanguage ?? null);
+    }
   }
 
   const existingMembership = await prisma.userWork.findUnique({

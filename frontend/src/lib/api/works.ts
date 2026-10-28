@@ -34,6 +34,10 @@ export type CreateWorkInput =
       seriesName?: string | null;
       genres?: string[];
       coverImageUrl?: string | null;
+      /** Defaults to 'metadata'; pass 'upload' when coverImageUrl is the reader's own upload (T-109). */
+      coverImageSource?: 'metadata' | 'upload';
+      /** The reader's own spine photo (T-109); omit to let generation fill it in later. */
+      spineImageUrl?: string | null;
       externalSource?: string | null;
       externalId?: string | null;
       description?: string | null;

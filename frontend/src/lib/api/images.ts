@@ -36,3 +36,18 @@ export function useUploadImage() {
     },
   });
 }
+
+export interface ImageCrop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Crops an already-confirmed upload to standard cover proportions and upscales it (T-109). */
+export function useProcessImage() {
+  return useMutation({
+    mutationFn: ({ imageId, crop }: { imageId: string; crop: ImageCrop }) =>
+      api.post<UploadedImage>(`/images/${imageId}/process`, { crop }),
+  });
+}

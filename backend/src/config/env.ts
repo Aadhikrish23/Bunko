@@ -44,6 +44,14 @@ const envSchema = z.object({
   AI_DAILY_GENERATION_LIMIT: z.coerce.number().int().min(0).default(30),
   // Phase 11: characters of book text a user can have translated per day.
   AI_DAILY_TRANSLATION_CHARS: z.coerce.number().int().min(0).default(200_000),
+  // NVIDIA-generated spine/cover art (Phase 13, T-109). Shares the same key
+  // as the assistant's own NVIDIA client (modules/assistant/config/AIConfig.ts
+  // reads it directly from process.env; this module reads it through the
+  // central schema since it already uses env.ts elsewhere) -- image
+  // generation lives on a different host/path than chat completions.
+  NVIDIA_API_KEY: z.string().optional(),
+  NVIDIA_IMAGE_BASE_URL: z.string().default('https://ai.api.nvidia.com/v1/genai'),
+  NVIDIA_IMAGE_MODEL: z.string().default('black-forest-labs/flux.1-schnell'),
 });
 
 export const env = envSchema.parse(process.env);

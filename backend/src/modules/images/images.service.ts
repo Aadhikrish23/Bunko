@@ -1,13 +1,14 @@
 import { createHash, randomUUID } from 'crypto';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import sharp from 'sharp';
 import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
-import { s3Client, S3_BUCKET } from '../../config/s3';
+import { publicUrlFor, s3Client, S3_BUCKET } from '../../config/s3';
 import { AppError } from '../../lib/app-error';
 import { redisConnection } from '../../lib/queue';
 import { sniffMimeType } from '../../lib/sniff-mime-type';
-import type { RequestImageUploadUrlInput } from './images.schema';
+import type { ProcessImageInput, RequestImageUploadUrlInput } from './images.schema';
 
 // Same signed-URL/pending-record TTL pairing as the files module (T-024) —
 // see files.service.ts for why they share one value.
@@ -21,15 +22,9 @@ const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
 };
 
 // Images (unlike DigitalFile) are served straight back to the browser, so
-// they live under one public-read prefix. The bucket/prefix must have
-// anonymous read access configured on it (ARCHITECTURE.md §8) — this
-// module only computes the URL a correctly-configured bucket will serve.
-const PUBLIC_PREFIX = 'covers';
-
-function publicUrlFor(storageKey: string): string {
-  const base = (env.S3_PUBLIC_URL_BASE ?? env.S3_ENDPOINT).replace(/\/+$/, '');
-  return `${base}/${S3_BUCKET}/${storageKey}`;
-}
+// they live under one public-read prefix (shared with T-109's generated
+// spine art — see publicUrlFor's own comment in config/s3.ts).
+export const PUBLIC_PREFIX = 'covers';
 
 interface PendingImageUpload {
   userId: string;
@@ -134,6 +129,77 @@ export async function confirmImageUpload(userId: string, imageId: string): Promi
   });
 
   await redisConnection.del(pendingUploadKey(imageId));
+
+  return toDto(image);
+}
+
+// Standard book-cover proportions (2:3, matching BookCover.tsx's
+// aspect-[2/3]) at a size comfortable for both the shelf spine view and a
+// book-detail hero image. "Upscale" (T-109) means resizing up to this
+// target with a high-quality resampling kernel when the reader's cropped
+// photo region is smaller than it -- sharp's `fit: 'fill'` + lanczos3
+// handles both directions the same way.
+const COVER_WIDTH = 600;
+const COVER_HEIGHT = 900;
+
+/**
+ * Crops an already-uploaded photo to the rectangle the reader chose (a crop
+ * UI on the client -- this never attempts to auto-detect the book in the
+ * photo, which would need real computer vision this service doesn't have)
+ * and resizes/upscales it to standard cover proportions. The result is
+ * stored as a new UploadedImage, independent of the original photo.
+ */
+export async function processImage(userId: string, imageId: string, input: ProcessImageInput): Promise<UploadedImageDto> {
+  const original = await prisma.uploadedImage.findFirst({ where: { id: imageId, userId } });
+  if (!original) {
+    throw new AppError('NOT_FOUND', 'Image not found');
+  }
+
+  const object = await s3Client.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: original.storageKey }));
+  if (!object.Body) {
+    throw new AppError('UNSUPPORTED_FILE', 'Image not found in storage');
+  }
+  const sourceBuffer = Buffer.from(await object.Body.transformToByteArray());
+
+  const metadata = await sharp(sourceBuffer).metadata();
+  if (!metadata.width || !metadata.height) {
+    throw new AppError('UNSUPPORTED_FILE', "Couldn't read the image's dimensions");
+  }
+
+  const { crop } = input;
+  const left = Math.round(crop.x * metadata.width);
+  const top = Math.round(crop.y * metadata.height);
+  // Clamp so rounding never pushes the extract box past the source edges.
+  const width = Math.max(1, Math.min(Math.round(crop.width * metadata.width), metadata.width - left));
+  const height = Math.max(1, Math.min(Math.round(crop.height * metadata.height), metadata.height - top));
+
+  const processedBuffer = await sharp(sourceBuffer)
+    .extract({ left, top, width, height })
+    .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  const checksum = createHash('sha256').update(processedBuffer).digest('hex');
+  const existing = await prisma.uploadedImage.findFirst({ where: { checksum, userId } });
+  if (existing) {
+    return toDto(existing);
+  }
+
+  const imageIdForResult = randomUUID();
+  const storageKey = `${PUBLIC_PREFIX}/${userId}/${imageIdForResult}.jpg`;
+  await s3Client.send(new PutObjectCommand({ Bucket: S3_BUCKET, Key: storageKey, Body: processedBuffer, ContentType: 'image/jpeg' }));
+
+  const image = await prisma.uploadedImage.create({
+    data: {
+      userId,
+      storageKey,
+      publicUrl: publicUrlFor(storageKey),
+      originalName: original.originalName,
+      mimeType: 'image/jpeg',
+      sizeBytes: processedBuffer.byteLength,
+      checksum,
+    },
+  });
 
   return toDto(image);
 }

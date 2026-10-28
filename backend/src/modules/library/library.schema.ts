@@ -15,6 +15,13 @@ const newWorkSchema = z
     seriesName: z.string().min(1).nullable().optional(),
     genres: z.array(z.string().min(1)).default([]),
     coverImageUrl: z.string().url().nullable().optional(),
+    // Whether coverImageUrl came from a metadata-provider search result
+    // (default) or the reader's own upload (T-109) -- never "generated",
+    // which only the server's own background job sets.
+    coverImageSource: z.enum(['metadata', 'upload']).optional(),
+    // The reader's own spine photo (T-109); omit to let generation fill it
+    // in later. Never sourced from metadata (no provider supplies one).
+    spineImageUrl: z.string().url().nullable().optional(),
     externalSource: z.string().min(1).nullable().optional(),
     externalId: z.string().min(1).nullable().optional(),
     description: z.string().nullable().optional(),

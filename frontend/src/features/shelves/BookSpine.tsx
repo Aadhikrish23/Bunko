@@ -7,6 +7,8 @@ interface BookSpineProps {
   workId: string;
   title: string;
   coverImageUrl?: string | null;
+  /** Uploaded or NVIDIA-generated spine art (T-109); shown in spine mode in place of the generated placeholder. */
+  spineImageUrl?: string | null;
   authors?: string[];
   originalLanguage?: string | null;
   language?: string | null;
@@ -87,6 +89,7 @@ export function BookSpine({
   workId,
   title,
   coverImageUrl,
+  spineImageUrl,
   authors,
   originalLanguage,
   language,
@@ -107,7 +110,9 @@ export function BookSpine({
 }: BookSpineProps) {
   const style = getSpineStyle(workId);
   const [imgError, setImgError] = useState(false);
+  const [spineImgError, setSpineImgError] = useState(false);
   const hasCover = Boolean(coverImageUrl) && !imgError;
+  const hasSpineImage = Boolean(spineImageUrl) && !spineImgError;
 
   const displayAuthor = authors && authors.length > 0 ? authors[0] : null;
 
@@ -232,77 +237,92 @@ export function BookSpine({
         style={{
           height: style.heightPx,
           width: Math.max(34, style.widthPx),
-          backgroundColor: style.color,
+          backgroundColor: hasSpineImage ? undefined : style.color,
         }}
         className="focus-visible:focus-ring relative flex flex-col items-center justify-between overflow-hidden rounded-t-[3px] rounded-b-[2px] py-2 px-1 shadow-[inset_3px_0_4px_rgba(255,255,255,0.2),inset_-3px_0_5px_rgba(0,0,0,0.4),0_6px_10px_rgba(0,0,0,0.5)] transition-all duration-150 group-hover:-translate-y-2 group-hover:shadow-[0_12px_20px_rgba(0,0,0,0.7)]"
       >
-        {/* Cover image strip background blur */}
-        {hasCover && (
+        {hasSpineImage ? (
+          // Real spine art (uploaded or NVIDIA-generated, T-109) — shown as-is,
+          // full-bleed, same as cover mode's own image branch. The art already
+          // carries the title (see the generation prompt), so no text overlay.
           <img
-            src={coverImageUrl!}
-            alt=""
-            onError={() => setImgError(true)}
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25 filter blur-[1px] scale-125"
+            src={spineImageUrl!}
+            alt={`Spine of ${title}`}
+            onError={() => setSpineImgError(true)}
+            className="pointer-events-none h-full w-full object-cover"
             loading="lazy"
           />
-        )}
-
-        {/* 3D Spine Ribs / Hinge highlights */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-r from-white/30 to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1.5 bg-gradient-to-l from-black/40 to-transparent" />
-
-        {/* Top Gold Foil Band */}
-        <div className="relative z-10 w-full flex flex-col items-center gap-0.5 border-y border-amber-300/40 bg-black/40 py-0.5 shadow-inner">
-          <div className="h-[1px] w-full bg-amber-400/60" />
-          {languageCode(originalLanguage) && (
-            <span title={`Original language: ${originalLanguage}`} className="text-[10px] font-bold uppercase tracking-wider text-amber-200/90 drop-shadow">
-              {languageCode(originalLanguage)}
-            </span>
-          )}
-          <div className="h-[1px] w-full bg-amber-400/60" />
-        </div>
-
-        {/* Middle Spine Content: Title & Author in User's Added Preference */}
-        <div className="relative z-10 flex flex-1 items-center justify-center py-1 px-0.5 w-full overflow-hidden">
-          <div className="flex items-center gap-1" style={{ writingMode: 'vertical-rl' }}>
-            <span
-              className={`font-serif font-bold leading-none tracking-wide text-amber-50 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] ${
-                title.length > 32
-                  ? 'text-[9.5px]'
-                  : title.length > 22
-                  ? 'text-[10px]'
-                  : title.length > 14
-                  ? 'text-[11px]'
-                  : 'text-[12px]'
-              }`}
-            >
-              {title}
-            </span>
-            {displayAuthor && (
-              <span className="font-serif text-[10px] font-medium italic text-amber-200/85 drop-shadow-sm whitespace-nowrap">
-                {displayAuthor}
-              </span>
+        ) : (
+          <>
+            {/* Cover image strip background blur */}
+            {hasCover && (
+              <img
+                src={coverImageUrl!}
+                alt=""
+                onError={() => setImgError(true)}
+                className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25 filter blur-[1px] scale-125"
+                loading="lazy"
+              />
             )}
-          </div>
-        </div>
 
-        {/* Bottom Gold Foil Band & Part/Chapter Badges */}
-        <div className="relative z-10 w-full flex flex-col items-center gap-0.5 border-t border-amber-300/40 bg-black/40 pt-0.5 pb-0.5 shadow-inner">
-          <div className="h-[1px] w-full bg-amber-400/60" />
-          {partsCount ? (
-            <span className="text-[10px] font-extrabold uppercase tracking-tight text-emerald-200 drop-shadow">
-              Pt {partsCount}
-            </span>
-          ) : chaptersCount ? (
-            <span className="text-[10px] font-extrabold uppercase tracking-tight text-purple-200 drop-shadow">
-              {chaptersCount} Ch
-            </span>
-          ) : (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/80 drop-shadow">
-              Bunko
-            </span>
-          )}
-        </div>
+            {/* 3D Spine Ribs / Hinge highlights */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-r from-white/30 to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-1.5 bg-gradient-to-l from-black/40 to-transparent" />
+
+            {/* Top Gold Foil Band */}
+            <div className="relative z-10 w-full flex flex-col items-center gap-0.5 border-y border-amber-300/40 bg-black/40 py-0.5 shadow-inner">
+              <div className="h-[1px] w-full bg-amber-400/60" />
+              {languageCode(originalLanguage) && (
+                <span title={`Original language: ${originalLanguage}`} className="text-[10px] font-bold uppercase tracking-wider text-amber-200/90 drop-shadow">
+                  {languageCode(originalLanguage)}
+                </span>
+              )}
+              <div className="h-[1px] w-full bg-amber-400/60" />
+            </div>
+
+            {/* Middle Spine Content: Title & Author in User's Added Preference */}
+            <div className="relative z-10 flex flex-1 items-center justify-center py-1 px-0.5 w-full overflow-hidden">
+              <div className="flex items-center gap-1" style={{ writingMode: 'vertical-rl' }}>
+                <span
+                  className={`font-serif font-bold leading-none tracking-wide text-amber-50 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] ${
+                    title.length > 32
+                      ? 'text-[9.5px]'
+                      : title.length > 22
+                      ? 'text-[10px]'
+                      : title.length > 14
+                      ? 'text-[11px]'
+                      : 'text-[12px]'
+                  }`}
+                >
+                  {title}
+                </span>
+                {displayAuthor && (
+                  <span className="font-serif text-[10px] font-medium italic text-amber-200/85 drop-shadow-sm whitespace-nowrap">
+                    {displayAuthor}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Gold Foil Band & Part/Chapter Badges */}
+            <div className="relative z-10 w-full flex flex-col items-center gap-0.5 border-t border-amber-300/40 bg-black/40 pt-0.5 pb-0.5 shadow-inner">
+              <div className="h-[1px] w-full bg-amber-400/60" />
+              {partsCount ? (
+                <span className="text-[10px] font-extrabold uppercase tracking-tight text-emerald-200 drop-shadow">
+                  Pt {partsCount}
+                </span>
+              ) : chaptersCount ? (
+                <span className="text-[10px] font-extrabold uppercase tracking-tight text-purple-200 drop-shadow">
+                  {chaptersCount} Ch
+                </span>
+              ) : (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/80 drop-shadow">
+                  Bunko
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </button>
 
       {/* Move/Remove after the open button in DOM order — see the cover-mode

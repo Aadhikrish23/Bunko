@@ -88,6 +88,7 @@ export function ShelfRow({
               workId={work.id}
               title={work.title}
               coverImageUrl={work.coverImageUrl}
+              spineImageUrl={work.spineImageUrl}
               authors={work.authors}
               originalLanguage={work.originalLanguage}
               language={work.language}

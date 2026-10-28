@@ -15,6 +15,7 @@ function mockWork(id: string, title: string, opts: { seriesName?: string | null;
     seriesName: opts.seriesName ?? null,
     shelfIds: [],
     coverImageUrl: null,
+    spineImageUrl: null,
     description: null,
     seriesWorks: [],
   };

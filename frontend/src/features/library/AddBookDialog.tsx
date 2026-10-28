@@ -11,6 +11,7 @@ import { useCreateWork, useUpdateWorkStatus } from '../../lib/api/works';
 import type { ReadingStatus } from '../../lib/api/types';
 import { errorMessage } from '../../lib/error-message';
 import { BookCover } from './BookCover';
+import { CoverPhotoUpload } from './CoverPhotoUpload';
 import { cleanSynopsis } from './synopsis';
 
 function useDebouncedValue(value: string, delayMs: number): string {
@@ -53,6 +54,8 @@ export function AddBookDialog({
   const [manualPartsCount, setManualPartsCount] = useState('');
   const [manualChaptersCount, setManualChaptersCount] = useState('');
   const [manualDescription, setManualDescription] = useState('');
+  const [manualCoverUrl, setManualCoverUrl] = useState<string | null>(null);
+  const [manualSpineUrl, setManualSpineUrl] = useState<string | null>(null);
   const [showManual, setShowManual] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debouncedQuery = useDebouncedValue(query, 350);
@@ -102,6 +105,9 @@ export function AddBookDialog({
         language: manualReadingLang.trim() || 'English',
         partsCount: manualPartsCount ? parseInt(manualPartsCount, 10) : null,
         chaptersCount: manualChaptersCount ? parseInt(manualChaptersCount, 10) : null,
+        coverImageUrl: manualCoverUrl,
+        coverImageSource: manualCoverUrl ? 'upload' : undefined,
+        spineImageUrl: manualSpineUrl,
       });
       if (addAs !== 'WANT_TO_READ') {
         await updateStatus.mutateAsync({ workId: work.id, status: addAs, ...(addAs === 'FINISHED' ? { finishedAt: null } : {}) });
@@ -268,6 +274,13 @@ export function AddBookDialog({
               onChange={(e) => setManualAuthor(e.target.value)}
               placeholder="e.g. Satoshi Yagisawa"
             />
+            <div className="flex gap-4">
+              <CoverPhotoUpload label="Cover photo (optional)" url={manualCoverUrl} onChange={setManualCoverUrl} />
+              <CoverPhotoUpload label="Spine photo (optional)" url={manualSpineUrl} onChange={setManualSpineUrl} />
+            </div>
+            <p className="-mt-2 text-xs text-paper-600">
+              No photos? Bunko generates a spine for your shelf once the book is added.
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <Input
                 label="Original language"

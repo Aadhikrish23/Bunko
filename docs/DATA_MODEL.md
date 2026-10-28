@@ -62,6 +62,11 @@ model Work {
   description    String?
   genres         String[] // simple string array for MVP; normalise later if needed
   coverImageUrl  String?
+  // Where coverImageUrl (and spineImageUrl) came from (T-109) -- governs
+  // whether fillCoverInBackground's metadata auto-fill is still allowed
+  // to set them: only ever when this is still "metadata".
+  coverImageSource CoverImageSource @default(metadata)
+  spineImageUrl    String? // generated spine art, or a reader-uploaded one (T-109)
   originalLanguage String?
   language         String?
   partsCount       Int?
@@ -75,6 +80,12 @@ model Work {
   users    UserWork[]
 
   @@unique([externalSource, externalId])
+}
+
+enum CoverImageSource {
+  metadata  // from a metadata-provider search result (OpenLibrary etc.) -- the only source fillCoverInBackground may overwrite
+  upload    // the reader uploaded a cover photo
+  generated // NVIDIA-generated spine/cover art (T-109)
 }
 
 model WorkAuthor {

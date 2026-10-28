@@ -15,3 +15,13 @@ export const s3Client = new S3Client({
 });
 
 export const S3_BUCKET = env.S3_BUCKET;
+
+// Shared with anything that stores an object under the public covers/
+// prefix (images.service.ts's uploads, and T-109's generated spine art) --
+// that prefix needs anonymous read access configured on it
+// (ARCHITECTURE.md §8); this just computes the URL a correctly-configured
+// bucket will serve.
+export function publicUrlFor(storageKey: string): string {
+  const base = (env.S3_PUBLIC_URL_BASE ?? env.S3_ENDPOINT).replace(/\/+$/, '');
+  return `${base}/${S3_BUCKET}/${storageKey}`;
+}

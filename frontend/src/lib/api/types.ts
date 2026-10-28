@@ -50,6 +50,8 @@ export interface Work {
   seriesName: string | null;
   shelfIds: string[];
   coverImageUrl: string | null;
+  /** Uploaded or NVIDIA-generated spine art; null falls back to the shelf's placeholder spine. */
+  spineImageUrl: string | null;
   description: string | null;
   originalLanguage?: string | null;
   language?: string | null;

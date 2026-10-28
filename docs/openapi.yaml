@@ -2122,6 +2122,8 @@ components:
               type: array
               items: { type: string }
             coverImageUrl: { type: string, nullable: true }
+            coverImageSource: { type: string, enum: [metadata, upload], description: "Defaults to metadata; pass upload when coverImageUrl is the reader's own upload (T-109), so background metadata lookup never overwrites it" }
+            spineImageUrl: { type: string, nullable: true, description: "The reader's own spine photo (T-109); omit to let generation fill it in later" }
             externalSource:
               type: string
               nullable: true
@@ -2204,6 +2206,7 @@ components:
               type: array
               items: { type: string, format: uuid }
             coverImageUrl: { type: string, nullable: true }
+            spineImageUrl: { type: string, nullable: true, description: "Uploaded or NVIDIA-generated spine art (T-109); null falls back to the shelf's deterministic placeholder spine" }
             description:
               type: string
               nullable: true
