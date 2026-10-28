@@ -15,9 +15,13 @@ test('physical progress maps to a digital edition via the confirmation prompt', 
   const title = `Continuity Prompt Test ${Date.now()}`;
   await page.getByRole('button', { name: 'Add a book' }).click();
   const addDialog = page.getByRole('dialog', { name: 'Add a book' });
-  await addDialog.getByText('Can’t find it? Add manually').click();
-  await addDialog.getByLabel('Title').fill(title);
+  await addDialog.getByText('Can’t find your book? Add custom book manually').click();
+  await addDialog.getByLabel('Book Title').fill(title);
   await addDialog.getByRole('button', { name: 'Add book' }).click();
+  // Adding opens the book's quick-action modal, not the detail page
+  // directly; a manually-added book has no edition yet, so "View book
+  // details" is its only navigating action.
+  await page.getByRole('button', { name: 'View book details' }).click();
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
 
   // Physical reading up to "Chapter 10" — this becomes the journey's
@@ -48,5 +52,5 @@ test('physical progress maps to a digital edition via the confirmation prompt', 
   await expect(prompt.getByText('Chapter 10: The Reckoning')).toBeVisible();
 
   await prompt.getByRole('button', { name: 'Continue here' }).click();
-  await expect(page).toHaveURL(/\/read\//);
+  await expect(page).toHaveURL(/\/read(-chapters)?\//);
 });

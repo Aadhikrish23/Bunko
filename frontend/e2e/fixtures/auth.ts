@@ -22,7 +22,7 @@ export async function registerAndLogIn(page: Page): Promise<TestAccount> {
   await page.getByLabel('Email').fill(account.email);
   await page.getByLabel('Password').fill(account.password);
   await page.getByRole('button', { name: 'Create account' }).click();
-  await page.waitForURL('**/library');
+  await page.waitForURL('**/shelves');
 
   return account;
 }

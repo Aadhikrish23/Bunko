@@ -746,7 +746,7 @@ export function FlowReaderPage() {
     }, 100);
   }
 
-  const bookPath = manifest.data?.workId ? `/library/${manifest.data.workId}` : '/library';
+  const bookPath = manifest.data?.workId ? `/library/${manifest.data.workId}` : '/shelves';
 
   async function handleClose() {
     const sessionId = sessionIdRef.current;

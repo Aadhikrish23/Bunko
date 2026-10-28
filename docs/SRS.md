@@ -1873,7 +1873,7 @@ A recommended navigation structure:
 
 ``` text
 Home
-Library
+Shelves
 Reading
 Journal
 Notes/Quotes
@@ -1881,7 +1881,11 @@ Statistics
 Settings
 ```
 
-The exact navigation may vary by platform.
+The exact navigation may vary by platform. *Updated 2026-10-28 (Phase 13,
+T-110) — "Library" and "Shelves" were built as two separate pages/nav
+entries; the nav now has one entry ("Shelves"), which also does
+everything the old Library page did (browse, search, add). See the
+Change Log.*
 
 ## 29.3 Book Detail Page
 

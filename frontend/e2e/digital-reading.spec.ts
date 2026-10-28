@@ -11,9 +11,13 @@ test('import an EPUB, open it, close it, and reopen it', async ({ page }) => {
   const title = `Digital Reading Test ${Date.now()}`;
   await page.getByRole('button', { name: 'Add a book' }).click();
   const addDialog = page.getByRole('dialog', { name: 'Add a book' });
-  await addDialog.getByText('Can’t find it? Add manually').click();
-  await addDialog.getByLabel('Title').fill(title);
+  await addDialog.getByText('Can’t find your book? Add custom book manually').click();
+  await addDialog.getByLabel('Book Title').fill(title);
   await addDialog.getByRole('button', { name: 'Add book' }).click();
+  // Adding opens the book's quick-action modal, not the detail page
+  // directly; a manually-added book has no edition yet, so "View book
+  // details" is its only navigating action.
+  await page.getByRole('button', { name: 'View book details' }).click();
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
 
   // Import a digital edition.
@@ -31,18 +35,18 @@ test('import an EPUB, open it, close it, and reopen it', async ({ page }) => {
 
   // Open the reader.
   await page.getByRole('button', { name: /^(Start|Continue) reading$/ }).click();
-  await expect(page).toHaveURL(/\/read\//);
+  await expect(page).toHaveURL(/\/read(-chapters)?\//);
   await expect(page.getByRole('button', { name: 'Close the book' })).toBeVisible();
 
-  // Close — this ends the session and shows the (skippable) reflection prompt.
+  // Close — a session this short (opened and closed within seconds) is
+  // discarded without a journal entry, so no reflection prompt appears;
+  // it navigates straight back to the book (SRS §12.10's <60s rule).
   await page.getByRole('button', { name: 'Close the book' }).click();
-  await expect(page.getByRole('heading', { name: 'Session ended' })).toBeVisible();
-  await page.getByRole('button', { name: 'Skip' }).click();
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
 
   // Reopening resumes rather than erroring — the reader manifest
   // resolves a same-edition start position from the session just ended.
   await page.getByRole('button', { name: /^(Start|Continue) reading$/ }).click();
-  await expect(page).toHaveURL(/\/read\//);
+  await expect(page).toHaveURL(/\/read(-chapters)?\//);
   await expect(page.getByRole('button', { name: 'Close the book' })).toBeVisible();
 });

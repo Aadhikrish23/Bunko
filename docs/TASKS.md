@@ -1176,8 +1176,9 @@ Depends on: T-108
 ### T-110 — Merge Library into Shelves
 Depends on: none · SRS: §15, §29.2
 
-- [ ] The `/library` route and its nav entry are removed; Shelves absorbs Library's status filters, free-text search, and "Add a book" entry point
-- [ ] Offline fallback and first-run onboarding move from `LibraryPage` to `ShelvesPage`; `LibraryPage.tsx` deleted once absorbed
+- [x] The `/library` route and its nav entry are removed; Shelves absorbs Library's status filters (its existing status-tabs already covered this), free-text search (its existing per-shelf filter already covered this), and "Add a book" entry point — verified live (registered a fresh account, added a book manually, confirmed it shows under "All books" and the matching status tab, filters correctly, and disappears from an unrelated status tab)
+- [x] Offline fallback and first-run onboarding move from `LibraryPage` to `ShelvesPage`; `LibraryPage.tsx` deleted once absorbed
+- [x] Found and fixed along the way: `components/ui/Input`'s `label` was never associated with its `<input>` (no `id`/`htmlFor` pairing unless a caller passed its own `id`, which almost none did) — a real accessibility gap across ~25 call sites, not just this page. Fixed with `useId()`.
 
 ### T-111 — Responsive shelf-row width and sort options
 Depends on: T-110

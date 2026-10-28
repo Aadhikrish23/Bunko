@@ -5,7 +5,6 @@ import { AssistantChatPage } from './features/assistant/AssistantChatPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
 import { BookDetailPage } from './features/library/BookDetailPage';
-import { LibraryPage } from './features/library/LibraryPage';
 import { JournalPage } from './features/journal/JournalPage';
 import { FlowReaderPage } from './features/reader/FlowReaderPage';
 import { ReaderPage } from './features/reader/ReaderPage';
@@ -30,7 +29,11 @@ export default function App() {
           <Route path="/read-chapters/:editionId" element={<FlowReaderPage />} />
 
           <Route element={<AppShell />}>
-            <Route path="/library" element={<LibraryPage />} />
+            {/* No standalone /library landing page (Phase 13, T-110) — Shelves is
+                the one place to browse/search/add books. The deep link to a
+                single book's detail page stays at this URL unchanged, since
+                existing links/bookmarks and several call sites (JournalPage,
+                SeriesPanel, the reader's "back to book" path) already point here. */}
             <Route path="/library/:workId" element={<BookDetailPage />} />
             <Route path="/shelves" element={<ShelvesPage />} />
             <Route path="/journal" element={<JournalPage />} />
@@ -41,8 +44,8 @@ export default function App() {
           </Route>
         </Route>
 
-        <Route path="/" element={<Navigate to="/library" replace />} />
-        <Route path="*" element={<Navigate to="/library" replace />} />
+        <Route path="/" element={<Navigate to="/shelves" replace />} />
+        <Route path="*" element={<Navigate to="/shelves" replace />} />
       </Routes>
       <SyncLayer />
     </BrowserRouter>

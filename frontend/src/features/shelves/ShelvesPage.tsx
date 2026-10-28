@@ -1,5 +1,6 @@
 import { Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -15,11 +16,14 @@ import {
 } from '../../lib/api/shelves';
 import { useWorks } from '../../lib/api/works';
 import type { ReadingStatus, Work } from '../../lib/api/types';
+import { NetworkError } from '../../lib/api/client';
 import { errorMessage } from '../../lib/error-message';
+import { OfflineBooksList } from '../sync/OfflineBooksList';
 import { getShelfOrder, saveShelfOrder, sortWorksByOrder } from './shelf-order';
 import { groupWorksForShelf } from './group-works';
 import { ShelfRow } from './ShelfRow';
 
+import { AddBookDialog } from '../library/AddBookDialog';
 import { BookQuickActionModal } from '../library/BookQuickActionModal';
 import { AddToShelfDialog } from './AddToShelfDialog';
 
@@ -50,6 +54,16 @@ export function ShelvesPage() {
   // Active shelf filter: 'all' | 'status:<STATUS>' | 'shelf:<SHELF_ID>'
   const [activeTabId, setActiveTabId] = useState<string>('all');
   const [isAddingBooks, setIsAddingBooks] = useState(false);
+  // "Add a book" to the library itself (Phase 13, T-110 — absorbed from the
+  // old Library page). ?add=<title author> opens it prefilled, from AI
+  // recommendations.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const addQuery = searchParams.get('add') ?? '';
+  const [isAddBookOpen, setIsAddBookOpen] = useState(addQuery !== '');
+  function closeAddBook() {
+    setIsAddBookOpen(false);
+    if (addQuery) setSearchParams({}, { replace: true });
+  }
   // The account's saved drag-order for the active view, synced so it
   // follows the reader across devices instead of staying stuck in one
   // browser's localStorage (shelf-order.ts stays as the instant-write
@@ -324,8 +338,80 @@ export function ShelvesPage() {
   const openBook = (workId: string) => setQuickActionWorkId(workId);
 
   if (works.isLoading || shelves.isLoading) return <PageSpinner />;
+  if (works.isError && works.error instanceof NetworkError) {
+    return (
+      <section className="flex flex-col gap-3 rounded-xl border border-paper-200 bg-paper-50 p-5">
+        <h2 className="font-display text-lg text-paper-900">You’re offline</h2>
+        <p className="text-sm text-paper-600">
+          Your shelves will be back when you reconnect. Downloaded books still open, and anything you do in them
+          syncs later.
+        </p>
+        <OfflineBooksList />
+      </section>
+    );
+  }
   if (works.isError || shelves.isError) {
     return <ErrorBanner message={errorMessage(works.error ?? shelves.error, 'Could not load your shelves.')} />;
+  }
+
+  // A reader with no books at all gets the first-run welcome, in place of
+  // the bookcase chrome entirely (absorbed from the old Library page).
+  if (allItems.length === 0) {
+    return (
+      <div className="flex flex-col gap-6">
+        <section className="max-w-2xl py-6" aria-labelledby="welcome-heading">
+          <h1 id="welcome-heading" className="font-display text-2xl text-paper-900">
+            Welcome to your shelves
+          </h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-paper-700">
+            Bunko keeps one reading journey per book, whether you read it on paper, as an EPUB or PDF, or switch between them.
+          </p>
+          <ol className="mt-6 flex flex-col gap-4">
+            <li className="flex gap-3">
+              <span className="font-display text-lg text-moss-700" aria-hidden="true">1</span>
+              <div>
+                <p className="font-medium text-paper-900">Add a book you’re reading</p>
+                <p className="text-sm text-paper-700">Search by title or author; your status, shelves and notes start from there.</p>
+                <Button onClick={() => setIsAddBookOpen(true)} size="sm" className="mt-2">
+                  <Plus className="h-4 w-4" /> Add a book
+                </Button>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="font-display text-lg text-moss-700" aria-hidden="true">2</span>
+              <div>
+                <p className="font-medium text-paper-900">Read it here, or log your paper copy</p>
+                <p className="text-sm text-paper-700">Upload an EPUB or PDF you own to read in Bunko, or time a session with the book in your hands.</p>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="font-display text-lg text-moss-700" aria-hidden="true">3</span>
+              <div>
+                <p className="font-medium text-paper-900">Or just tell the Assistant</p>
+                <p className="text-sm text-paper-700">
+                  “I’m reading Piranesi”, “finished Circe, 4 stars”.{' '}
+                  <Link to="/assistant" className="focus-visible:focus-ring rounded font-medium text-moss-700 underline underline-offset-4">
+                    Open the Assistant
+                  </Link>
+                </p>
+              </div>
+            </li>
+          </ol>
+        </section>
+
+        {isAddBookOpen && (
+          <AddBookDialog
+            initialQuery={addQuery}
+            onClose={closeAddBook}
+            onAdded={(workId) => {
+              closeAddBook();
+              setQuickActionWorkId(workId);
+            }}
+          />
+        )}
+        {quickActionWorkId && <BookQuickActionModal workId={quickActionWorkId} onClose={() => setQuickActionWorkId(null)} />}
+      </div>
+    );
   }
 
   return (
@@ -336,6 +422,10 @@ export function ShelvesPage() {
           <h1 className="font-display text-2xl text-paper-900">Shelves</h1>
           <p className="mt-1 text-sm text-paper-600">Your personal bookcase, arranged however you like.</p>
         </div>
+
+        <Button onClick={() => setIsAddBookOpen(true)}>
+          <Plus className="h-4 w-4" /> Add a book
+        </Button>
 
         {isCreating && (
           <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">

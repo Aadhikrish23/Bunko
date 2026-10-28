@@ -77,7 +77,7 @@ export function BookDetailPage() {
     <div className="flex flex-col gap-6">
       <button
         type="button"
-        onClick={() => navigate('/library')}
+        onClick={() => navigate('/shelves')}
         className="focus-visible:focus-ring flex items-center gap-1.5 self-start text-sm text-paper-600 hover:text-paper-900"
       >
         <ArrowLeft className="h-4 w-4" /> Back to library
@@ -237,7 +237,7 @@ export function BookDetailPage() {
           onConfirm={async () => {
             await deleteWork.mutateAsync(data.id);
             setConfirmRemove(false);
-            navigate('/library');
+            navigate('/shelves');
           }}
           onClose={() => setConfirmRemove(false)}
         />

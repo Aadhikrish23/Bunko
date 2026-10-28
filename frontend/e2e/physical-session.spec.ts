@@ -10,9 +10,13 @@ test('start and end a physical reading session, then see it in the journal', asy
   const title = `Physical Session Test ${Date.now()}`;
   await page.getByRole('button', { name: 'Add a book' }).click();
   const addDialog = page.getByRole('dialog', { name: 'Add a book' });
-  await addDialog.getByText('Can’t find it? Add manually').click();
-  await addDialog.getByLabel('Title').fill(title);
+  await addDialog.getByText('Can’t find your book? Add custom book manually').click();
+  await addDialog.getByLabel('Book Title').fill(title);
   await addDialog.getByRole('button', { name: 'Add book' }).click();
+  // Adding opens the book's quick-action modal, not the detail page
+  // directly; a manually-added book has no edition yet, so "View book
+  // details" is its only navigating action.
+  await page.getByRole('button', { name: 'View book details' }).click();
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
 
   await page.getByRole('button', { name: 'Add edition' }).click();

@@ -21,7 +21,7 @@ export function LoginPage() {
     setIsSubmitting(true);
     try {
       await login(email, password);
-      navigate('/library');
+      navigate('/shelves');
     } catch (err) {
       setError(errorMessage(err, 'Invalid email or password.'));
     } finally {

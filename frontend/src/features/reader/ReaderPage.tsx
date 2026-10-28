@@ -188,7 +188,7 @@ export function ReaderPage() {
   }
 
 
-  const bookPath = manifest.data?.workId ? `/library/${manifest.data.workId}` : '/library';
+  const bookPath = manifest.data?.workId ? `/library/${manifest.data.workId}` : '/shelves';
 
   async function handleClose() {
     if (!manifest.data) {

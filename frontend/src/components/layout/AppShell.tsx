@@ -1,12 +1,13 @@
-import { BookOpen, LibraryBig, LogOut, NotebookPen, Rows3, Settings as SettingsIcon, Sparkles, TrendingUp } from 'lucide-react';
+import { BookOpen, LogOut, NotebookPen, Rows3, Settings as SettingsIcon, Sparkles, TrendingUp } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { getSyncStatus, subscribeSyncStatus } from '../../lib/offline/outbox';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useAuth } from '../../lib/auth-context';
 
+// Shelves is the one place to browse, search, and add books (Phase 13,
+// T-110) — no separate Library nav entry.
 const NAV_ITEMS = [
-  { to: '/library', label: 'Library', icon: LibraryBig },
   { to: '/shelves', label: 'Shelves', icon: Rows3 },
   { to: '/journal', label: 'Journal', icon: NotebookPen },
   { to: '/statistics', label: 'Statistics', icon: TrendingUp },

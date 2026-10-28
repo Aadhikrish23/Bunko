@@ -22,7 +22,7 @@ export function RegisterPage() {
     setIsSubmitting(true);
     try {
       await register(email, password, displayName);
-      navigate('/library');
+      navigate('/shelves');
     } catch (err) {
       setError(errorMessage(err, 'Could not create your account.'));
     } finally {
