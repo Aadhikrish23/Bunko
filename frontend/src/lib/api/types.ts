@@ -59,6 +59,10 @@ export interface Work {
   chaptersCount?: number | null;
   // Only populated on a single-work GET, empty on library-list rows.
   seriesWorks: SeriesSibling[];
+  // When this book joined the library (shelf "date added" sort, T-111).
+  addedAt: string;
+  // The caller's own rating, if they've left one (shelf "rating" sort, T-111).
+  rating: number | null;
 }
 
 export interface MetadataCandidate {

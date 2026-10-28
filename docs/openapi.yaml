@@ -2222,6 +2222,14 @@ components:
                 from that collection"). Only populated on a single-work
                 GET, never on the list endpoint.
               items: { $ref: "#/components/schemas/SeriesSiblingResponse" }
+            addedAt:
+              type: string
+              format: date-time
+              description: "When this book joined the caller's library (T-111 'date added' sort)."
+            rating:
+              type: integer
+              nullable: true
+              description: "The caller's own rating (SRS §14's Review), if they've left one (T-111 'rating' sort)."
 
     SeriesSiblingResponse:
       type: object

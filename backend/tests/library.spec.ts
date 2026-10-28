@@ -68,6 +68,25 @@ test.describe('POST /works', () => {
     expect(response.status()).toBe(201);
     expect((await response.json()).data.authors).toContain('Some Author');
   });
+
+  test('exposes addedAt and the caller\'s own rating, for sorting (T-111)', async ({ authedRequest }) => {
+    const created = await authedRequest.post('/api/v1/works', {
+      data: { title: 'A Sortable Book', authors: ['Some Author'] },
+    });
+    const workId = (await created.json()).data.id;
+    expect((await created.json()).data.addedAt).toBeTruthy();
+    expect((await created.json()).data.rating).toBeNull();
+
+    await authedRequest.put(`/api/v1/works/${workId}/review`, { data: { rating: 4 } });
+
+    const single = await authedRequest.get(`/api/v1/works/${workId}`);
+    expect((await single.json()).data.rating).toBe(4);
+
+    const list = await authedRequest.get('/api/v1/works');
+    const row = (await list.json()).data.find((w: { id: string }) => w.id === workId);
+    expect(row.rating).toBe(4);
+    expect(row.addedAt).toBeTruthy();
+  });
 });
 
 test.describe('GET /works/:workId', () => {

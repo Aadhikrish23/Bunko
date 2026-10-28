@@ -1183,9 +1183,10 @@ Depends on: none · SRS: §15, §29.2
 ### T-111 — Responsive shelf-row width and sort options
 Depends on: T-110
 
-- [ ] The fixed 7-covers/14-spines-per-row cap is replaced by a measured value based on actual container width, recalculated on resize
-- [ ] Sort options (title, author, date added, status, rating) added alongside the existing manual drag-to-reorder; applying a sort persists through the same `shelf-order.ts`/server-arrangement stack as a manual reorder
-- [ ] Drag-and-drop and the keyboard/touch `MoveButtons` fallback keep working at every row width
+- [x] The fixed 7-covers/14-spines-per-row cap is replaced by a measured value based on actual container width, recalculated on resize — `ShelvesPage.tsx`'s cabinet uses a callback ref (`setCabinetEl`) + `ResizeObserver` (a plain `useRef` + empty-deps effect was tried first and found broken: the cabinet doesn't exist on first mount while works/shelves are loading, so the effect captured a null ref and never re-observed once the real div appeared — verified live by resizing to 320px width and confirming the rack count actually increases, not just CSS wrapping)
+- [x] Sort options (title, author, date added, status, rating) added alongside the existing manual drag-to-reorder; applying a sort persists through the same `shelf-order.ts`/server-arrangement stack as a manual reorder (`shelf-sort.ts`, unit-tested) — backend `GET/POST /works` extended with `addedAt`/`rating` (from `UserWork.addedAt` and `Review.rating`) since neither was exposed before; `openapi.yaml` and a backend test updated to match
+- [x] Drag-and-drop and the keyboard/touch `MoveButtons` fallback keep working at every row width (unchanged code paths, re-verified live)
+- [x] Bonus fix found while testing live: the "Add a book" button in the normal (non-empty-shelf) view was dead — T-110's Shelves/Library merge only wired `<AddBookDialog>` into the empty-state branch, not the main render path. Fixed in `ShelvesPage.tsx`.
 
 ### T-112 — Floating Assistant launcher
 Depends on: T-102 · SRS: §20.6

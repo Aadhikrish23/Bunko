@@ -18,6 +18,8 @@ function mockWork(id: string, title: string, opts: { seriesName?: string | null;
     spineImageUrl: null,
     description: null,
     seriesWorks: [],
+    addedAt: '2026-01-01T00:00:00.000Z',
+    rating: null,
   };
 }
 

@@ -60,6 +60,10 @@ export interface WorkSummaryDto {
   // Only populated on a single-work GET, not on list views (avoids an
   // N+1 for every row in a library listing) — see getWork/getUserWorkOrThrow.
   seriesWorks: SeriesSiblingDto[];
+  // When this book joined the caller's library (T-111: "date added" sort).
+  addedAt: Date;
+  // The caller's own rating (SRS §14's Review), if they've left one (T-111: "rating" sort).
+  rating: number | null;
 }
 
 function userWorkInclude(userId: string) {
@@ -81,6 +85,7 @@ function toWorkDto(
   userWork: UserWorkWithRelations,
   journeyId: string | null,
   seriesWorks: SeriesSiblingDto[] = [],
+  rating: number | null = null,
 ): WorkSummaryDto {
   return {
     id: userWork.work.id,
@@ -106,6 +111,8 @@ function toWorkDto(
     partsCount: userWork.work.partsCount,
     chaptersCount: userWork.work.chaptersCount,
     seriesWorks,
+    addedAt: userWork.addedAt,
+    rating,
   };
 }
 
@@ -217,12 +224,13 @@ async function syncRelatedSeriesWorks(
 // endpoints (listWorks) build their own DTOs directly with toWorkDto
 // instead of going through this, precisely to skip it at N-row scale.
 async function getUserWorkOrThrow(userId: string, workId: string): Promise<WorkSummaryDto> {
-  const [userWork, journey] = await Promise.all([
+  const [userWork, journey, review] = await Promise.all([
     prisma.userWork.findUnique({
       where: { userId_workId: { userId, workId } },
       include: userWorkInclude(userId),
     }),
     prisma.readingJourney.findUnique({ where: { userId_workId: { userId, workId } }, select: { id: true } }),
+    prisma.review.findUnique({ where: { userId_workId: { userId, workId } }, select: { rating: true } }),
   ]);
   if (!userWork) {
     throw new AppError('NOT_FOUND', 'Work not found in your library');
@@ -248,7 +256,7 @@ async function getUserWorkOrThrow(userId: string, workId: string): Promise<WorkS
     fillSpineArtInBackground(userWork.work.id, userWork.work.title, authorNames, userWork.work.language ?? userWork.work.originalLanguage);
   }
 
-  return toWorkDto(userWork, journey?.id ?? null, seriesWorks);
+  return toWorkDto(userWork, journey?.id ?? null, seriesWorks, review?.rating ?? null);
 }
 
 /** Lowercase letters/digits of any script, subtitle and leading article removed. */
@@ -495,13 +503,25 @@ export async function listWorks(
     prisma.userWork.count({ where }),
   ]);
 
-  const journeys = await prisma.readingJourney.findMany({
-    where: { userId, workId: { in: rows.map((row) => row.workId) } },
-    select: { id: true, workId: true },
-  });
+  const [journeys, reviews] = await Promise.all([
+    prisma.readingJourney.findMany({
+      where: { userId, workId: { in: rows.map((row) => row.workId) } },
+      select: { id: true, workId: true },
+    }),
+    prisma.review.findMany({
+      where: { userId, workId: { in: rows.map((row) => row.workId) } },
+      select: { workId: true, rating: true },
+    }),
+  ]);
   const journeyIdByWorkId = new Map(journeys.map((journey) => [journey.workId, journey.id]));
+  const ratingByWorkId = new Map(reviews.map((review) => [review.workId, review.rating]));
 
-  return { items: rows.map((row) => toWorkDto(row, journeyIdByWorkId.get(row.workId) ?? null)), total };
+  return {
+    items: rows.map((row) =>
+      toWorkDto(row, journeyIdByWorkId.get(row.workId) ?? null, [], ratingByWorkId.get(row.workId) ?? null),
+    ),
+    total,
+  };
 }
 
 export async function getWork(userId: string, workId: string): Promise<WorkSummaryDto> {

@@ -20,6 +20,7 @@ import { NetworkError } from '../../lib/api/client';
 import { errorMessage } from '../../lib/error-message';
 import { OfflineBooksList } from '../sync/OfflineBooksList';
 import { getShelfOrder, saveShelfOrder, sortWorksByOrder } from './shelf-order';
+import { SORT_OPTIONS, sortWorksForOption, type SortOption } from './shelf-sort';
 import { groupWorksForShelf } from './group-works';
 import { ShelfRow } from './ShelfRow';
 
@@ -91,6 +92,33 @@ export function ShelvesPage() {
   const [error, setError] = useState<string | null>(null);
   const [quickActionWorkId, setQuickActionWorkId] = useState<string | null>(null);
   const [showDeleteShelfConfirm, setShowDeleteShelfConfirm] = useState(false);
+
+  // Measures the cabinet's actual rendered width so each rack can fill it
+  // responsively (T-111), instead of a fixed covers/spines-per-row count.
+  // A callback ref (not useRef + an empty-deps effect) because the cabinet
+  // doesn't exist on first mount — works/shelves are still loading, so
+  // PageSpinner renders in its place — and a plain ref's effect would
+  // capture that initial null and never re-run once the real div appears.
+  const [cabinetEl, setCabinetEl] = useState<HTMLDivElement | null>(null);
+  const [cabinetWidth, setCabinetWidth] = useState(0);
+  useEffect(() => {
+    if (!cabinetEl || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setCabinetWidth(entry.contentRect.width);
+    });
+    observer.observe(cabinetEl);
+    return () => observer.disconnect();
+  }, [cabinetEl]);
+  // BookSpine's cover width steps up at the `sm` breakpoint (88px -> 96px).
+  const [isWideViewport, setIsWideViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 640 : true));
+  useEffect(() => {
+    function onResize() {
+      setIsWideViewport(window.innerWidth >= 640);
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Drag and drop state
   const [draggedWorkId, setDraggedWorkId] = useState<string | null>(null);
@@ -213,8 +241,21 @@ export function ShelvesPage() {
     );
   }, [activeShelfWorks, lowerQuery]);
 
-  // Split books into physical tiers/racks of the bookcase (~7 books per tier in cover mode)
-  const booksPerRack = viewMode === 'cover' ? 7 : 14;
+  // Split books into physical tiers/racks of the bookcase — a rack fills
+  // the cabinet's actual measured width before wrapping to the next one,
+  // instead of a fixed count. itemWidth/gap/horizontalPadding mirror
+  // BookSpine's own cover widths (88px/96px, BookSpine.tsx) and
+  // spine-style.ts's 36-48px randomized spine range (midpoint used,
+  // since each book's exact width varies) plus ShelfRow's gap-3.5/gap-2
+  // and px-4/px-3 classes.
+  const booksPerRack = useMemo(() => {
+    const itemWidth = viewMode === 'cover' ? (isWideViewport ? 96 : 88) : 42;
+    const gap = viewMode === 'cover' ? 14 : 8;
+    const horizontalPadding = viewMode === 'cover' ? 32 : 24;
+    const available = cabinetWidth - horizontalPadding;
+    if (available <= 0) return viewMode === 'cover' ? 7 : 14;
+    return Math.max(1, Math.floor((available + gap) / (itemWidth + gap)));
+  }, [cabinetWidth, viewMode, isWideViewport]);
   // Group by series/genre first (groupWorksForShelf) so a big shelf reads
   // as organized sections instead of identical, unlabeled dark recesses —
   // but only when grouping actually disambiguates something. A shelf with
@@ -331,6 +372,15 @@ export function ShelvesPage() {
     const newOrder = [...currentOrder];
     [newOrder[fromIndex], newOrder[toIndex]] = [newOrder[toIndex]!, newOrder[fromIndex]!];
 
+    persistShelfOrder(activeTab.id, newOrder);
+    setReorderedMap((prev) => ({ ...prev, [activeTab.id]: newOrder }));
+  }
+
+  // A sort is a one-time reorder action, not a persisted view mode — it
+  // writes a new manual order exactly like a drag does (same
+  // persistShelfOrder path), so it can still be dragged again afterward.
+  function handleApplySort(option: SortOption) {
+    const newOrder = sortWorksForOption(activeShelfWorks, option).map((w) => w.id);
     persistShelfOrder(activeTab.id, newOrder);
     setReorderedMap((prev) => ({ ...prev, [activeTab.id]: newOrder }));
   }
@@ -506,7 +556,7 @@ export function ShelvesPage() {
       {error && <ErrorBanner message={error} />}
 
       {/* The Physical Bookcase Cabinet */}
-      <div className="bg-wood-frame flex flex-col gap-5 rounded-xl border border-wood-900/40 p-4 shadow-card">
+      <div ref={setCabinetEl} className="bg-wood-frame flex flex-col gap-5 rounded-xl border border-wood-900/40 p-4 shadow-card">
         {/* Brass Header Plaque for the Active Shelf */}
         <div className="flex flex-col gap-3 rounded-lg border border-wood-900/30 bg-[#342214]/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -540,6 +590,27 @@ export function ShelvesPage() {
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add books
               </button>
             )}
+            {/* Sort: a one-time reorder action, same as a drag (see handleApplySort) */}
+            <select
+              aria-label="Sort this shelf by"
+              defaultValue=""
+              onChange={(e) => {
+                const value = e.target.value as SortOption | '';
+                if (value) handleApplySort(value);
+                e.target.value = '';
+              }}
+              className="focus-visible:focus-ring rounded-md border border-wood-900/60 bg-[#25180f] py-1.5 pl-2 pr-1.5 text-xs font-medium text-paper-100"
+            >
+              <option value="" disabled>
+                Sort by…
+              </option>
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
             {/* View Mode Switcher: Covers vs Spines */}
             <div className="inline-flex rounded-lg border border-wood-900/50 bg-[#25180f] p-0.5 text-xs font-medium">
               <button
@@ -627,6 +698,17 @@ export function ShelvesPage() {
           ))
         )}
       </div>
+
+      {isAddBookOpen && (
+        <AddBookDialog
+          initialQuery={addQuery}
+          onClose={closeAddBook}
+          onAdded={(workId) => {
+            closeAddBook();
+            setQuickActionWorkId(workId);
+          }}
+        />
+      )}
 
       {quickActionWorkId && (
         <BookQuickActionModal
