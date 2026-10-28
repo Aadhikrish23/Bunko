@@ -30,6 +30,25 @@ test.describe('title matching', () => {
     expect(namedTitles('loved dune messiah more than dune', ['Dune', 'Dune Messiah'])).toEqual(['Dune Messiah', 'Dune']);
   });
 
+  test('mentions recognises a shortened opening-words reference (R8-03)', () => {
+    // "have I rated harry potter?" should resolve to the actual book, not
+    // silently fail and fall back to whatever the conversation last discussed.
+    expect(mentions('what do you think of harry potter have i rated it', 'Harry Potter and the Chamber of Secrets')).toBe(true);
+    expect(namedTitles('have i rated harry potter', ['Harry Potter and the Chamber of Secrets', 'The Fifth Season'])).toEqual([
+      'Harry Potter and the Chamber of Secrets',
+    ]);
+    // Too short/generic an opening shouldn't false-positive on an unrelated title.
+    expect(mentions('a good book about potatoes', 'Project Hail Mary')).toBe(false);
+  });
+
+  test('mentions recognises a mid-title reference, not just the opening (R8-04)', () => {
+    // "did I rate the chamber of secrets book?" names a specific part of
+    // the title, not its opening words.
+    expect(mentions('did i rate the chamber of secrets book', 'Harry Potter and the Chamber of Secrets')).toBe(true);
+    // Short, common words alone ("the", "of") must not false-positive.
+    expect(mentions('what is the meaning of life', 'Harry Potter and the Chamber of Secrets')).toBe(false);
+  });
+
   test('mainTitle drops subtitles and series markers', () => {
     expect(mainTitle('Dune (Dune Chronicles #1)')).toBe('Dune');
     expect(mainTitle('Sapiens: A Brief History of Humankind')).toBe('Sapiens');

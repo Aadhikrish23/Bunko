@@ -1887,6 +1887,132 @@
           "status": "Not fixed (feature gap, low priority; deferred)"
         }
       ]
+    },
+    {
+      "round": 8,
+      "date": "2026-10-29",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100, ai-service :8001, live NVIDIA provider. Goal: verify R7-01's fix, then broaden coverage into EPUB reading, highlights, soundtrack, series, and general exploration.",
+      "scores": {
+        "library_adding_finding_books": { "score": 7, "reason": "Search returns real metadata with edition disambiguation; manual-add form is generous but has no series-position field (R8-06)." },
+        "reading_experience": { "score": 4, "reason": "Could not exercise EPUB reading or in-reader highlighting -- no sample/demo EPUB available in this testing environment to supply (R8-08, a coverage gap, not a confirmed app defect)." },
+        "notes_highlights_reviews": { "score": 7, "reason": "Notes, ratings, review edit-after-save, and 'Summarize my thoughts' all worked well; highlights empty state is sensible but unverified with real highlights." },
+        "assistant_chat": { "score": 4, "reason": "The R7-01 repro passed, but a reproducible variant (R8-01) and two further bugs (R8-02 wrong-shelf targeting, R8-03 wrong-book answered) turned up in the same short conversation, plus a minor incomplete-answer case (R8-04). All four fixed this round." },
+        "shelves_organizing": { "score": 6, "reason": "Manual shelf create/delete work well with good confirmation copy; marked down for the Assistant-driven shelf bugs and no shelf-rename option (R7-04, still open)." },
+        "look_and_feel": { "score": 8, "reason": "Warm, literary aesthetic; privacy-forward AI copy throughout." },
+        "speed_reliability": { "score": 7, "reason": "No crashes, no data loss; all saves persisted correctly across reloads." },
+        "overall": { "score": 6, "reason": "Good bones and a crafted identity, but the Assistant had multiple real bugs around shelf-context and book-context tracking within a single short conversation -- all four found and fixed this round. EPUB reading remains untested end-to-end (environment limitation)." }
+      },
+      "verifications": {
+        "R7-01_shelf_name_parsing": "PASS for the exact original phrasing (\"a shelf called X\"), but a close variant (\"a new shelf called X\") reproduced the same bug class -- see R8-01."
+      },
+      "praise": [
+        "The AI opt-in screen plainly explains what data is sent to NVIDIA, when, and that replies aren't stored.",
+        "'Summarize my thoughts' is a thoughtful, well-scoped AI feature with an honest disclaimer and an auto-generated tag.",
+        "Soundtrack feature is well designed end to end: URL validation, a global playlist library cleanly separated from per-book assignment, all persisting correctly across reloads.",
+        "Shelf deletion and book removal both have reassuring, specific confirmation copy about what is and isn't lost.",
+        "Mobile layout (375px) held up well across Shelves, Statistics, and the Log Reading modal."
+      ],
+      "issues": [
+        {
+          "id": "R8-01",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Shelf-name parsing bug regresses with \"a NEW shelf called X\" phrasing",
+          "steps": "Sent \"put The Fifth Season on a new shelf called epic fantasy\".",
+          "expected": "A shelf named \"Epic Fantasy\" (per R7-01's fix for \"a shelf called X\").",
+          "actual": "'I've created the shelf \"New Shelf Called Epic Fantasy\"...' -- R7-01's fix only covered a bare \"a/the/my shelf called X\", not \"new\"/\"custom\" between the article and the noun.",
+          "root_cause": "Same bug class as R7-01, different phrasing the first fix's regex and prompt example didn't anticipate.",
+          "fix": "Extended the regex backstop (planChecks.ts) to also strip an optional \"new\"/\"custom\" between the article and \"shelf\"/\"collection\"; added a matching few-shot example and sharpened rule 5's wording (planPrompt.ts) to call out descriptor words like \"New\"/\"Custom\" too. Two new unit tests.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/pipeline/planChecks.ts",
+            "backend/src/modules/assistant/domains/books/prompts/planPrompt.ts",
+            "backend/tests/plan-checks.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R8-02",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Assistant adds a book to a previously-mentioned shelf instead of the one just created in the same message",
+          "steps": "Sent \"make a shelf named spooky season reads and add harry potter to it\", in a conversation where a different shelf (\"Cozy Favorites\") had been created a few turns earlier.",
+          "expected": "The new \"Spooky Season Reads\" shelf gets the book.",
+          "actual": "The shelf was created correctly (0 books), but the book was added to the earlier \"Cozy Favorites\" shelf instead -- the model resolved \"it\" to a stale shelf from conversation history rather than the one it had just created in its own current response.",
+          "root_cause": "No existing few-shot example covered \"create a shelf and add a book to it\" (pronoun \"it\") in one message; nothing taught the model to prefer the shelf from its own current response over one from earlier history.",
+          "fix": "Added a matching few-shot example in planPrompt.ts linking the OrganizeShelf's Collection target to the name of the CreateShelf emitted in the same response. (No deterministic code path exists for collection-pronoun resolution -- this is a prompt-only fix, verified live against the real model rather than just a unit test.)",
+          "files": [
+            "backend/src/modules/assistant/domains/books/prompts/planPrompt.ts"
+          ],
+          "status": "Fixed (verified live against the real NVIDIA model)"
+        },
+        {
+          "id": "R8-03",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Assistant answers about the wrong book when a shortened title reference doesn't match",
+          "steps": "After discussing The Fifth Season, sent \"what do you think of harry potter? have i rated it\" (actual title: Harry Potter and the Chamber of Secrets).",
+          "expected": "An answer about Harry Potter.",
+          "actual": "\"You haven't rated The Fifth Season yet.\" -- ignored the named book and kept answering about the previous conversation subject.",
+          "root_cause": "libraryAnswers.ts's answerFromLibrary() identifies which book a question is \"about\" via namedTitles()/mentions(), which (unlike the action-planning path's titleScore()-based entity resolution) had no support for a shortened opening-words reference (\"harry potter\" for a longer title) -- it silently failed to match and fell back to the last-discussed-book referent.",
+          "fix": "mentions() (text/match.ts) now also recognises the title's opening N words as a literal substring match, the same shortcut titleScore() already uses for the planning path. Two new unit tests; verified live against the real model.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/text/match.ts",
+            "backend/tests/assistant-books-unit.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R8-04",
+          "area": "assistant_chat",
+          "severity": "minor",
+          "title": "Assistant leaves a question unanswered after resolving which book is meant",
+          "steps": "Sent \"did I rate the chamber of secrets book?\" (a mid/late-title reference, not the opening words).",
+          "expected": "Resolves which book, then answers whether it was rated.",
+          "actual": "Replied only 'One book matches \"chamber of secrets\": Harry Potter and the Chamber of Secrets (Reading).' and never answered the actual rating question -- the model routed this to SearchLibrary (a pure lookup tool) instead of LibraryQuestion.",
+          "root_cause": "Two layered causes, both found and fixed: (1) the prompt's existing SearchLibrary-vs-LibraryQuestion guidance didn't have an example close enough to this phrasing, so the model misrouted it; (2) even after fixing the routing, libraryAnswers.ts still couldn't identify \"the chamber of secrets book\" as naming the title, since R8-03's opening-words fix only matches a title's *opening* words, not an arbitrary later span.",
+          "fix": "Added a routing few-shot example (planPrompt.ts). Generalized mentions() further: it now also recognises any run of the message's words that substantially covers the title (reusing titleScore()'s own coverage logic), not just its opening -- guarded against short/common-word spans ('the', 'of') false-positiving on unrelated titles. New unit test; verified live end-to-end (now correctly answers \"You rated Harry Potter and the Chamber of Secrets 4 stars.\").",
+          "files": [
+            "backend/src/modules/assistant/domains/books/prompts/planPrompt.ts",
+            "backend/src/modules/assistant/domains/books/text/match.ts",
+            "backend/tests/assistant-books-unit.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R8-05",
+          "area": "book_page_and_details",
+          "severity": "minor",
+          "title": "No Series panel ever appeared, even for well-known series books",
+          "steps": "Added two clearly-series books; checked their detail pages.",
+          "actual": "No Series section appeared on either page.",
+          "investigation": "Not a bug: sibling-series discovery runs as a background job against an external metadata provider the first time a book with no known series is opened (syncRelatedSeriesWorks / getSeriesSiblings, library.service.ts), and is documented as appearing lazily, on a later visit, not immediately. This round's testing didn't revisit the pages afterward, so the discovery job may simply not have completed yet in the observation window.",
+          "status": "Not a bug; no code change"
+        },
+        {
+          "id": "R8-06",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Manual \"Add custom book\" form has no series name/position field",
+          "steps": "Manually added a series book; only \"Parts (optional)\" and \"Chapters (optional)\" fields exist (book-structure fields, not series ordering).",
+          "status": "Feature gap, not fixed this round -- better scoped as its own ticket per AGENTS.md (schema + form changes), not folded into QA bug-fixing"
+        },
+        {
+          "id": "R8-07",
+          "area": "look_and_feel",
+          "severity": "polish",
+          "title": "Reported awkward soundtrack empty-state sentence construction (not reproduced)",
+          "investigation": "Checked BookSoundtrackPanel.tsx's actual JSX: the DOM order is correct (\"No playlists yet.\" then the \"Add one\" link then \"to give this book a soundtrack.\"), which should read correctly to a screen reader. Likely an artifact of how the testing tool flattened the accessibility tree, not a real ordering bug in the markup.",
+          "status": "Not reproduced in source; no code change"
+        },
+        {
+          "id": "R8-08",
+          "area": "reading_experience",
+          "severity": "polish",
+          "title": "No sample/demo EPUB available for testing the reader in this environment",
+          "status": "Testing-environment limitation, not an app defect; EPUB reading and in-reader highlighting remain unverified by black-box testing to date"
+        }
+      ]
     }
   ]
 }

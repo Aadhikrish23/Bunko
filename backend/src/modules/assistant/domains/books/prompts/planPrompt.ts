@@ -38,9 +38,22 @@ const EXAMPLES = [
   ]),
   // "a shelf called X" names only X -- "shelf" and "called" are part of the
   // phrasing, not the name (R7-01: the model once took the whole phrase
-  // "shelf called favorites" as the name).
+  // "shelf called favorites" as the name). "a NEW shelf called X" is the
+  // same -- "new" is part of the phrasing too, not the name (R8-01: a
+  // close variant of R7-01 that slipped past the first fix).
   example('put circe on a shelf called favorites', [
     { type: 'OrganizeShelf', targets: [shelf('Favorites'), book('Circe')], parameters: [] },
+  ]),
+  example('make a new shelf called epic fantasy and add the fifth season', [
+    { type: 'CreateShelf', targets: [shelf('Epic Fantasy')], parameters: [] },
+    { type: 'OrganizeShelf', targets: [shelf('Epic Fantasy'), book('The Fifth Season')], parameters: [] },
+  ]),
+  // "it" after creating a shelf in the SAME message means the shelf just
+  // created, not any shelf mentioned earlier in the conversation (R8-02:
+  // the model once put the book on an unrelated shelf from a prior turn).
+  example('make a shelf named spooky season reads and add harry potter to it', [
+    { type: 'CreateShelf', targets: [shelf('Spooky Season Reads')], parameters: [] },
+    { type: 'OrganizeShelf', targets: [shelf('Spooky Season Reads'), book('Harry Potter')], parameters: [] },
   ]),
   example('take dune off the sci-fi shelf', [
     { type: 'OrganizeShelf', targets: [shelf('Sci-fi'), book('Dune')], parameters: [{ type: 'Boolean', value: false }] },
@@ -48,6 +61,13 @@ const EXAMPLES = [
   example('remove twilight from my library', [{ type: 'RemoveBook', targets: [book('Twilight')], parameters: [] }]),
   example("what's on my want to read list?", [
     { type: 'LibraryQuestion', targets: [], parameters: [{ type: 'Text', value: "what's on my want to read list?" }] },
+  ]),
+  // "did I rate the X book?" asks about a specific book's rating -- a
+  // LibraryQuestion, even with a shortened/partial title -- not a
+  // SearchLibrary (R8-04: the model once answered only "one book matches"
+  // and never went on to say whether it was rated).
+  example('did i rate the chamber of secrets book?', [
+    { type: 'LibraryQuestion', targets: [], parameters: [{ type: 'Text', value: 'did i rate the chamber of secrets book?' }] },
   ]),
   example('what should I read next? something short', [
     { type: 'RecommendBook', targets: [], parameters: [{ type: 'Text', value: 'something short' }] },
@@ -134,7 +154,7 @@ Strict Constraints:
 2. Never output markdown code fences.
 3. Never output values outside the allowed enums.
 4. Preserve the reader's own words (review text, note text) exactly.
-5. If the request names no book or shelf and the conversation doesn't make one clear, omit that target; never invent a name, and never use an action word ("Add", "Rate"), a category word ("Book", "Shelf"), or connecting words like "called"/"named" as part of a name -- "a shelf called favorites" names only "Favorites".
+5. If the request names no book or shelf and the conversation doesn't make one clear, omit that target; never invent a name, and never use an action word ("Add", "Rate"), a category/descriptor word ("Book", "Shelf", "New", "Custom"), or connecting words like "called"/"named" as part of a name -- "a new shelf called favorites" names only "Favorites".
 
 JSON Structure:
 {"intents": [{"type": "<intent type>", "targets": [{"type": "<target type>", "name": "<exact title or shelf name>"}], "parameters": [{"type": "<parameter type>", "value": <string, number or boolean>}]}]}

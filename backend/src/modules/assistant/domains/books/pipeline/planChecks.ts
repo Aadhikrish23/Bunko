@@ -66,9 +66,19 @@ export function normalizePlan(plan: IntentPlan): void {
   }
 }
 
-/** "a shelf called favorites" / "the collection named Cozy Reads" -> "favorites" / "Cozy Reads". */
+/**
+ * "a shelf called favorites" / "the new collection named Cozy Reads" ->
+ * "favorites" / "Cozy Reads". `new`/`custom` between the article and
+ * "shelf"/"collection" is also stripped (R8-01: "a new shelf called X"
+ * slipped past the first version of this, which only allowed for a bare
+ * "a/the/my shelf/collection called").
+ */
 function stripCollectionNamePhrase(name: string): string {
-  return name.replace(/^\s*(a|the|my)?\s*(shelf|collection)\s+(called|named)\s+/i, '').trim() || name;
+  return (
+    name
+      .replace(/^\s*(a|the|my)?\s*(new|custom)?\s*(shelf|collection)\s+(called|named)\s+/i, '')
+      .trim() || name
+  );
 }
 
 /**

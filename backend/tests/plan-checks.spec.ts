@@ -4,7 +4,7 @@ import { IntentTargetType } from '../src/modules/assistant/intent/IntentTargetTy
 import type { IntentPlan } from '../src/modules/assistant/intent/IntentPlan';
 
 // Pure: no server or database needed.
-test.describe('normalizePlan (R7-01)', () => {
+test.describe('normalizePlan (R7-01, R8-01)', () => {
   function planWithShelfName(name: string): IntentPlan {
     return {
       id: 'test-plan',
@@ -30,6 +30,18 @@ test.describe('normalizePlan (R7-01)', () => {
     const plan = planWithShelfName('the collection named Cozy Reads');
     normalizePlan(plan);
     expect(plan.intents[0]!.targets![0]!.name).toBe('Cozy Reads');
+  });
+
+  test('strips "a new shelf called X" down to just X (R8-01)', () => {
+    const plan = planWithShelfName('New Shelf Called Epic Fantasy');
+    normalizePlan(plan);
+    expect(plan.intents[0]!.targets![0]!.name).toBe('Epic Fantasy');
+  });
+
+  test('strips "a custom shelf called X" down to just X', () => {
+    const plan = planWithShelfName('a custom shelf called Spooky Season Reads');
+    normalizePlan(plan);
+    expect(plan.intents[0]!.targets![0]!.name).toBe('Spooky Season Reads');
   });
 
   test('leaves an already-clean shelf name untouched', () => {

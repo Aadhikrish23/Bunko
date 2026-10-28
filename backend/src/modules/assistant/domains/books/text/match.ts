@@ -91,9 +91,36 @@ export function mentions(message: string, title: string): boolean {
   if (msg.includes(` ${main} `)) return main.length >= 3 || /[^\p{Script=Latin}\s\d]/u.test(main);
   const full = bare(title);
   if (full !== main && msg.includes(` ${full} `)) return true;
+  // The title's opening words as a shorthand reference ("harry potter" for
+  // "Harry Potter and the Chamber of Secrets") -- the same shortcut
+  // titleScore() already gives the action-planning path; without it here
+  // too, a shortened reference in a *question* ("have I rated harry
+  // potter?") silently fails to match and falls back to whichever book
+  // the conversation happened to be about last, answering the wrong one.
+  const mainWords = main.split(' ');
+  for (let n = 2; n < mainWords.length; n++) {
+    const opening = mainWords.slice(0, n).join(' ');
+    if (opening.replace(/\s/g, '').length >= 6 && msg.includes(` ${opening} `)) return true;
+  }
+  const msgWords = norm(message).split(' ');
+  // Any other run of the message's words that substantially covers the
+  // title, reusing titleScore()'s own "every word is in the title, and
+  // they say something" coverage logic -- catches a reference to the
+  // title's middle/end ("the chamber of secrets book" for "Harry Potter
+  // and the Chamber of Secrets"), not just its opening (R8-04). Guarded
+  // to skip spans of only short/common words, which would otherwise
+  // false-positive against almost any title sharing "the"/"of"/"and".
+  if (mainWords.length >= 2) {
+    for (let len = 2; len <= mainWords.length; len++) {
+      for (let i = 0; i + len <= msgWords.length; i++) {
+        const span = msgWords.slice(i, i + len);
+        if (!span.some((w) => w.length >= 4)) continue;
+        if (titleScore(span.join(' '), title) >= 75) return true;
+      }
+    }
+  }
   const words = main.split(' ');
   if (main.replace(/\s/g, '').length < 6) return false;
-  const msgWords = norm(message).split(' ');
   for (let i = 0; i + words.length <= msgWords.length; i++) {
     const window = msgWords.slice(i, i + words.length).join(' ');
     if (similarity(window.replace(ARTICLE, ''), main) >= 0.85) return true;
