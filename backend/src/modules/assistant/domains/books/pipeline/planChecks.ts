@@ -56,7 +56,19 @@ export function normalizePlan(plan: IntentPlan): void {
     if (i.type === BookIntent.AddBook) {
       i.targets = (i.targets ?? []).map((t) => (t.type === IntentTargetType.Book ? { ...t, type: IntentTargetType.Library } : t));
     }
+    // The model sometimes takes a whole phrase like "a shelf called
+    // favorites" as the Collection's name instead of just "favorites"
+    // (R7-01) -- a deterministic backstop alongside the prompt's own
+    // instruction and example not to.
+    i.targets = (i.targets ?? []).map((t) =>
+      t.type === IntentTargetType.Collection ? { ...t, name: stripCollectionNamePhrase(t.name) } : t,
+    );
   }
+}
+
+/** "a shelf called favorites" / "the collection named Cozy Reads" -> "favorites" / "Cozy Reads". */
+function stripCollectionNamePhrase(name: string): string {
+  return name.replace(/^\s*(a|the|my)?\s*(shelf|collection)\s+(called|named)\s+/i, '').trim() || name;
 }
 
 /**

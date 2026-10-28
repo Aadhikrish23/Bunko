@@ -1811,6 +1811,82 @@
           "status": "Not fixed (cosmetic, low priority; deferred)"
         }
       ]
+    },
+    {
+      "round": 7,
+      "date": "2026-10-29",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100, ai-service :8001, live NVIDIA provider. Goal: verify all 6 round-6 fixes, then a fresh broad pass over Assistant chat, Shelves, Statistics, and Settings.",
+      "scores": {
+        "library_adding_finding_books": { "score": 8, "reason": "Real-metadata search works well with covers/editions; manual add form is clean. Only friction was the tester's own mis-click." },
+        "shelves_organizing": { "score": 7, "reason": "Sort, Covers/Spines, filter, and shelf creation all work well; marked down for the Assistant's shelf-name parsing bug (R7-01) and no way to rename a shelf once created (R7-04)." },
+        "assistant_chat": { "score": 8, "reason": "Context tracking across turns, proactive suggestions, undo, and graceful gibberish fallback are all excellent. Marked down for the shelf-creation name-parsing bug." },
+        "look_and_feel": { "score": 9, "reason": "Warm, literary aesthetic feels crafted for book lovers; AI disclaimers are tactfully worded." },
+        "speed_reliability": { "score": 7, "reason": "Everything tested worked correctly with fast AI responses (~3-8s); marked down for a possible Add-a-book modal state-reuse issue (not reproduced on direct follow-up testing) and a possible Assistant-panel overflow at intermediate widths (also not reproduced)." },
+        "overall": { "score": 8, "reason": "All 6 round-6 fixes verified working end-to-end. One new real bug found (chat-driven shelf naming) and fixed; two other reports could not be reproduced on direct follow-up." }
+      },
+      "verifications": {
+        "R6-01_status_vocabulary": "PASS -- clarification buttons read exactly Want to Read/Reading/Finished/Did Not Finish; clicking one works.",
+        "R6-02_book_context": "PASS -- correctly tracked the same book across 3 follow-up turns (\"mark it finished\", \"rate it 5 stars\"), and correctly resolved a shortened title (\"klara\") to a different book.",
+        "R6-03_log_reading_default_date": "PASS -- submitted with default date+minutes unchanged, saved successfully.",
+        "R6-04_change_cover_affordance": "PASS -- \"Change cover\" opens an inline editor with Cover photo and Spine photo controls.",
+        "R6-05_summarize_my_thoughts": "PASS -- returned a real AI-generated summary with theme tags within ~8s, on two different books (with and without a star rating).",
+        "R6-06_back_to_shelves_wording": "PASS -- reads \"Back to shelves\"."
+      },
+      "praise": [
+        "The AI 'Summarize my thoughts' feature is genuinely excellent: fast, accurate paraphrasing of the user's own review/notes, sensible extracted theme tags, and an honest AI-generated disclaimer.",
+        "The Assistant's multi-turn context tracking is impressively good -- correctly followed pronoun references ('mark it finished', 'rate it 5 stars') across several turns, resolved a shortened title, and proactively offered a sensible next step ('want me to mark it Finished?').",
+        "Visual design is distinctly book-lover-crafted: the bookshelf metaphor with drag-to-rearrange spines, auto-generated spine art with proper typeset title/author, and warm serif typography throughout.",
+        "Settings page is transparent about what each AI feature sends to NVIDIA and when, building trust.",
+        "The 'undo' command reverted precisely the most recent AI-driven change without touching anything else."
+      ],
+      "issues": [
+        {
+          "id": "R7-01",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Assistant mis-parses \"a shelf called X\" and creates a shelf with the wrong name",
+          "steps": "Opened the Assistant, sent \"put circe on a shelf called favorites\".",
+          "expected": "Creates a shelf named \"Favorites\" and adds Circe to it.",
+          "actual": "\"I've created the shelf 'Shelf Called Favorites' and put Circe on it.\" -- the literal phrase \"shelf called favorites\" became the shelf's name. No way to rename a shelf afterward (only delete), so this was permanent without deleting and recreating.",
+          "root_cause": "The planner prompt had a matching example for \"make a shelf called X\" (bare creation) but none for the combined \"put X on a shelf called Y\" phrasing, and its anti-category-word rule didn't call out connecting words like \"called\"/\"named\"; the model filled the gap by taking the whole phrase as the name.",
+          "fix": "Added a matching few-shot example and sharpened rule 5's wording in planPrompt.ts. Also added a deterministic backstop independent of the model's behavior: normalizePlan (planChecks.ts) now strips a leading \"a/the/my shelf/collection called/named \" prefix from any Collection target name, with a dedicated unit test (plan-checks.spec.ts).",
+          "files": [
+            "backend/src/modules/assistant/domains/books/prompts/planPrompt.ts",
+            "backend/src/modules/assistant/domains/books/pipeline/planChecks.ts",
+            "backend/tests/plan-checks.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R7-02",
+          "area": "library_adding_finding_books",
+          "severity": "minor",
+          "title": "Possible Add-a-book dialog state-reuse issue (not reproduced)",
+          "steps": "Reported: closing/reopening \"Add a book\" sometimes showed the previously-viewed book's detail panel instead of a fresh search.",
+          "actual": "Direct follow-up testing (select a candidate to reach the Book Details view, close via X, reopen Add a book) reliably showed a fresh, empty search box every time -- could not reproduce a stale reopen in AddBookDialog.tsx itself. Likely explanation: the separate BookQuickActionModal (which does intentionally stay open/reappear after adding a book) was mistaken for a reopened AddBookDialog.",
+          "status": "Not reproduced; not fixed"
+        },
+        {
+          "id": "R7-03",
+          "area": "look_and_feel",
+          "severity": "minor",
+          "title": "Possible Assistant panel overflow at intermediate viewport widths (not reproduced)",
+          "steps": "Reported: at some viewport widths between mobile and full desktop, the Assistant panel's content (including status-choice chip buttons) extended past the visible area and couldn't be scrolled into view.",
+          "actual": "Direct follow-up testing at 700px and 1100px widths, including triggering an actual 4-option status clarification, showed the panel and all its chip buttons correctly positioned and wrapped within bounds (measured via getBoundingClientRect, not just visually) at both widths. Could not reproduce; likely a testing-harness viewport-handling quirk, as the original report itself flagged as possible.",
+          "status": "Not reproduced; not fixed"
+        },
+        {
+          "id": "R7-04",
+          "area": "shelves_organizing",
+          "severity": "polish",
+          "title": "No way to rename a custom shelf",
+          "steps": "Looked for a rename control on a custom shelf's tab.",
+          "expected": "Some way to fix a shelf name, especially relevant given R7-01 could (before its fix) create a badly-named shelf with no recovery except delete-and-recreate.",
+          "actual": "Only \"Delete shelf\" and \"Add books\" controls are available.",
+          "status": "Not fixed (feature gap, low priority; deferred)"
+        }
+      ]
     }
   ]
 }

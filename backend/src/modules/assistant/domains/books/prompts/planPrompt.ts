@@ -36,6 +36,12 @@ const EXAMPLES = [
     { type: 'OrganizeShelf', targets: [shelf('Comfort Reads'), book('Piranesi')], parameters: [] },
     { type: 'OrganizeShelf', targets: [shelf('Comfort Reads'), book('Circe')], parameters: [] },
   ]),
+  // "a shelf called X" names only X -- "shelf" and "called" are part of the
+  // phrasing, not the name (R7-01: the model once took the whole phrase
+  // "shelf called favorites" as the name).
+  example('put circe on a shelf called favorites', [
+    { type: 'OrganizeShelf', targets: [shelf('Favorites'), book('Circe')], parameters: [] },
+  ]),
   example('take dune off the sci-fi shelf', [
     { type: 'OrganizeShelf', targets: [shelf('Sci-fi'), book('Dune')], parameters: [{ type: 'Boolean', value: false }] },
   ]),
@@ -128,7 +134,7 @@ Strict Constraints:
 2. Never output markdown code fences.
 3. Never output values outside the allowed enums.
 4. Preserve the reader's own words (review text, note text) exactly.
-5. If the request names no book or shelf and the conversation doesn't make one clear, omit that target; never invent a name, and never use an action word ("Add", "Rate") or a category word ("Book", "Shelf") as a name.
+5. If the request names no book or shelf and the conversation doesn't make one clear, omit that target; never invent a name, and never use an action word ("Add", "Rate"), a category word ("Book", "Shelf"), or connecting words like "called"/"named" as part of a name -- "a shelf called favorites" names only "Favorites".
 
 JSON Structure:
 {"intents": [{"type": "<intent type>", "targets": [{"type": "<target type>", "name": "<exact title or shelf name>"}], "parameters": [{"type": "<parameter type>", "value": <string, number or boolean>}]}]}
