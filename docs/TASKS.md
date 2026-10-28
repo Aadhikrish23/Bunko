@@ -1169,10 +1169,10 @@ Depends on: T-024
 ### T-109 — Cover-photo crop/upscale and NVIDIA-generated spine/cover art
 Depends on: T-108
 
-- [ ] A reader can upload a photo of a book's front and back cover; Bunko crops/extracts and upscales it for use as the book's cover
-- [ ] When no cover or spine image is supplied, Bunko generates a spine image via NVIDIA NIM, titled in the book's own language
-- [ ] `Work.spineImageUrl` and `Work.coverImageSource` (`'metadata' | 'upload' | 'generated'`) added to the schema; `fillCoverInBackground`'s background auto-fill never overwrites an uploaded or generated cover
-- [ ] `docs/DATA_MODEL.md` and `docs/AI_DATA_POLICY.md` updated for the new fields and data flow
+- [x] A reader can upload a photo of a book's front and back cover; Bunko crops/extracts and upscales it for use as the book's cover — available both when adding a book (`AddBookDialog.tsx`) and afterward from the book's detail page (`BookDetailPage.tsx`'s "Change cover", added once round-6 black-box testing found the detail page had no cover-editing affordance at all; backend `PATCH /works/:workId` extended with `coverImageUrl`/`spineImageUrl`, `openapi.yaml` and a backend test updated to match)
+- [x] When no cover or spine image is supplied, Bunko generates a spine image via NVIDIA NIM, titled in the book's own language
+- [x] `Work.spineImageUrl` and `Work.coverImageSource` (`'metadata' | 'upload' | 'generated'`) added to the schema; `fillCoverInBackground`'s background auto-fill never overwrites an uploaded or generated cover
+- [x] `docs/DATA_MODEL.md` and `docs/AI_DATA_POLICY.md` updated for the new fields and data flow
 
 ### T-110 — Merge Library into Shelves
 Depends on: none · SRS: §15, §29.2

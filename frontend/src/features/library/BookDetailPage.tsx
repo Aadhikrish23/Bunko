@@ -1,4 +1,4 @@
-import { ArrowLeft, Clock, FileText, Plus, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Clock, FileText, ImagePlus, Plus, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
@@ -6,7 +6,7 @@ import { Card } from '../../components/ui/Card';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { PageSpinner } from '../../components/ui/Spinner';
-import { useDeleteWork, useUpdateWorkStatus, useWork } from '../../lib/api/works';
+import { useDeleteWork, useUpdateWorkCover, useUpdateWorkStatus, useWork } from '../../lib/api/works';
 import { errorMessage } from '../../lib/error-message';
 import { BookSummaryPanel } from '../ai/BookSummaryPanel';
 import { BookHighlights } from '../notes/BookHighlights';
@@ -18,6 +18,7 @@ import { LogSessionDialog } from '../journal/LogSessionDialog';
 import { AddEditionDialog } from './AddEditionDialog';
 import { BookCover } from './BookCover';
 import { ContinueReadingButton } from './ContinueReadingButton';
+import { CoverPhotoUpload } from './CoverPhotoUpload';
 import { PhysicalSessionPanel } from './PhysicalSessionPanel';
 import { SeriesPanel } from './SeriesPanel';
 import { ShelfAssignmentPanel } from './ShelfAssignmentPanel';
@@ -60,11 +61,13 @@ export function BookDetailPage() {
   const navigate = useNavigate();
   const work = useWork(workId);
   const updateStatus = useUpdateWorkStatus();
+  const updateCover = useUpdateWorkCover();
   const deleteWork = useDeleteWork();
   const [isAddEditionOpen, setIsAddEditionOpen] = useState(false);
   const [attachTo, setAttachTo] = useState<{ editionId: string; format: 'EPUB' | 'PDF' } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [logging, setLogging] = useState(false);
+  const [isEditingCover, setIsEditingCover] = useState(false);
 
   if (work.isLoading) return <PageSpinner />;
   if (work.isError || !work.data) {
@@ -80,12 +83,34 @@ export function BookDetailPage() {
         onClick={() => navigate('/shelves')}
         className="focus-visible:focus-ring flex items-center gap-1.5 self-start text-sm text-paper-600 hover:text-paper-900"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to library
+        <ArrowLeft className="h-4 w-4" /> Back to shelves
       </button>
 
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
         <div className="w-32 sm:w-36 flex-shrink-0">
           <BookCover title={data.title} coverImageUrl={data.coverImageUrl} />
+          <button
+            type="button"
+            onClick={() => setIsEditingCover((v) => !v)}
+            className="focus-visible:focus-ring mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-paper-300 py-1.5 text-xs font-medium text-paper-700 hover:bg-paper-100"
+          >
+            <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+            {isEditingCover ? 'Done' : 'Change cover'}
+          </button>
+          {isEditingCover && (
+            <div className="mt-3 flex gap-3 rounded-md border border-paper-200 bg-paper-50 p-3">
+              <CoverPhotoUpload
+                label="Cover photo"
+                url={data.coverImageUrl}
+                onChange={(url) => updateCover.mutate({ workId: data.id, coverImageUrl: url })}
+              />
+              <CoverPhotoUpload
+                label="Spine photo"
+                url={data.spineImageUrl}
+                onChange={(url) => updateCover.mutate({ workId: data.id, spineImageUrl: url })}
+              />
+            </div>
+          )}
         </div>
         <div className="flex flex-1 flex-col gap-3 w-full">
           <div>

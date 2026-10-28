@@ -8,14 +8,17 @@ test.describe('chooseEndedAt (R5-03)', () => {
     expect(result.getTime()).toBe(now.getTime());
   });
 
-  test('falls back to noon on the chosen day when the session would start before local midnight', () => {
-    // 00:10 local, logging a 45-minute session: subtracting the duration from "now"
-    // would land at 23:25 the day before, which the journal would then show instead
-    // of the day actually picked.
+  test('still uses the live clock for today even when the session would start before local midnight', () => {
+    // 00:10 local, logging a 45-minute session: falling back to noon (as a
+    // past date would) is in the future at this hour and the server would
+    // reject its own form's defaults ("ends in the future") — so "today"
+    // always gets the live clock, even though the computed start (23:25
+    // the day before) means this entry's start technically lands on the
+    // previous calendar day.
     const now = new Date('2026-10-28T00:10:00');
     const result = chooseEndedAt('2026-10-28', 45, now);
-    expect(toDateKey(result)).toBe('2026-10-28');
-    expect(result.getHours()).toBe(12);
+    expect(result.getTime()).toBe(now.getTime());
+    expect(result.getTime()).toBeLessThanOrEqual(now.getTime());
   });
 
   test('a past date always anchors to noon, regardless of duration', () => {

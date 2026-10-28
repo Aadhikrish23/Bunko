@@ -52,6 +52,19 @@ Independent of the two features above.
 | Limits | One chapter per request, at most 120,000 characters; a per-user daily allowance (`AI_DAILY_TRANSLATION_CHARS`, default 200,000 characters) |
 | On revoke | All of the reader's saved translations are deleted at once, and a translation still in progress stops before sending any more text |
 
+## 4. Cover photo processing and AI-generated spine art (Phase 13, T-109)
+
+Independent of the features above; does not require any AI consent toggle
+(an on-request, per-book action with no private reading content involved —
+see the SRS Change Log's 2026-10-28 entry).
+
+| | |
+|---|---|
+| What it processes | For a cover/spine photo upload: the uploaded image only (cropped/upscaled by Bunko's own backend, no third party involved). For spine art generation: the book's title, author(s), and language — sent only when no cover or spine image exists yet for that book. |
+| Where | Cropping/upscaling happens entirely in the Express API. Spine art generation is sent to **NVIDIA NIM** (`integrate.api.nvidia.com`), under NVIDIA's API terms. Account details are never sent. |
+| What is stored by Bunko | The processed cover photo and/or generated spine image, in Bunko's own object storage; `Work.coverImageSource` records whether it came from metadata, an upload, or generation, so a background metadata refresh never overwrites a reader's own upload or a generated image. |
+| On revoke | Not applicable — this isn't gated by an AI consent toggle; a reader can replace or clear a cover/spine photo at any time from the book's detail page. |
+
 ## Safeguards
 
 - `ai-service` is internal-only: reachable only from the Express API with a

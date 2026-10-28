@@ -23,7 +23,7 @@ test('register -> add a book manually -> appears on Shelves -> filter and status
   await page.getByRole('button', { name: 'View book details' }).click();
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Back to library' }).click();
+  await page.getByRole('button', { name: 'Back to shelves' }).click();
   await expect(page.getByRole('button', { name: new RegExp(title) })).toBeVisible();
 
   // The active shelf's own filter narrows to the match.

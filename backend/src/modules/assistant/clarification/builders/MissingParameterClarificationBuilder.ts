@@ -22,19 +22,27 @@ export class MissingParameterClarificationBuilder {
 
     const factLower = missingFact.toLowerCase();
     if (factLower === "rating") {
+      // Bunko ratings are whole stars, 1-5 (SRS §14) -- not a 10-point scale.
       rawOptions = [
-        { id: "10", label: "10 (Masterpiece)", description: "Give highest rating" },
-        { id: "9", label: "9 (Great)", description: "Give great rating" },
-        { id: "8", label: "8 (Very Good)", description: "Give very good rating" },
-        { id: "7", label: "7 (Good)", description: "Give good rating" },
-        { id: "5", label: "5 (Average)", description: "Give average rating" },
+        { id: "5", label: "5 (Loved it)", description: "Give 5 stars" },
+        { id: "4", label: "4 (Really liked it)", description: "Give 4 stars" },
+        { id: "3", label: "3 (It was okay)", description: "Give 3 stars" },
+        { id: "2", label: "2 (Not for me)", description: "Give 2 stars" },
+        { id: "1", label: "1 (Disliked it)", description: "Give 1 star" },
       ];
     } else if (factLower === "status") {
+      // Bunko's own four statuses, spelled out as literals rather than
+      // imported from domains/books/data/status.ts -- this file is "core"
+      // (assistant-core-purity.spec.ts enforces no domain-pack imports
+      // here), so an option's id/label is duplicated by hand instead of
+      // referencing STATUS_LABEL directly. Each one must stay something
+      // toStatus() can resolve, since that's what the execution layer
+      // feeds it through.
       rawOptions = [
-        { id: "Plan to Play", label: "Plan to Play", description: "Set status to Plan to Play" },
-        { id: "Playing", label: "Playing", description: "Set status to Playing" },
-        { id: "Completed", label: "Completed", description: "Set status to Completed" },
-        { id: "Dropped", label: "Dropped", description: "Set status to Dropped" },
+        { id: "Want to Read", label: "Want to Read", description: "Set status to Want to Read" },
+        { id: "Reading", label: "Reading", description: "Set status to Reading" },
+        { id: "Finished", label: "Finished", description: "Set status to Finished" },
+        { id: "Did Not Finish", label: "Did Not Finish", description: "Set status to Did Not Finish" },
       ];
     } else if (factLower === "book" || factLower === "entity") {
       type = ClarificationType.MISSING_ENTITY;

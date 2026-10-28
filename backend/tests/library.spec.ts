@@ -321,6 +321,55 @@ test.describe('editing the finish date (R4-05)', () => {
   });
 });
 
+test.describe('replacing a cover/spine photo after the book is already in the library (T-109)', () => {
+  test('PATCH sets the cover, marks it as an upload, and null clears it back to automatic', async ({ authedRequest }) => {
+    const created = await authedRequest.post('/api/v1/works', {
+      data: { title: `Cover Edit ${Date.now()}`, authors: ['Some Author'] },
+    });
+    const workId = (await created.json()).data.id;
+    expect((await created.json()).data.coverImageUrl).toBeNull();
+
+    const withCover = (
+      await (
+        await authedRequest.patch(`/api/v1/works/${workId}`, {
+          data: { coverImageUrl: 'https://example.com/my-cover.jpg' },
+        })
+      ).json()
+    ).data;
+    expect(withCover.coverImageUrl).toBe('https://example.com/my-cover.jpg');
+
+    const cleared = (
+      await (await authedRequest.patch(`/api/v1/works/${workId}`, { data: { coverImageUrl: null } })).json()
+    ).data;
+    expect(cleared.coverImageUrl).toBeNull();
+  });
+
+  test('PATCH sets the spine photo independently of the cover', async ({ authedRequest }) => {
+    const created = await authedRequest.post('/api/v1/works', {
+      data: { title: `Spine Edit ${Date.now()}`, authors: ['Some Author'] },
+    });
+    const workId = (await created.json()).data.id;
+
+    const updated = (
+      await (
+        await authedRequest.patch(`/api/v1/works/${workId}`, {
+          data: { spineImageUrl: 'https://example.com/my-spine.jpg' },
+        })
+      ).json()
+    ).data;
+    expect(updated.spineImageUrl).toBe('https://example.com/my-spine.jpg');
+    expect(updated.coverImageUrl).toBeNull();
+  });
+
+  test('a non-URL value is rejected', async ({ authedRequest }) => {
+    const created = await authedRequest.post('/api/v1/works', {
+      data: { title: `Bad Cover ${Date.now()}`, authors: ['Some Author'] },
+    });
+    const workId = (await created.json()).data.id;
+    expect((await authedRequest.patch(`/api/v1/works/${workId}`, { data: { coverImageUrl: 'not-a-url' } })).status()).toBe(400);
+  });
+});
+
 
 test('library search matches each word in the title or an author (R4-09)', async ({ authedRequest }) => {
   const title = `Klara and the Sun ${Date.now()}`;

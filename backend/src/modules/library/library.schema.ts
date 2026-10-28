@@ -39,6 +39,11 @@ export const updateWorkSchema = z
     status: readingStatusEnum.optional(),
     // When it was finished (SRS §18.2). Null leaves it unknown ("read it years ago").
     finishedAt: z.coerce.date().nullable().optional(),
+    // A reader's own cover/spine photo, added or replaced after the book
+    // is already in their library (T-109) -- not just at creation time.
+    // Null clears it back to automatic (metadata lookup / generation).
+    coverImageUrl: z.string().url().nullable().optional(),
+    spineImageUrl: z.string().url().nullable().optional(),
   })
   .strict();
 

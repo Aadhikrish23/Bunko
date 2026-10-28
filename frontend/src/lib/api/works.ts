@@ -93,6 +93,22 @@ export function useUpdateWorkStatus() {
   });
 }
 
+/** Replacing or clearing a book's cover/spine photo after it's already in the library (T-109). */
+export function useUpdateWorkCover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workId, coverImageUrl, spineImageUrl }: { workId: string; coverImageUrl?: string | null; spineImageUrl?: string | null }) =>
+      api.patch<Work>(`/works/${workId}`, {
+        ...(coverImageUrl !== undefined ? { coverImageUrl } : {}),
+        ...(spineImageUrl !== undefined ? { spineImageUrl } : {}),
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['works'] });
+      queryClient.invalidateQueries({ queryKey: ['works', variables.workId] });
+    },
+  });
+}
+
 export function useDeleteWork() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -24,7 +24,8 @@ export class ClarificationTemplateRegistry {
     this.templates.set(ClarificationType.MISSING_PARAMETER, (input) => {
       const fact = input.missingFact?.toLowerCase() || "";
       if (fact === "rating") {
-        return "What rating (1-10) would you like to give?";
+        // Bunko ratings are whole stars, 1-5 (SRS §14) -- not a 10-point scale.
+        return "What rating (1-5) would you like to give?";
       }
       if (fact === "status") {
         return "What status should I set for that book?";

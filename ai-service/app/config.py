@@ -35,16 +35,23 @@ def get_settings() -> Settings:
         database_url=database_url,
         internal_token=token,
         nvidia_api_key=os.environ.get("NVIDIA_API_KEY") or None,
-        nvidia_model=os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
+        # `or default`, not `.get(key, default)` -- docker-compose.yml's
+        # `${VAR:-}` passes these in as an empty string (not an absent key)
+        # whenever the host doesn't set them, and .get()'s default only
+        # kicks in for an absent key, so an empty string would otherwise
+        # silently defeat every one of these defaults (observed live: an
+        # unset NVIDIA_BASE_URL reached httpx.Client as "", raising
+        # UnsupportedProtocol on every request).
+        nvidia_model=os.environ.get("NVIDIA_MODEL") or "nvidia/nemotron-3-super-120b-a12b",
         # Tried in order after the primary model, same list the Express API's own
         # NVIDIA client falls back to (backend/src/modules/assistant/config/AIConfig.ts) --
         # a model can 404 ("not found for account") or sit unhealthy independently of
         # the others on NVIDIA's shared endpoint.
         nvidia_fallback_models=tuple(
             m.strip()
-            for m in os.environ.get("NVIDIA_FALLBACK_MODELS", "openai/gpt-oss-20b").split(",")
+            for m in (os.environ.get("NVIDIA_FALLBACK_MODELS") or "openai/gpt-oss-20b").split(",")
             if m.strip()
         ),
-        nvidia_base_url=os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
-        embedding_model=os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"),
+        nvidia_base_url=os.environ.get("NVIDIA_BASE_URL") or "https://integrate.api.nvidia.com/v1",
+        embedding_model=os.environ.get("EMBEDDING_MODEL") or "BAAI/bge-small-en-v1.5",
     )

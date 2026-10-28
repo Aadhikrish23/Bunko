@@ -1676,6 +1676,141 @@
           "status": "Fixed"
         }
       ]
+    },
+    {
+      "round": 6,
+      "date": "2026-10-29",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100, ai-service :8001 (newly set up for this round: bunko_ai DB role created, AI_SERVICE_URL/TOKEN/NVIDIA_MODEL configured) with the live NVIDIA provider. Focus: Phase 13 (T-106-T-112) -- Shelves/Library merge, responsive shelf rows + sort, cover/spine upload and generation, floating Assistant launcher, and the Claude-to-NVIDIA migration.",
+      "scores": {
+        "first_impression_onboarding": { "score": 8, "reason": "Clean signup, a clear empty-state 3-step guide, no stray Library references anywhere in nav." },
+        "library_adding_finding_books": { "score": 8, "reason": "Search returns real metadata + covers fast; manual add is complete and always worked, including in the populated-shelf view where the round's own Add-a-book button was found freshly dead and fixed first." },
+        "book_page_and_details": { "score": 6, "reason": "Well laid out, but there was no way to add/change a cover photo once a book already existed -- fixed this round." },
+        "reading_experience": { "score": 6, "reason": "Physical-book session timer works cleanly; EPUB/PDF reader not exercised this round (no file to upload)." },
+        "tracking_journal_statistics": { "score": 7, "reason": "Statistics page is rich and accurate; the Log reading dialog's own default date failed its own future-date validation right after local midnight -- fixed this round." },
+        "shelves_organizing": { "score": 8, "reason": "Status tabs, per-shelf search, and the new Sort by (Title/Author/Date added/Status/Rating) all produced correct orderings; Covers/Spines toggle, drag-and-drop, and the keyboard move-arrows fallback all work and persist; mobile width lays out cleanly." },
+        "notes_highlights_reviews": { "score": 7, "reason": "Rating, review, and notes all worked and persisted; 'Summarize my thoughts' failed every time due to environment/infra gaps -- fixed this round." },
+        "assistant_chat": { "score": 6, "reason": "Floating launcher appears on every page, opens as a same-URL overlay, keeps history across navigation; but offered status quick-replies in video-game vocabulary (Plan to Play/Playing/Completed/Dropped) that it then rejected as invalid, and lost book context one turn later -- fixed this round." },
+        "look_and_feel": { "score": 9, "reason": "Warm, book-focused visual language; generated spine art looks genuinely good and varies by book." },
+        "speed_reliability": { "score": 7, "reason": "Fast and reliable across ~100 actions; dinged by the two AI-feature failures and the date-validation bug, all fixed this round." },
+        "overall": { "score": 7, "reason": "Strong craft and a genuinely useful Assistant for the common case, with several real bugs found and fixed in this round: a dead Add-a-book button, broken AI summaries (two independent infra causes), a broken assistant status flow, a midnight-adjacent date-validation bug, and a missing post-creation cover-upload affordance." }
+      },
+      "praise": [
+        "The Shelves/Library merge's 'Add a book' regression (dead button once a shelf had any books) was confirmed truly fixed after the round's own fix landed: tested explicitly with 3-4 books already present, worked every time.",
+        "Sort by Title/Author/Date added/Status all produced correctly-ordered results verified by eye against the real data -- no silent no-ops or scrambled orders.",
+        "AI-generated spine art looks genuinely good and varies sensibly by book, making the Spines view usable immediately for new users with no cover photos.",
+        "Drag-and-drop reordering has a real keyboard-accessible fallback (explicit 'Move ... later/earlier' buttons), and the new order survives a full page reload.",
+        "The floating Assistant is consistently present across Shelves/Journal/Statistics/Settings/book-detail, opens as a same-URL overlay, keeps conversation history across page navigation and close/reopen, and answered a basic library question fast and correctly."
+      ],
+      "issues": [
+        {
+          "id": "R6-01",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Assistant offers status quick-replies it then rejects as invalid",
+          "steps": "Opened the Assistant and sent \"im reading Six of Crows\". It asked \"What status should I set for that book?\" with buttons labeled Plan to Play / Playing / Completed / Dropped. Clicked \"Playing\".",
+          "expected": "Either the button applies a valid book status, or the buttons are labeled with Bunko's actual statuses (Want to Read/Reading/Finished/Did Not Finish).",
+          "actual": "The assistant replied \"I'm not sure which status you mean for Six of Crows. The choices are Want to Read, Reading, Finished and Did Not Finish\" -- the UI offered buttons the backend didn't accept.",
+          "root_cause": "This assistant engine was adapted from a generic (originally video-game-backlog) template; `MissingParameterClarificationBuilder.ts` and `ClarificationTemplateRegistry.ts` (both part of the enforced domain-agnostic \"core\", per `assistant-core-purity.spec.ts`) still had the original game-tracker vocabulary (\"Plan to Play\"/\"Playing\"/\"Completed\"/\"Dropped\", and a 1-10 rating scale) hardcoded as fallback option labels, never updated for Bunko's own four statuses and 1-5 star rating.",
+          "fix": "Replaced the hardcoded options with Bunko's real statuses and a 1-5 rating scale, as literal values (not imported from `domains/books/`, to respect the enforced core/pack import boundary) -- each status id round-trips correctly through `toStatus()`. Also fixed the matching \"1-10\" wording in `ClarificationTemplateRegistry.ts`'s question text.",
+          "files": [
+            "backend/src/modules/assistant/clarification/builders/MissingParameterClarificationBuilder.ts",
+            "backend/src/modules/assistant/clarification/ClarificationTemplateRegistry.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R6-02",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Assistant loses track of which book was just discussed after a failed status reply",
+          "steps": "Continuing from R6-01: after the rejected \"Playing\" click, typed \"Reading\" as free text.",
+          "actual": "\"I'm not sure which book you mean, so I didn't change anything.\" -- lost the \"Six of Crows\" context from two messages earlier; only succeeded once the full \"Set Six of Crows to Reading\" was typed.",
+          "expected": "The assistant should still know which book the conversation was about.",
+          "root_cause": "Same underlying cause as R6-01: clicking a button with a status id `toStatus()` couldn't resolve (e.g. \"Playing\") executed the tool as a direct failure rather than staying in the clarification flow, clearing pending-clarification state; the next free-text message then re-entered full planning from scratch with no \"last book\" memory outside an active clarification.",
+          "fix": "Verified resolved as a consequence of R6-01's fix: with the corrected button labels, clicking a status option now resolves directly (`toStatus(\"Reading\")` succeeds), so the failure path that caused context loss is no longer reached via the normal click UI. Confirmed live end-to-end via the real chat endpoint: \"im reading Six of Crows\" -> clarification -> clicking \"Reading\" -> \"I've marked Six of Crows as Reading.\" in one more turn.",
+          "files": [
+            "backend/src/modules/assistant/clarification/builders/MissingParameterClarificationBuilder.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R6-03",
+          "area": "tracking_journal_statistics",
+          "severity": "major",
+          "title": "Log reading dialog's own default date fails its own future-date validation",
+          "steps": "Journal > Log reading > picked a book > left Day at its pre-filled default (today) and Minutes at default 30 > submitted.",
+          "expected": "A freshly-opened form's own default values should submit successfully.",
+          "actual": "\"A logged session can't end in the future\" blocked submission, even though the shown date was today. Manually decrementing the day by one let it submit.",
+          "root_cause": "`chooseEndedAt` (R5-03's fix) fell back to noon on the chosen day whenever a short session's computed start would land before local midnight -- correct for a genuinely past day, but wrong for *today* right after local midnight, when noon hasn't happened yet and is therefore in the future. The round's own testing window happened to cross local midnight.",
+          "fix": "`chooseEndedAt` now always uses the live clock for \"today\" (never in the future by definition), and only falls back to noon for a day that isn't today. The one narrow trade-off -- a midnight-spanning session's computed start technically landing on the previous calendar day -- is accepted as the lesser, honest issue versus a dialog that rejects its own defaults.",
+          "files": [
+            "frontend/src/features/journal/log-session-date.ts",
+            "frontend/src/features/journal/log-session-date.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R6-04",
+          "area": "book_page_and_details",
+          "severity": "major",
+          "title": "No way to upload/edit a cover photo after a book is already in the library",
+          "steps": "Opened detail pages for a book with a real fetched cover and a custom-added book with a placeholder cover. No upload affordance anywhere on the page; \"Add edition\" is unrelated to cover art.",
+          "expected": "Some way to add/replace a cover photo from the book detail page, matching the uploader already present at creation time.",
+          "actual": "Cover photo upload was only reachable once, at creation time, via manual add -- a real gap against T-109's own \"a reader can upload a photo of a book's front and back cover\" acceptance criterion.",
+          "root_cause": "`BookDetailPage.tsx` never got a cover-editing affordance, and the backend's `PATCH /works/:workId` only ever accepted `status`/`finishedAt` -- there was no API surface to change a cover/spine post-creation at all.",
+          "fix": "Added a \"Change cover\" control to `BookDetailPage.tsx` reusing the existing `CoverPhotoUpload` component (cover and spine, independently). Backend: `updateWorkSchema`/`updateWork` extended to accept `coverImageUrl`/`spineImageUrl`; setting a cover marks `coverImageSource: 'upload'` (so the background metadata auto-fill never overwrites it), clearing it (null) resets to `'metadata'` so auto-fill can try again. `openapi.yaml` and a new backend test cover the endpoint; verified live (the \"Change cover\" panel renders correctly and the PATCH endpoint round-trips set/clear for both fields).",
+          "files": [
+            "frontend/src/features/library/BookDetailPage.tsx",
+            "frontend/src/lib/api/works.ts",
+            "backend/src/modules/library/library.schema.ts",
+            "backend/src/modules/library/library.service.ts",
+            "docs/openapi.yaml",
+            "backend/tests/library.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R6-05",
+          "area": "notes_highlights_reviews",
+          "severity": "minor",
+          "title": "\"Summarize my thoughts\" AI feature consistently failed",
+          "steps": "On a book's detail page, with a rating/review/notes present, clicked \"Summarize my thoughts\" three times.",
+          "expected": "A generated summary (the same NVIDIA-backed ai-service the main Assistant chat uses successfully).",
+          "actual": "Every attempt (3/3) ended with \"The AI service could not complete this request.\" The main Assistant chat worked fine in the same session, pointing at something specific to this feature's call path rather than the provider being globally down.",
+          "root_cause": "Two independent local-environment gaps, found by tracing the actual failure end to end: (1) `ai-service`'s DB role (`bunko_ai`, `ai-service/scripts/create_ai_role.sql`) had never been created in this dev database, so any DB-backed feature (summary, insights, recommendations -- not the DB-free assistant chat) failed; (2) once that was fixed, the feature still failed because `ai-service`'s Docker named volume (`/home/bunko/.cache`, for the embedding model) was first created root-owned (the Dockerfile never pre-created/chowned it), so the unprivileged container user couldn't write the downloaded model, cascading into a confusing generic \"AI provider could not be reached\" (an `httpx.UnsupportedProtocol` mis-wrapped by a broad `except TransportError`) once a third, separate bug was also found and fixed: `docker-compose.yml`'s `${VAR:-}` syntax passes an *empty string*, not an absent key, for any unset optional NVIDIA_* var, which defeated `config.py`'s own `os.environ.get(key, default)` fallback (the key existed, just empty) -- `NVIDIA_BASE_URL` ended up `\"\"`, not its documented default.",
+          "fix": "Ran the documented `create_ai_role.sql` setup step. Dockerfile now creates and chowns `/home/bunko/.cache` before the named volume ever mounts there. `ai-service/app/config.py` now uses `os.environ.get(key) or default` instead of `.get(key, default)` for every optional NVIDIA_*/EMBEDDING_MODEL setting, so an empty-but-present env var (as `docker-compose.yml`'s `${VAR:-}` produces) falls through to the documented default correctly. Verified live end-to-end: direct `/internal/summary` call and the full UI flow (rate a book, click Summarize my thoughts) both return a real generated summary.",
+          "files": [
+            "ai-service/Dockerfile",
+            "ai-service/app/config.py"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R6-06",
+          "area": "book_page_and_details",
+          "severity": "polish",
+          "title": "\"Back to library\" wording left over from the Shelves/Library merge",
+          "steps": "Open any book's detail page.",
+          "expected": "Consistent wording now that Library is merged into Shelves (T-110).",
+          "actual": "The back button already navigated to /shelves (fixed in T-110) but still read \"Back to library\".",
+          "fix": "Changed to \"Back to shelves\"; updated the matching e2e assertion.",
+          "files": [
+            "frontend/src/features/library/BookDetailPage.tsx",
+            "frontend/e2e/library.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R6-07",
+          "area": "speed_reliability",
+          "severity": "polish",
+          "title": "Brief cover-image loading flash after reload on Shelves",
+          "steps": "Reordered books via arrow button, then reloaded /shelves.",
+          "actual": "For about 1-2 seconds after reload, some covers showed blank before populating -- resolved on its own, cosmetic only.",
+          "status": "Not fixed (cosmetic, low priority; deferred)"
+        }
+      ]
     }
   ]
 }

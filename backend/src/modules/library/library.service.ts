@@ -551,6 +551,23 @@ export async function updateWork(userId: string, workId: string, input: UpdateWo
       data: { status, finishedAt },
     });
   }
+  // Cover/spine art lives on the shared Work row, not this user's membership
+  // (T-109) -- a reader replacing a cover after the book was already added,
+  // not just at creation time. Clearing a cover (null) resets its source to
+  // 'metadata' so the background auto-fill (fillCoverInBackground) is
+  // eligible to try again; setting one marks it 'upload' so that job never
+  // overwrites it.
+  if (input.coverImageUrl !== undefined || input.spineImageUrl !== undefined) {
+    await prisma.work.update({
+      where: { id: existing.workId },
+      data: {
+        ...(input.coverImageUrl !== undefined
+          ? { coverImageUrl: input.coverImageUrl, coverImageSource: input.coverImageUrl ? 'upload' : 'metadata' }
+          : {}),
+        ...(input.spineImageUrl !== undefined ? { spineImageUrl: input.spineImageUrl } : {}),
+      },
+    });
+  }
   return getUserWorkOrThrow(userId, workId);
 }
 

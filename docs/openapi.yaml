@@ -203,6 +203,14 @@ paths:
                   format: date-time
                   nullable: true
                   description: "When the book was finished; only for a FINISHED book, never in the future. Null means not known. Becoming FINISHED without it is dated now."
+                coverImageUrl:
+                  type: string
+                  nullable: true
+                  description: "A reader's own cover photo (T-109), added or replaced after the book is already in their library. Null clears it back to automatic (metadata lookup, or generation once T-109's spine generation re-fills it)."
+                spineImageUrl:
+                  type: string
+                  nullable: true
+                  description: "A reader's own spine photo (T-109), added or replaced after the book is already in their library. Null clears it back to automatic (NVIDIA-generated spine art)."
       responses:
         "200": { description: Updated }
         "400": { description: "A future date, or a date on a book that isn't finished" }
