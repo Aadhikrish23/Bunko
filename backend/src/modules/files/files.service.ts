@@ -6,6 +6,7 @@ import { prisma } from '../../config/prisma';
 import { s3Client, S3_BUCKET } from '../../config/s3';
 import { AppError } from '../../lib/app-error';
 import { redisConnection } from '../../lib/queue';
+import { sniffMimeType } from '../../lib/sniff-mime-type';
 import type { RequestUploadUrlInput } from './files.schema';
 
 // Signed URLs are time-limited (T-024) — the pending-upload record we
@@ -67,22 +68,6 @@ export interface DigitalFileDto {
   mimeType: string;
   sizeBytes: number;
   checksum: string;
-}
-
-// First-line content sniffing at confirm time (T-024) — never trust the
-// client-reported MIME type (CODING_STANDARDS.md §4). Deeper
-// format-specific structural validation happens at import/indexing time
-// (T-025/T-026), which can degrade gracefully; this check just rejects
-// content that plainly isn't a ZIP (EPUB) or PDF at all.
-function sniffMimeType(buffer: Buffer): string | null {
-  const isZip = buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04;
-  if (isZip) {
-    return 'application/epub+zip';
-  }
-  if (buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-') {
-    return 'application/pdf';
-  }
-  return null;
 }
 
 export async function confirmUpload(userId: string, fileId: string): Promise<DigitalFileDto> {

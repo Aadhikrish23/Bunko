@@ -24,6 +24,14 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRY: z.string().default('30d'),
   FRONTEND_ORIGIN: z.string().default('http://localhost:5173'),
   USER_STORAGE_QUOTA_BYTES: z.coerce.number().default(2_147_483_648),
+  // Cover photos/generated art (T-108) — a much smaller allowance than
+  // digital book files, and tracked separately.
+  USER_IMAGE_QUOTA_BYTES: z.coerce.number().default(52_428_800),
+  // Base URL images are served back from (bucket + the public covers/
+  // prefix must allow anonymous reads there — ARCHITECTURE.md §8).
+  // Defaults to S3_ENDPOINT for local MinIO; set to a CDN/public host in
+  // production.
+  S3_PUBLIC_URL_BASE: z.string().optional(),
   SESSION_IDLE_TIMEOUT_MINUTES: z.coerce.number().default(5),
   SESSION_GRACE_WINDOW_MINUTES: z.coerce.number().default(15),
   MAPPING_CONFIDENCE_THRESHOLD: z.coerce.number().default(0.6),

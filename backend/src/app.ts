@@ -17,6 +17,7 @@ import { readingSessionsRouter } from './modules/reading-sessions/reading-sessio
 import { journalRouter } from './modules/journal/journal.routes';
 import { statisticsRouter } from './modules/statistics/statistics.routes';
 import { filesRouter } from './modules/files/files.routes';
+import { imagesRouter } from './modules/images/images.routes';
 import { readerRouter } from './modules/reader/reader.routes';
 import { continuityRouter } from './modules/continuity/continuity.routes';
 import { annotationsForEditionRouter, annotationsRouter } from './modules/annotations/annotations.routes';
@@ -93,6 +94,7 @@ export function createApp(): Express {
   app.use('/api/v1/journal', journalRouter);
   app.use('/api/v1/statistics', statisticsRouter);
   app.use('/api/v1/files', filesRouter);
+  app.use('/api/v1/images', imagesRouter);
   app.use('/api/v1/reading-journeys', continuityRouter);
 
   app.use(notFoundHandler);

@@ -408,6 +408,51 @@ paths:
               schema: { $ref: "#/components/schemas/DigitalFileResponse" }
         "422": { description: File failed content/type validation }
 
+  /images/upload-url:
+    post:
+      summary: Request a signed URL to upload an image (cover photo, T-108)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileName, mimeType, sizeBytes]
+              properties:
+                fileName: { type: string }
+                mimeType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+                sizeBytes: { type: integer }
+      responses:
+        "200":
+          description: Signed upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      imageId: { type: string, format: uuid }
+                      uploadUrl: { type: string }
+        "413": { description: Exceeds size limit or remaining image quota }
+
+  /images/{imageId}/confirm:
+    post:
+      summary: Confirm and validate an uploaded image
+      parameters:
+        - in: path
+          name: imageId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Image validated and ready to use as a cover/spine (a stable public URL)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadedImageResponse" }
+        "422": { description: Image failed content/type validation }
+
   /editions/{editionId}/reader-manifest:
     get:
       summary: Get everything the client Reader needs to open a digital edition
@@ -2237,6 +2282,18 @@ components:
           type: object
           properties:
             id: { type: string, format: uuid }
+            mimeType: { type: string }
+            sizeBytes: { type: integer }
+            checksum: { type: string }
+
+    UploadedImageResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            url: { type: string, description: "Stable public URL, usable directly as an <img> src" }
             mimeType: { type: string }
             sizeBytes: { type: integer }
             checksum: { type: string }

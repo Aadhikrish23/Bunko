@@ -60,6 +60,7 @@ backend/src/modules/
 ├── metadata/          # external book metadata search, Open Library (SRS §16)
 ├── editions/          # editions, copies, digital files
 ├── files/             # upload, storage, signed URLs (SRS §24)
+├── images/            # cover-photo uploads, public URLs (T-108)
 ├── reader/            # EPUB/PDF parsing, indexing (SRS §10, §11.6)
 ├── continuity/        # cross-edition mapping engine (SRS §11.7-11.9)
 ├── reading-sessions/  # session lifecycle (SRS §12)
@@ -227,6 +228,25 @@ decision, recorded now so later work doesn't re-litigate it:
   - Conversation state is in process memory (the last six exchanges), so
     it suits one API instance; a second instance would need a shared
     store.
+- **Cover photo upload & generated art (Phase 13, T-108/T-109).**
+  `backend/src/modules/images/` follows the same upload-url/confirm
+  pattern as `files/` (T-024) — content-sniffed server-side
+  (`lib/sniff-mime-type.ts`, shared between both modules and extended
+  with JPEG/PNG/WebP signatures), its own `UploadedImage` table and
+  storage quota (`USER_IMAGE_QUOTA_BYTES`, separate from the digital-file
+  quota, since a `DigitalFile`'s relation to a book `Copy` and its quota
+  accounting are book-file-specific). Unlike `DigitalFile`, an uploaded
+  image is served straight back to the browser: objects are stored under
+  a `covers/` key prefix with anonymous read access configured on that
+  prefix only (`docker-compose.yml`'s `createbuckets` one-shot sets this
+  for local MinIO via `mc anonymous set download`; a production bucket
+  needs the equivalent policy, or `S3_PUBLIC_URL_BASE` pointed at a CDN
+  in front of it), and the resulting stable public URL is computed once
+  at confirm time and stored on `UploadedImage.publicUrl` — no signed-URL
+  refresh logic on the read side, matching how `Work.coverImageUrl`
+  already behaves for externally-sourced cover art. T-109 builds the
+  crop/upscale and NVIDIA-generated spine-art pipeline on top of this,
+  writing its results back through the same upload path.
 
 ## 9. Folder Structure (top level)
 

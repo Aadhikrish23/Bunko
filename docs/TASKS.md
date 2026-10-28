@@ -1161,9 +1161,9 @@ Depends on: T-106, T-087 – T-092 · SRS: §20.5
 ### T-108 — Generic image-upload backend capability
 Depends on: T-024
 
-- [ ] New module (`backend/src/modules/images/`) accepts image uploads via the existing upload-url/confirm pattern (`files.service.ts`'s shape), with its own MIME allowlist and magic-byte sniffing for JPEG/PNG/WebP
-- [ ] Uploaded images resolve to a stable, publicly fetchable URL (not exposed by the existing `files` module, which has no read-URL capability today)
-- [ ] New `UploadedImage` Prisma model with its own storage-quota accounting, separate from the digital-file quota
+- [x] New module (`backend/src/modules/images/`) accepts image uploads via the existing upload-url/confirm pattern (`files.service.ts`'s shape), with its own MIME allowlist and magic-byte sniffing for JPEG/PNG/WebP — *`backend/tests/images.spec.ts`, `backend/tests/sniff-mime-type.spec.ts`, run and passing; full upload-url → PUT → confirm → public GET cycle verified manually against live MinIO*
+- [x] Uploaded images resolve to a stable, publicly fetchable URL (not exposed by the existing `files` module, which has no read-URL capability today) — a `covers/` bucket prefix with anonymous read access
+- [x] New `UploadedImage` Prisma model with its own storage-quota accounting, separate from the digital-file quota
 
 ### T-109 — Cover-photo crop/upscale and NVIDIA-generated spine/cover art
 Depends on: T-108

@@ -51,6 +51,7 @@ model User {
   aiConsent         AiConsent?
   aiEmbeddings      AiEmbedding[]
   translations      ChapterTranslation[]
+  uploadedImages    UploadedImage[]
 }
 
 model Author {
@@ -206,6 +207,28 @@ model DigitalFile {
   uploadedAt   DateTime @default(now())
 
   copy Copy?
+}
+
+// A reader-uploaded image (cover photos, T-108) — separate from DigitalFile,
+// which is relationally tied to a book Copy and whose storage quota is
+// book-file-specific. Unlike DigitalFile, this is served back to the
+// client: publicUrl is computed once at confirm time (T-109's
+// fillCoverInBackground-style guard reads Work.coverImageSource, not
+// this table) and stored directly, since it never changes for a given
+// object.
+model UploadedImage {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  storageKey   String // S3 object key under the public covers/ prefix
+  publicUrl    String
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  checksum     String // for dedup / integrity check, scoped per user
+  uploadedAt   DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Cumulative progress/history for a Work — SRS §4 "Reading Journey"

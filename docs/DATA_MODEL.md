@@ -38,6 +38,7 @@ model User {
   readingJourneys ReadingJourney[]
   copies          Copy[]
   sessions        ReadingSession[]
+  uploadedImages  UploadedImage[]
 }
 
 model Author {
@@ -184,6 +185,25 @@ model DigitalFile {
   uploadedAt    DateTime @default(now())
 
   copy Copy?
+}
+
+// A reader-uploaded image (cover photos, T-108) — separate from
+// DigitalFile, whose storage quota and relation to Copy are
+// book-file-specific. Served directly to the client, so publicUrl is
+// computed once at confirm time and stored.
+model UploadedImage {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  storageKey   String   // S3 object key under the public covers/ prefix
+  publicUrl    String
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  checksum     String   // for dedup / integrity check, scoped per user
+  uploadedAt   DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Cumulative progress/history for a Work — SRS §4 "Reading Journey"
