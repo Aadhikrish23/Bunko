@@ -161,7 +161,7 @@ export class AIRuntime {
           });
         }
 
-        if (intentPlan) domain.normalizePlan(intentPlan);
+        if (intentPlan) domain.normalizePlan(intentPlan, planText);
 
         // Only act on things the user named or clearly referred to.
         let grounding: GroundingResult = { ungrounded: 0, skippedMissing: [], keptReviews: [] };

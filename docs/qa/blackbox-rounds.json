@@ -2100,6 +2100,107 @@
           "status": "Feature gap, not fixed this round -- a security-adjacent feature needing its own ticket (current-password verification, backend endpoint)"
         }
       ]
+    },
+    {
+      "round": 10,
+      "date": "2026-10-29",
+      "tester": "Meera, book-lover persona (code-blind agent; browser only)",
+      "environment": "Local: frontend :5174, API :3100, ai-service :8001, live NVIDIA provider. Final round of this series: stress-test the round-9 shelf-targeting fix, confirm round-9's opinion-question fix, and a final broad regression pass across the whole app.",
+      "scores": {
+        "library_adding_finding_books": { "score": 8, "reason": "Manual add flow is quick and reliable with good optional fields; no issues this round." },
+        "shelves_organizing": { "score": 7, "reason": "Sort, filter, covers/spines, drag-reorder all solid; docked for the assistant silently dropping \"Shelf\" from a reader-chosen name like \"Alpha Shelf\" -- fixed this round." },
+        "assistant_chat": { "score": 6, "reason": "Both round-9 fixes verified solid even under a 3-shelves-deep stress test; but a new title-parsing bug (titles containing \"and\" + trailing \"to it\") blocked two consecutive attempts before a workaround was found -- fixed this round, along with the shelf-name truncation." },
+        "notes_highlights_reviews": { "score": 7, "reason": "Review/rating/notes all save correctly; AI summary gives genuinely good output but with no progress/wait messaging during a ~50s generation." },
+        "look_and_feel": { "score": 9, "reason": "Distinctive, warm, reader-focused; doesn't feel templated anywhere." },
+        "speed_reliability": { "score": 6, "reason": "Most interactions snappy; docked for the long unindicated AI-summary wait and a mobile layout overlap on the book detail page -- both addressed this round (the overlap fixed in code; the wait-indicator left as a future UX polish item, not attempted this round)." },
+        "overall": { "score": 7, "reason": "Both verification items passed (shelf-targeting holds under a harder 3-shelf stress test; opinion questions are book-aware). New issues found this round were narrow and all but one fully fixed: a title-parsing edge case, a shelf-name-truncation regression (traced through two separate layers -- plan normalization and a tool-execution helper -- both over-stripping the word \"shelf\"), and a mobile layout overlap. A good place to end this testing series." }
+      },
+      "verifications": {
+        "R9-01_shelf_targeting_stress_test": "PASS -- created three shelves (Alpha, Beta, Gamma) in sequence in one conversation; verified via the actual Shelves page (not chat text) that each book landed on exactly the shelf it should have, no cross-contamination",
+        "R9-02_opinion_question_book_aware": "PASS -- named the exact book asked about rather than a generic fallback"
+      },
+      "praise": [
+        "Round-9's shelf-targeting fix held up correctly even under a harder stress test (three shelves created in sequence in one conversation) -- verified via the actual Shelves page, not just the chat reply text.",
+        "Undo is excellent and consistent across four different action types (book removal, status change, rating+finish, shelf addition), each with a clear natural-language confirmation of what was undone.",
+        "The assistant is well-grounded and honest rather than hallucinating -- correctly says when a requested book isn't in the library, correctly says a fictional book \"doesn't exist,\" and recommendations are drawn from real library data with an honest caveat when there's no rating signal yet.",
+        "Visual design is genuinely distinctive and reader-focused, holding up cleanly at 375px mobile width across Statistics, Shelves, and the Log Reading modal.",
+        "Statistics and Journal pages are thorough with meaningful empty states rather than blank or broken-looking panels."
+      ],
+      "issues": [
+        {
+          "id": "R10-01",
+          "area": "assistant_chat",
+          "severity": "major",
+          "title": "Assistant fails to add a book to a new shelf when the title contains \"and\" and the message uses \"to it\"",
+          "steps": "With two other shelves already created in the conversation, sent \"make a shelf called gamma shelf and add klara and the sun to it\".",
+          "expected": "\"Gamma Shelf\" created with \"Klara and the Sun\" added to it.",
+          "actual": "Consistently (not just once) either errored with a mangled book name (\"I couldn't find a book called 'Klara and the Sun to it'\") or silently dropped the shelf-add entirely (created the shelf and separately re-added/duplicated the book, with no OrganizeShelf at all).",
+          "root_cause": "Two layered causes: (1) when the model DID attempt an OrganizeShelf, it sometimes left a trailing \" to it\" (and/or wrapping quotes) attached to the extracted book name, matching nothing -- the deterministic plan-normalization backstop added for this (R10-01's first fix) only covers names the model itself produces, not names missing entirely; (2) the deterministic quick-command parser (quickCommands.ts, used before the model for plain one-step commands) has a clause-splitting step that correctly protects an \"and\"-containing *title* from being split, but its organize-shelf patterns all require a literal trailing \"...shelf\" in the clause -- \"add BOOK to it\" (a pronoun for a shelf created by an earlier clause in the same message) never matches any of them, so that clause returned undefined, which previously meant the whole message either fell through inconsistently or produced an incomplete plan.",
+          "fix": "(1) normalizePlan (planChecks.ts) now strips a trailing \" to it\" and wrapping quotes from a Book/Library target's name. (2) parseCommands (quickCommands.ts) now tracks the shelf created by an earlier clause in the same message and resolves a later \"put/add/move/shelve/file BOOK (on/onto/to/in/into/under) it\" clause to that shelf directly, with its own dedicated pattern -- the root fix, since without it the OrganizeShelf intent was never produced by the deterministic path at all. New unit tests for both; verified live against the real model/pipeline with the exact repro, confirmed via the Works API (not just chat text) that the book's shelfIds included the new shelf and no duplicate book was created.",
+          "files": [
+            "backend/src/modules/assistant/domains/books/pipeline/planChecks.ts",
+            "backend/src/modules/assistant/domains/books/conversation/quickCommands.ts",
+            "backend/src/modules/assistant/domains/books/prompts/planPrompt.ts",
+            "backend/tests/plan-checks.spec.ts",
+            "backend/tests/assistant-books-unit.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R10-02",
+          "area": "look_and_feel",
+          "severity": "major",
+          "title": "Mobile layout: Editions section header overlapped by action buttons; floating Assistant launcher sits on top of body text",
+          "steps": "At 375px width, opened a book detail page, scrolled to the Editions section.",
+          "expected": "\"Log reading\"/\"Add edition\" sit cleanly above/beside the \"Editions\" heading; the floating Assistant launcher never covers page content.",
+          "actual": "The buttons overlapped the heading text, and the launcher sat directly on top of \"No editions yet...\" text.",
+          "root_cause": "BookDetailPage.tsx's Editions header was a single-row flex container with no mobile stacking (`flex items-center justify-between`, no `flex-col`/`sm:` breakpoint). Separately, AppShell.tsx's mobile bottom padding (`pb-20`) was sized to clear only the bottom nav bar; the floating Assistant launcher (added later, in T-112) sits just above the nav bar with its own height, needing more clearance than the nav bar alone, so a short page's last content could still end up under it.",
+          "fix": "BookDetailPage.tsx's Editions header now stacks vertically below `sm:` (`flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`). AppShell.tsx's mobile-only bottom padding increased from `pb-20` to `pb-36` to clear the launcher's own footprint above the nav bar, not just the nav bar itself -- a systemic fix (not page-specific), since the same overlap could occur on any page's bottom content.",
+          "files": [
+            "frontend/src/features/library/BookDetailPage.tsx",
+            "frontend/src/components/layout/AppShell.tsx"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R10-03",
+          "area": "shelves_organizing",
+          "severity": "minor",
+          "title": "Assistant silently truncates a shelf name that itself contains the word \"shelf\"",
+          "steps": "Sent \"make a shelf called Alpha Shelf and add Piranesi to it\" (and similarly for \"Beta Shelf\").",
+          "expected": "A shelf literally named \"Alpha Shelf\" (matching what was typed).",
+          "actual": "Created a shelf named \"Alpha\" every time, silently dropping \"Shelf\" from the reader's own chosen name, with no indication the name differs from what was asked for.",
+          "root_cause": "Two independent layers both over-stripped the word \"shelf\", confirmed by live debug tracing: (1) the planner prompt's own \"never use a category word as part of a name\" instruction, even restated explicitly with a matching example, wasn't reliably followed by the live model when the reader's chosen name itself contained \"shelf\"; (2) even after fixing (1) with a deterministic plan-level correction, a *second*, independent cleanup at tool-execution time (shelfTools.ts's `cleanShelfName`, which runs after normalizePlan and has no message context to know better) unconditionally stripped a trailing \"shelf\"/\"shelves\" again, undoing the plan-level fix.",
+          "fix": "normalizePlan (planChecks.ts) now restores the shelf name straight from the original message whenever the model's name looks like a prefix-truncation of what followed \"called\"/\"named\" in the message -- required extending the core DomainPack.normalizePlan interface to also receive the message (previously plan-only), since this needs context the plan alone doesn't carry (one call site, AIRuntime.ts, updated accordingly). shelfTools.ts's `cleanShelfName` no longer strips a trailing \"shelf\"/\"shelves\" at all, since normalizePlan (with full message context) has already correctly resolved that question by the time a tool runs. Five new unit tests; verified live end-to-end via the Shelves API that the stored name is exactly \"Alpha Shelf\".",
+          "files": [
+            "backend/src/modules/assistant/domain/DomainPack.ts",
+            "backend/src/modules/assistant/AIRuntime.ts",
+            "backend/src/modules/assistant/domains/books/pipeline/planChecks.ts",
+            "backend/src/modules/assistant/domains/books/actions/shelfTools.ts",
+            "backend/src/modules/assistant/domains/books/prompts/planPrompt.ts",
+            "backend/tests/plan-checks.spec.ts"
+          ],
+          "status": "Fixed"
+        },
+        {
+          "id": "R10-04",
+          "area": "notes_highlights_reviews",
+          "severity": "minor",
+          "title": "\"Summarize my thoughts\" has no progress/wait indicator during a long generation",
+          "steps": "Clicked \"Summarize my thoughts\" with a rating+review+note already saved.",
+          "actual": "A bare spinning icon for roughly 50 seconds before the summary appeared, indistinguishable from \"stuck.\"",
+          "status": "Not fixed this round -- a UX polish item (progress messaging for a slow AI call), left for a future ticket rather than attempted in this QA cycle"
+        },
+        {
+          "id": "R10-05",
+          "area": "notes_highlights_reviews",
+          "severity": "polish",
+          "title": "Reported note textarea not registering typed keystrokes (likely automation artifact)",
+          "steps": "Reported: clicking into the note textarea and typing directly sometimes left it showing the placeholder.",
+          "investigation": "The report itself flagged this as possibly a testing-tool interaction quirk rather than a real end-user bug (had to set the value programmatically to get it to register). Given the consistent pattern across this testing series of similar reports (R7-02, R7-03, R9-03) not reproducing in source, and no code path in the note form that would explain selectively dropping keystrokes, treated as a testing-tool artifact rather than investigated further this round.",
+          "status": "Not investigated in source; likely a testing-tool artifact"
+        }
+      ]
     }
   ]
 }

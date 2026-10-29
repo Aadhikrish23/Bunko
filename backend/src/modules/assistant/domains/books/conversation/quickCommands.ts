@@ -227,15 +227,34 @@ export function splitClauses(message: string): string[] {
     .filter(Boolean);
 }
 
+// "make a shelf called X and add BOOK to it": parseSingle's own shelf
+// patterns all require a literal trailing "...shelf", which "to it" (a
+// pronoun for the shelf a just-processed clause created) never has, so
+// that clause fell through to undefined -- kicking the *whole* message to
+// the model, which doesn't always reliably keep the OrganizeShelf intent
+// either (R10-01's original report, and reproduced again after that fix:
+// consistently dropped the shelf-add silently for an "and"-containing
+// title + "to it"). Resolved deterministically here instead, with
+// cross-clause state parseSingle doesn't have.
+const ADD_TO_IT = /^(?:please\s+)?(?:put|add|move|shelve|file)\s+(.+?)\s+(?:on it|onto it|to it|in it|into it|under it)\.?$/i;
+
 /** Every clause of a message as intents, or undefined if any clause isn't a plain command. */
 export function parseCommands(message: string, ownedTitles: string[] = [], shelfNames: string[] = []): AIIntent[] | undefined {
   const { text, restore } = maskTitles(message, ownedTitles);
   const clauses = splitClauses(text);
   const out: AIIntent[] = [];
+  let lastCreatedShelf: string | undefined;
   for (const clause of clauses) {
+    const addToIt = clause.match(ADD_TO_IT);
+    if (addToIt && lastCreatedShelf) {
+      out.push(intent(BookIntent.OrganizeShelf, [shelfT(lastCreatedShelf), bookT(clean(addToIt[1]!))]));
+      continue;
+    }
     const parsed = parseCommand(clause, ownedTitles, shelfNames);
     if (!parsed) return undefined;
     out.push(...parsed);
+    const created = parsed.find((i) => i.type === BookIntent.CreateShelf);
+    if (created) lastCreatedShelf = created.targets.find((t) => t.type === IntentTargetType.Collection)?.name;
   }
   for (const i of out) {
     i.targets = i.targets.map((t) => ({ ...t, name: restore(t.name) }));

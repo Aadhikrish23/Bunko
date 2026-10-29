@@ -7,11 +7,19 @@ import { loadShelves } from '../data/library';
 import { matchShelf } from '../text/match';
 import { ownBook } from './libraryTools';
 
-/** "Sci-fi", "sci fi shelf", "my scifi list" -> the shelf name to store: as typed, trimmed. */
+/**
+ * "Sci-fi", "sci fi shelf", "my scifi list" -> the shelf name to store: as
+ * typed, trimmed. No longer strips a trailing "shelf"/"shelves" (R10-03):
+ * by the time a Collection target reaches a tool, normalizePlan
+ * (planChecks.ts) has already resolved that question with the full
+ * original message as context -- something this function doesn't have --
+ * including restoring a name the reader chose that itself ends in the
+ * word "shelf" ("Alpha Shelf"), which this function used to then strip
+ * right back off again.
+ */
 function cleanShelfName(raw: string): string {
   const name = raw
     .replace(/^\s*(my|the|a|an|new)\s+/i, '')
-    .replace(/\s+(shelf|shelves)\s*$/i, '')
     .replace(/^["'“”]+|["'“”]+$/g, '')
     .trim()
     .slice(0, 80);

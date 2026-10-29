@@ -55,7 +55,7 @@ export interface DomainPack {
   /** The model's plan, checked against the message's own words. Returns how many changes were dropped. */
   correctPlan(plan: IntentPlan, ctx: CorrectionContext): number;
   /** Domain clean-up of a plan from any source (statuses the model spelled oddly...). */
-  normalizePlan(plan: IntentPlan): void;
+  normalizePlan(plan: IntentPlan, message: string): void;
   /** Only act on things the user named or clearly referred to. */
   groundPlan(plan: IntentPlan, ctx: GroundingContext): Promise<GroundingResult>;
   /** Final shaping (split per item, recommendation vs action...). */

@@ -35,7 +35,7 @@ export function isQuestionOnly(message: string): boolean {
 }
 
 /** StartBook / FinishBook / DnfBook become SetStatus; status words become Bunko's values. */
-export function normalizePlan(plan: IntentPlan): void {
+export function normalizePlan(plan: IntentPlan, message = ''): void {
   const implied: Record<string, string> = {
     [BookIntent.StartBook]: 'READING',
     [BookIntent.FinishBook]: 'FINISHED',
@@ -62,6 +62,27 @@ export function normalizePlan(plan: IntentPlan): void {
     // instruction and example not to.
     i.targets = (i.targets ?? []).map((t) =>
       t.type === IntentTargetType.Collection ? { ...t, name: stripCollectionNamePhrase(t.name) } : t,
+    );
+    // The opposite problem (R10-03): the model sometimes *over*-trims a
+    // shelf name the reader chose that itself contains a word like
+    // "shelf" ("a shelf called Alpha Shelf" -> "Alpha"), even with an
+    // explicit instruction and example not to -- prompting alone wasn't
+    // reliable here, so restore the name the reader actually typed
+    // straight from the message whenever the model's name looks like a
+    // prefix-truncation of it.
+    i.targets = (i.targets ?? []).map((t) =>
+      t.type === IntentTargetType.Collection ? { ...t, name: restoreShelfNameFromMessage(t.name, message) } : t,
+    );
+    // "add BOOK to it" (R8-02's own phrasing) sometimes leaves a trailing
+    // " to it" attached to the book's own name instead of being recognised
+    // as the connecting phrase -- most often when the title itself
+    // contains "and" (R10-01: "Klara and the Sun" became "Klara and the
+    // Sun to it", matching no book at all, including when the model also
+    // wrapped it in quotes trying to disambiguate).
+    i.targets = (i.targets ?? []).map((t) =>
+      t.type === IntentTargetType.Book || t.type === IntentTargetType.Library
+        ? { ...t, name: stripBookNameTrailer(t.name) }
+        : t,
     );
   }
 
@@ -97,6 +118,44 @@ function stripCollectionNamePhrase(name: string): string {
   return (
     name
       .replace(/^\s*(a|the|my)?\s*(new|custom)?\s*(shelf|collection)\s+(called|named)\s+/i, '')
+      .trim() || name
+  );
+}
+
+/** "Alpha Shelf" -> "Alpha Shelf"; "alpha shelf" -> "Alpha Shelf". A plain per-word capitalization, matching the casing the model itself uses in its own examples -- not meant to handle acronyms or stylized names. */
+function titleCase(text: string): string {
+  return text.replace(/\b\w+/g, (word) => word[0]!.toUpperCase() + word.slice(1).toLowerCase());
+}
+
+/**
+ * R10-03: restores the shelf name the reader actually typed, straight from
+ * their message, when the model's own extracted name looks like a
+ * truncation of it (a prefix match) -- a deterministic backstop since an
+ * explicit prompt instruction and example weren't reliably followed by the
+ * live model for this. Only touches a name that's a strict prefix of what
+ * "called"/"named" was followed by in the message, so a genuinely
+ * different shelf named elsewhere in the same message is never touched.
+ */
+function restoreShelfNameFromMessage(name: string, message: string): string {
+  const match = message.match(/\b(?:called|named)\s+(.+?)(?:\s+(?:and|to)\s+|[.!?]?$)/i);
+  if (!match) return name;
+  const typed = match[1]?.trim();
+  if (!typed) return name;
+  const normName = norm(name);
+  const normTyped = norm(typed);
+  if (normTyped === normName || !normTyped.startsWith(normName)) return name;
+  return titleCase(typed);
+}
+
+/** Strips a trailing " to it" (R10-01) and any wrapping quotes the model added while trying to disambiguate. */
+function stripBookNameTrailer(name: string): string {
+  return (
+    name
+      // "to it" first: a quote the model wrapped around just the title
+      // (not the whole name+trailer) is only exposed at the very end
+      // once the trailer is gone, so quote-stripping has to run after it.
+      .replace(/\s+to it[.!?]?$/i, '')
+      .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
       .trim() || name
   );
 }

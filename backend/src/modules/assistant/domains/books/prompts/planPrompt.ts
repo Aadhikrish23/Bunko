@@ -44,6 +44,14 @@ const EXAMPLES = [
   example('put circe on a shelf called favorites', [
     { type: 'OrganizeShelf', targets: [shelf('Favorites'), book('Circe')], parameters: [] },
   ]),
+  // Only the phrasing BEFORE "called" is stripped -- a name the reader
+  // chose that itself contains the word "shelf" is kept exactly as typed
+  // (R10-03: the model once also dropped "Shelf" from "Alpha Shelf",
+  // over-applying the "don't name it Shelf" rule to the reader's own name).
+  example('make a shelf called alpha shelf and add piranesi to it', [
+    { type: 'CreateShelf', targets: [shelf('Alpha Shelf')], parameters: [] },
+    { type: 'OrganizeShelf', targets: [shelf('Alpha Shelf'), book('Piranesi')], parameters: [] },
+  ]),
   example('make a new shelf called epic fantasy and add the fifth season', [
     { type: 'CreateShelf', targets: [shelf('Epic Fantasy')], parameters: [] },
     { type: 'OrganizeShelf', targets: [shelf('Epic Fantasy'), book('The Fifth Season')], parameters: [] },
@@ -54,6 +62,13 @@ const EXAMPLES = [
   example('make a shelf named spooky season reads and add harry potter to it', [
     { type: 'CreateShelf', targets: [shelf('Spooky Season Reads')], parameters: [] },
     { type: 'OrganizeShelf', targets: [shelf('Spooky Season Reads'), book('Harry Potter')], parameters: [] },
+  ]),
+  // "to it" is the connecting phrase, never part of the book's own name --
+  // easy to get wrong when the title itself contains "and" (R10-01: the
+  // model once named the book "Klara and the Sun to it", matching nothing).
+  example('make a shelf called gamma shelf and add klara and the sun to it', [
+    { type: 'CreateShelf', targets: [shelf('Gamma Shelf')], parameters: [] },
+    { type: 'OrganizeShelf', targets: [shelf('Gamma Shelf'), book('Klara and the Sun')], parameters: [] },
   ]),
   example('take dune off the sci-fi shelf', [
     { type: 'OrganizeShelf', targets: [shelf('Sci-fi'), book('Dune')], parameters: [{ type: 'Boolean', value: false }] },
@@ -154,7 +169,7 @@ Strict Constraints:
 2. Never output markdown code fences.
 3. Never output values outside the allowed enums.
 4. Preserve the reader's own words (review text, note text) exactly.
-5. If the request names no book or shelf and the conversation doesn't make one clear, omit that target; never invent a name, and never use an action word ("Add", "Rate"), a category/descriptor word ("Book", "Shelf", "New", "Custom"), or connecting words like "called"/"named" as part of a name -- "a new shelf called favorites" names only "Favorites".
+5. If the request names no book or shelf and the conversation doesn't make one clear, omit that target; never invent a name. The phrase BEFORE "called"/"named" ("a new shelf called", "the collection named") is never part of the name -- "a new shelf called favorites" names only "Favorites". But take the name AFTER "called"/"named" verbatim, exactly as typed, even if it itself contains a word like "shelf": "a shelf called Alpha Shelf" names "Alpha Shelf", not "Alpha" -- never drop a word the reader chose as part of their own name.
 
 JSON Structure:
 {"intents": [{"type": "<intent type>", "targets": [{"type": "<target type>", "name": "<exact title or shelf name>"}], "parameters": [{"type": "<parameter type>", "value": <string, number or boolean>}]}]}

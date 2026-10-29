@@ -94,8 +94,13 @@ export function AppShell() {
         </div>
       </aside>
 
-      {/* Main Content View Container (responsive padding & 4K widescreen expansion) */}
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+      {/* Main Content View Container (responsive padding & 4K widescreen expansion).
+          pb-36 (not pb-20) on mobile: the bottom nav alone only needs ~80px of
+          clearance, but the floating Assistant launcher sits just above it
+          (bottom-20 + its own h-14), so the last bit of a page's content
+          needs room for both, not just the nav bar (R10-02: it was
+          overlapping "No editions yet" on a short page at phone width). */}
+      <main className="flex-1 overflow-y-auto pb-36 md:pb-0">
         <div className="mx-auto w-full max-w-7xl 2xl:max-w-[1750px] 3xl:max-w-[2200px] px-4 py-6 sm:px-6 md:px-8 md:py-8">
           <Outlet context={{ openAssistant: () => setAssistantOpen(true) } satisfies AppShellContext} />
         </div>

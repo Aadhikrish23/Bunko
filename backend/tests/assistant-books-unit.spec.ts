@@ -172,6 +172,23 @@ test.describe('plain commands', () => {
     expect(shape('add dune to my library')).toEqual([['AddBook', ['dune'], []]]);
   });
 
+  test('"make a shelf called X and add BOOK to it" resolves the pronoun to the shelf just created (R10-01)', () => {
+    const owned = ['Klara and the Sun', 'Circe'];
+    const shape = (m: string) => parseCommands(m, owned, [])?.map((i) => [i.type, i.targets.map((t) => t.name), i.parameters.map((p) => p.value)]);
+    // "to it" has no literal "...shelf" ending (the pattern every other
+    // organize-shelf clause relies on), and the title itself contains
+    // "and" -- the exact combination that silently dropped the
+    // OrganizeShelf intent entirely before this fix.
+    expect(shape('make a shelf called gamma shelf and add klara and the sun to it')).toEqual([
+      ['CreateShelf', ['gamma shelf'], []],
+      ['OrganizeShelf', ['gamma shelf', 'Klara and the Sun'], []],
+    ]);
+    expect(shape('make a shelf called favorites and add circe to it')).toEqual([
+      ['CreateShelf', ['favorites'], []],
+      ['OrganizeShelf', ['favorites', 'circe'], []],
+    ]);
+  });
+
   test('undo with the words people actually use', () => {
     for (const m of ['undo', 'actually undo that', 'oops, undo', 'ok undo that please']) expect(UNDO_ASK.test(m)).toBe(true);
     expect(UNDO_ASK.test('undo the rating for dune')).toBe(false);

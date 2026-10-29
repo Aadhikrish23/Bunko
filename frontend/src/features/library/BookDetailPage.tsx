@@ -167,7 +167,7 @@ export function BookDetailPage() {
       </div>
 
       <Card className="p-5">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-display text-lg text-paper-900">Editions</h2>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="ghost" onClick={() => setLogging(true)}>
